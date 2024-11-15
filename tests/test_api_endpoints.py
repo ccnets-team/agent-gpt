@@ -1,0 +1,1 @@
+print('Integration test for API endpoints')

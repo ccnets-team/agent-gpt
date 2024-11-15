@@ -1,0 +1,1 @@
+print('Local execution script placeholder')

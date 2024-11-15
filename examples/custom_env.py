@@ -1,0 +1,1 @@
+print('Custom environment wrapper template')

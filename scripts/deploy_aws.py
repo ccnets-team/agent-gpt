@@ -1,0 +1,1 @@
+print('AWS deployment script placeholder')

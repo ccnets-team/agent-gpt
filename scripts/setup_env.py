@@ -1,0 +1,1 @@
+print('Environment setup script placeholder')
