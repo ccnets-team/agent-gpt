@@ -122,10 +122,10 @@ class ClientGymWrapper:
             return jsonify({"message": f"Environment with key {env_key} closed successfully."})
         return jsonify({"error": "No environment with this key to close."}), 400
 
-    def run(self, port):
+    def run(self, host, port):
         logging.info(f"Starting Gym API server on port {port}.")
-        self.app.run(port=port)
+        self.app.run(host = host, port=port)
 
 if __name__ == "__main__":
     server = ClientGymWrapper()
-    server.run(port=5000)
+    server.run(host="0.0.0.0", port=5000)
