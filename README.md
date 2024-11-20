@@ -17,10 +17,7 @@
 4. [Communication Protocol](#communication-protocol)  
    - [4.1 Data Serialization](#41-data-serialization)  
    - [4.2 API Endpoints](#42-api-endpoints)  
-5. [Example Implementation](#example-implementation)  
-6. [Testing and Validation](#testing-and-validation)  
-7. [Frequently Asked Questions](#frequently-asked-questions)  
-8. [Support and Contact Information](#support-and-contact-information)  
+5. [Frequently Asked Questions](#frequently-asked-questions)  
 
 ---
 
@@ -67,17 +64,16 @@ Implement the following Gymnasium methods:
 ### 3.2 Handling Missing Observations
 - Use `None` for agents with missing observations.  
 - Maintain consistent array sizes across agents.  
-- Include an `active_agents` field in the `info` dictionary.  
 
 ### 3.3 Handling Final Observations
 At the end of an episode, if your environment provides a final observation:
 
-- **Gymnasium 1.0 Behavior:**  
+- **Gymnasium 1.0 Standards:**  
   - The environment should automatically reset after an episode ends.
   - The next `observation` returned will be the initial observation of the new episode.
-  - Do not include a `final_observation` in the `info` dictionary.
-
-- **Pre-Gymnasium 1.0 Behavior:**  
+  - `final_observation` in the `info` dictionary has been **deprecated**.
+  - 
+- **Pre-Gymnasium 1.0 Standards:**  
   - If the environment does not reset immediately, include a `final_observation` field in the `info` dictionary.
   - This field should contain the last observation(s) before the reset.  
 
