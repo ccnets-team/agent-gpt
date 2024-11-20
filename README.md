@@ -1,0 +1,161 @@
+# README: Integrating Custom Environments with Our Remote Gymnasium System
+
+**Version:** 0.0  
+**Date:** 11/20/2024  
+
+---
+
+## Table of Contents
+1. [Introduction](#introduction)  
+2. [Environment Requirements](#environment-requirements)  
+3. [Integration Guidelines](#integration-guidelines)  
+   - [3.1 Implementing Gymnasium-Compatible Methods](#31-implementing-gymnasium-compatible-methods)  
+   - [3.2 Handling Missing Observations](#32-handling-missing-observations)  
+   - [3.3 Handling Final Observations](#33-handling-final-observations)  
+   - [3.4 Autoreset Behavior](#34-autoreset-behavior)  
+   - [3.5 Multiple Observations at Episode End](#35-multiple-observations-at-episode-end)  
+4. [Communication Protocol](#communication-protocol)  
+   - [4.1 Data Serialization](#41-data-serialization)  
+   - [4.2 API Endpoints](#42-api-endpoints)  
+5. [Example Implementation](#example-implementation)  
+6. [Testing and Validation](#testing-and-validation)  
+7. [Frequently Asked Questions](#frequently-asked-questions)  
+8. [Support and Contact Information](#support-and-contact-information)  
+
+---
+
+## 1. Introduction
+Welcome to the integration guide for connecting your custom reinforcement learning environments to our Remote Gymnasium system. This document provides comprehensive instructions and best practices to ensure seamless communication between your environment and our system, facilitating efficient training and evaluation over AWS.
+
+Our system is designed to be flexible and robust, accommodating environments built with various platforms such as Unity ML-Agents, Unreal Engine, or custom game engines. We aim to support both Gymnasium version 1.0 and earlier versions, ensuring broad compatibility.
+
+---
+
+## 2. Environment Requirements
+To integrate your environment with our system, ensure the following:
+
+- **Gymnasium API Compliance:** Implement the standard Gymnasium methods `reset()` and `step(action)`.  
+- **Consistent Agent Indexing:** Ensure agent indices remain consistent across observations, actions, and data structures for multi-agent environments.  
+- **Handling Missing Data:** Fill positions with `None` in observations, rewards, etc., for agents without data (e.g., inactive agents).  
+- **Autoreset Capability:** Implement automatic resets after episode termination, following Gymnasium conventions.  
+- **Data Serialization:** Ensure all data exchanged is serializable to JSON format for HTTP communication.  
+
+---
+
+## 3. Integration Guidelines
+
+### 3.1 Implementing Gymnasium-Compatible Methods
+Implement the following Gymnasium methods:
+
+#### `reset(seed=None, options=None)`
+- **Purpose:** Resets the environment to an initial state.  
+- **Returns:**  
+  - `observation`: Initial observation(s).  
+  - `info`: Dictionary for additional information (can be empty).  
+
+#### `step(action)`
+- **Purpose:** Advances the environment by one time step using the provided action.  
+- **Returns:**  
+  - `observation`: Observation(s) after the action.  
+  - `reward`: Reward(s) obtained.  
+  - `terminated`: Boolean(s) indicating episode termination.  
+  - `truncated`: Boolean(s) indicating if the episode was truncated.  
+  - `info`: Dictionary for additional information.
+
+---
+
+### 3.2 Handling Missing Observations
+- Use `None` for agents with missing observations.  
+- Maintain consistent array sizes across agents.  
+- Include an `active_agents` field in the `info` dictionary.  
+
+### 3.3 Handling Final Observations
+At the end of an episode, if your environment provides a final observation:
+
+- **Gymnasium 1.0 Behavior:**  
+  - The environment should automatically reset after an episode ends.
+  - The next `observation` returned will be the initial observation of the new episode.
+  - Do not include a `final_observation` in the `info` dictionary.
+
+- **Pre-Gymnasium 1.0 Behavior:**  
+  - If the environment does not reset immediately, include a `final_observation` field in the `info` dictionary.
+  - This field should contain the last observation(s) before the reset.  
+
+Our system supports both behaviors and handles `final_observation` if provided.
+
+---
+
+### 3.4 Autoreset Behavior
+Autoreset ensures that environments are ready for the next step without manual intervention:
+
+- **Automatic Reset:**  
+  - Automatically reset the environment after an episode ends (when `terminated` or `truncated` is `True`).
+  - This avoids delays and ensures seamless episode transitions.
+
+- **Observation After Reset:**  
+  - The observation returned after reset must be the initial observation of the new episode.
+
+- **No Missing Data:**  
+  - Ensure that there is no delay or gap in the observation data during the reset process.
+
+---
+
+### 3.5 Multiple Observations at Episode End
+In rare cases, environments may produce multiple observations at the end of an episode:
+
+- **Provide the Latest Observation:**  
+  - Always return the most recent observation along with the corresponding reward and flags.
+
+- **Consistency:**  
+  - Ensure that observation arrays remain consistent in size and agent indexing.
+
+- **Clarify in `info`:**  
+  - If the behavior is unusual, include additional details in the `info` dictionary to help interpret the output.
+
+---
+
+## 4. Communication Protocol
+
+### 4.1 Data Serialization
+To facilitate seamless communication, all data exchanged between your environment and our system must follow these guidelines:
+
+- **Format:** Use JSON for data serialization.  
+- **NumPy Arrays:** Convert NumPy arrays to Python lists before serialization.  
+- **Preserve `None`:** Ensure that `None` values are retained to indicate missing or inactive data.  
+
+---
+
+### 4.2 API Endpoints
+Our system interacts with your environment using the following HTTP endpoints:
+
+| **Endpoint**       | **Purpose**                                 |  
+|---------------------|---------------------------------------------|  
+| `/make`            | Initialize a new environment instance.      |  
+| `/make_vec`        | Initialize a vectorized environment.        |  
+| `/reset`           | Reset the environment to its initial state. |  
+| `/step`            | Advance the environment by one time step.   |  
+| `/action_space`    | Retrieve the action space specifications.   |  
+| `/observation_space` | Retrieve observation space specifications. |  
+| `/close`           | Close the environment instance.             |  
+
+---
+
+## 5. Frequently Asked Questions
+
+**Q:** What should I do if an agent has no action?  
+**A:** Use `None` or a default action for such agents. Ensure your environment can process these values appropriately. This allows for consistency in action arrays and smooth handling by our system.
+
+---
+
+**Q:** Can I include additional information in the `info` dictionary?  
+**A:** Yes, you can include auxiliary data in the `info` dictionary, as long as all fields are JSON-serializable. This is helpful for providing additional context or debugging information during integration.
+
+---
+
+**Q:** How does the system handle environments not conforming to Gymnasium 1.0?  
+**A:** Our system is compatible with both Gymnasium 1.0 and earlier versions. If your environment does not follow Gymnasium 1.0 conventions, include any required fields (e.g., `final_observation`) in the `info` dictionary, and our system will process them accordingly.
+
+---
+
+**Q:** What if my environment produces multiple observations at the end of an episode?  
+**A:** Return the most recent observation and ensure consistency with the rewards and termination flags. If the behavior is unusual, provide clarifying details in the `info` dictionary to make the output easier to interpret.
