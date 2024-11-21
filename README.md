@@ -16,8 +16,10 @@
    - [3.5 Multiple Observations at Episode End](#35-multiple-observations-at-episode-end)  
 4. [Communication Protocol](#communication-protocol)  
    - [4.1 Data Serialization](#41-data-serialization)  
-   - [4.2 API Endpoints](#42-api-endpoints)  
-5. [Frequently Asked Questions](#frequently-asked-questions)  
+   - [4.2 API Endpoints](#42-api-endpoints)
+5. [Examples](#examples)
+6. [Frequently Asked Questions](#frequently-asked-questions)
+7. [Support](#support)
 
 ---
 
@@ -135,8 +137,9 @@ Our system interacts with your environment using the following HTTP endpoints:
 | `/close`           | Close the environment instance.             |  
 
 ---
+## 5. Examples 
 
-## 5. Frequently Asked Questions
+## 6. Frequently Asked Questions
 
 **Q:** What should I do if an agent has no action?  
 **A:** Use `None` or a default action for such agents. Ensure your environment can process these values appropriately. This allows for consistency in action arrays and smooth handling by our system.
@@ -155,3 +158,13 @@ Our system interacts with your environment using the following HTTP endpoints:
 
 **Q:** What if my environment produces multiple observations at the end of an episode?  
 **A:** Return the most recent observation and ensure consistency with the rewards and termination flags. If the behavior is unusual, provide clarifying details in the `info` dictionary to make the output easier to interpret.
+
+## 7. Support 
+If you encounter any issues, have questions, or need further assistance, feel free to reach out through :
+Email: Contact us at michikoleo@ccnets.org for direct support.
+We value your feedback and strive to provide timely responses. Our team typically replies within 1-2 business days. Your inquiries help us improve, so don’t hesitate to reach out!
+
+
+
+
+
