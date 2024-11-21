@@ -138,7 +138,7 @@ Our system interacts with your environment using the following HTTP endpoints:
 
 ---
 ## 5. Examples 
-
+---
 ## 6. Frequently Asked Questions
 
 **Q:** What should I do if an agent has no action?  
@@ -158,7 +158,7 @@ Our system interacts with your environment using the following HTTP endpoints:
 
 **Q:** What if my environment produces multiple observations at the end of an episode?  
 **A:** Return the most recent observation and ensure consistency with the rewards and termination flags. If the behavior is unusual, provide clarifying details in the `info` dictionary to make the output easier to interpret.
-
+---
 ## 7. Support 
 If you encounter any issues, have questions, or need further assistance, feel free to reach out through :
 Email: Contact us at michikoleo@ccnets.org for direct support.
