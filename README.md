@@ -143,11 +143,13 @@ Our system interacts with your environment using the following HTTP endpoints:
 ---
 ### 4.3 Server Connection Setup 
 **Base URL**
+
 The server communicates through HTTP endpoints. Use the following base URL to interact with the Remote Gymnasium system: 
 ```
 Base URL: https://your-api-domain.com
 ```
 **Authentication**
+
 To access the API, use an API key for authentication. Include the API key in the request headers:
 
 ```json
@@ -160,6 +162,7 @@ Obtain your API key by contacting the system administrator.
 ---
 ### 4.4 Server Connection Workflow
 **Initialize Environment** 
+
 Send a `POST` request to `/make` or `/make_vec` to initialize a new environment instance. 
 
 ```json
@@ -171,6 +174,7 @@ POST https://your-api-domain.com/make
 ```
 
 **Reset Environment**
+
 Send a `POST` request to `/reset` to reset the environment to its initial state.
 
 ```json
@@ -178,6 +182,7 @@ POST https://your-api-domain.com/reset
 ```
 
 **Take Steps in the Environment**
+
 Send a `POST` request to `/step` with the action to execute.
 
 ```json
@@ -187,6 +192,7 @@ POST https://your-api-domain.com/step
 }
 ```
 **Retrieve Metadata** 
+
 Use `/action_space` and `/observation_space` endpoints to get the specifications of the action and observation spaces.
 
 ---
