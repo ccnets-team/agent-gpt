@@ -154,8 +154,8 @@ To access the API, use an API key for authentication. Include the API key in the
 {
     "Authorization": "Bearer YOUR_API_KEY"
 }
-Obtain your API key by contacting the system administrator.
 ```
+Obtain your API key by contacting the system administrator.
 
 ---
 ### 4.4 Server Connection Workflow
