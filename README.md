@@ -163,7 +163,9 @@ Our system interacts with your environment using the following HTTP endpoints:
 ---
 ## 7. Support 
 If you encounter any issues, have questions, or need further assistance, feel free to reach out through :
-Email: Contact us at michikoleo@ccnets.org for direct support.
+
+Email: michikoleo@ccnets.org 
+
 We value your feedback and strive to provide timely responses. Our team typically replies within 1-2 business days. Your inquiries help us improve, so don’t hesitate to reach out!
 
 
