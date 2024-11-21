@@ -17,6 +17,10 @@
 4. [Communication Protocol](#communication-protocol)  
    - [4.1 Data Serialization](#41-data-serialization)  
    - [4.2 API Endpoints](#42-api-endpoints)
+   - [4.3 Server Connection Setup](#43-server-connection-setup)
+   - [4.4 Server Connection Workflow](#44-server-connection-workflow)
+   - [4.5 Example Code for Connection](#45-example-code-for-connection)
+   - [4.6 Error Handling and Debugging](#46-error-handling-and-debugging)
 5. [Examples](#examples)
 6. [Frequently Asked Questions](#frequently-asked-questions)
 7. [Support](#support)
@@ -137,7 +141,86 @@ Our system interacts with your environment using the following HTTP endpoints:
 | `/close`           | Close the environment instance.             |  
 
 ---
-## 5. Examples 
+### 4.3 Server Connection Setup 
+**Base URL**
+The server communicates through HTTP endpoints. Use the following base URL to interact with the Remote Gymnasium system: 
+```
+Base URL: https://your-api-domain.com
+```
+**Authentication**
+To access the API, use an API key for authentication. Include the API key in the request headers:
+***Header Example***
+```json
+{
+    "Authorization": "Bearer YOUR_API_KEY"
+}
+Obtain your API key by contacting the system administrator.
+```
+---
+### 4.4 Server Connection Workflow
+**Initialize Environment** 
+Send a POST request to /make or /make_vec to initialize a new environment instance. 
+```json
+POST https://your-api-domain.com/make
+{
+    "env_name": "CartPole-v1",
+    "seed": 42
+}
+```
+**Reset Environment**
+Send a POST request to /reset to reset the environment to its initial state.
+```json
+POST https://your-api-domain.com/reset
+```
+**Take Steps in the Environment**
+Send a POST request to /step with the action to execute.
+```json
+POST https://your-api-domain.com/step
+{
+    "action": 0
+}
+```
+**Retrieve Metadata** 
+Use /action_space and /observation_space endpoints to get the specifications of the action and observation spaces.
+
+---
+### 4.5 Example Code for Connection 
+```python
+
+import requests
+
+BASE_URL = "https://your-api-domain.com"
+API_KEY = "YOUR_API_KEY"
+
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json",
+}
+
+# Initialize environment
+response = requests.post(f"{BASE_URL}/make", headers=headers, json={"env_name": "CartPole-v1"})
+print("Environment Initialized:", response.json())
+
+# Reset environment
+response = requests.post(f"{BASE_URL}/reset", headers=headers)
+print("Reset State:", response.json())
+
+# Step in environment
+action = 0
+response = requests.post(f"{BASE_URL}/step", headers=headers, json={"action": action})
+print("Step Result:", response.json())
+```
+---
+### 4.6 Error Handling and Debugging 
+**Common Errors** 
+**401 Unauthorized:**  Ensure your API key is valid and included in the /Authorization header.
+**404 Not Found:** Verify the endpoint path and the base URL.
+**500 Internal Server Error:** Check server logs or contact support.
+**Debugging** 
+- Enable verbose logging for HTTP requests (e.g., /requests debug logs in Python).
+- Use tools like Postman or cURL to test API endpoints manually.
+
+## 5. Documentations
 
 ---
 ## 6. Frequently Asked Questions
