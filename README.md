@@ -149,17 +149,19 @@ Base URL: https://your-api-domain.com
 ```
 **Authentication**
 To access the API, use an API key for authentication. Include the API key in the request headers:
-***Header Example***
+
 ```json
 {
     "Authorization": "Bearer YOUR_API_KEY"
 }
 Obtain your API key by contacting the system administrator.
 ```
+
 ---
 ### 4.4 Server Connection Workflow
 **Initialize Environment** 
-Send a POST request to /make or /make_vec to initialize a new environment instance. 
+Send a `POST` request to `/make` or `/make_vec` to initialize a new environment instance. 
+
 ```json
 POST https://your-api-domain.com/make
 {
@@ -167,13 +169,17 @@ POST https://your-api-domain.com/make
     "seed": 42
 }
 ```
+
 **Reset Environment**
-Send a POST request to /reset to reset the environment to its initial state.
+Send a `POST` request to `/reset` to reset the environment to its initial state.
+
 ```json
 POST https://your-api-domain.com/reset
 ```
+
 **Take Steps in the Environment**
-Send a POST request to /step with the action to execute.
+Send a `POST` request to `/step` with the action to execute.
+
 ```json
 POST https://your-api-domain.com/step
 {
@@ -181,10 +187,11 @@ POST https://your-api-domain.com/step
 }
 ```
 **Retrieve Metadata** 
-Use /action_space and /observation_space endpoints to get the specifications of the action and observation spaces.
+Use `/action_space` and `/observation_space` endpoints to get the specifications of the action and observation spaces.
 
 ---
 ### 4.5 Example Code for Connection 
+
 ```python
 
 import requests
@@ -212,12 +219,14 @@ print("Step Result:", response.json())
 ```
 ---
 ### 4.6 Error Handling and Debugging 
+
 **Common Errors** 
-**401 Unauthorized:**  Ensure your API key is valid and included in the /Authorization header.
-**404 Not Found:** Verify the endpoint path and the base URL.
-**500 Internal Server Error:** Check server logs or contact support.
+- **401 Unauthorized:**  Ensure your API key is valid and included in the `/Authorization` header.
+- **404 Not Found:** Verify the endpoint path and the base URL.
+- **500 Internal Server Error:** Check server logs or contact support.
+
 **Debugging** 
-- Enable verbose logging for HTTP requests (e.g., /requests debug logs in Python).
+- Enable verbose logging for HTTP requests (e.g., `/requests` debug logs in Python).
 - Use tools like Postman or cURL to test API endpoints manually.
 
 ## 5. Documentations
