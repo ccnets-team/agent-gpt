@@ -4,8 +4,9 @@ from gymnasium import Env, spaces
 from mlagents_envs.environment import UnityEnvironment, ActionTuple
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
+
 class UnityBackend(Env):
-    def __init__(self, env_id, num_envs=1, worker_id=0, use_graphics=False, is_vectorized=False, seed=0, time_scale=20, **kwargs):
+    def __init__(self, env_id, num_envs=1, use_graphics=False, is_vectorized=False, time_scale=20, **kwargs):
         """
         Initialize a Unity environment.
 
@@ -18,13 +19,14 @@ class UnityBackend(Env):
         :param time_scale: Time scale for the Unity environment.
         """
         super().__init__()
+        
+        self.seed = kwargs.get("seed", 0)
+        self.worker_id = self.seed
         self.env_id = env_id
         self.num_envs = num_envs
         self.is_vectorized = is_vectorized 
         self.no_graphics = not use_graphics
-        self.file_name = env_id  # Assuming env_id is the path to the Unity environment
-        self.worker_id = worker_id
-        self.seed = seed
+        self.file_name = self.file_name = "../unity_environments/" + "3DBallHard" +"/"
         self.time_scale = time_scale
         self.channel = EngineConfigurationChannel()
         self.channel.set_configuration_parameters(width=1280, height=720, time_scale=self.time_scale)
@@ -56,8 +58,13 @@ class UnityBackend(Env):
         self.num_agents = 0
         self.from_local_to_global = []
         self.env_agent_offsets = []  # Offsets for agent indices in each env
+        self.decision_agents = []
         self._setup_spaces()
 
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.envs:
+            self.close()
+        
     @staticmethod
     def create_unity_env(file_name, channel, no_graphics, seed, worker_id):
         base_port = UnityEnvironment.BASE_ENVIRONMENT_PORT + worker_id
@@ -85,13 +92,14 @@ class UnityBackend(Env):
             num_agents = len(decision_steps)
             self.agent_per_envs.append(num_agents)
             self.env_agent_offsets.append(total_agents)
-            env.reset()
+            env.reset() # Reset the environment again before starting the episode
 
+            self.decision_agents.append(np.zeros(num_agents, dtype=np.bool_))  
             # Create mapping from local to global indices
-            local_to_global = {}
+            local_to_global = []
             for local_idx in range(num_agents):
                 global_idx = total_agents + local_idx
-                local_to_global[local_idx] = global_idx
+                local_to_global.append(global_idx)
             self.from_local_to_global.append(local_to_global)
 
             total_agents += num_agents
@@ -111,25 +119,40 @@ class UnityBackend(Env):
                 dtype=np.float32,
             )
         elif action_spec.is_discrete():
-            self.action_space = spaces.MultiDiscrete(
-                [branch for _ in range(self.num_agents) for branch in action_spec.discrete_branches]
-            )
+            # Calculate the total number of possible actions for all branches
+            total_discrete_actions = np.prod(action_spec.discrete_branches)
+            self.action_space = spaces.Discrete(total_discrete_actions)
         else:
             # Mixed action space (not fully supported in this example)
             raise NotImplementedError("Mixed action spaces are not supported in this implementation.")
 
         # Define the observation space
         observation_shapes = [obs_spec.shape for obs_spec in self.spec.observation_specs]
-        if len(observation_shapes) == 1:
-            self.observation_space = spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(self.num_agents, *observation_shapes[0]),
-                dtype=np.float32,
-            )
-        else:
-            # Multiple observations (not fully supported in this example)
-            raise NotImplementedError("Multiple observations are not supported in this implementation.")
+
+        # Helper function to determine if a shape is an image
+        def is_image(shape):
+            """An image is assumed to have at least 3 dimensions, e.g., (H, W, C)."""
+            return len(shape) == 3
+
+        # Check if any observation shape is an image
+        if any(is_image(shape) for shape in observation_shapes):
+            raise ValueError("Image observations are not supported.")
+
+        # Combine shapes by summing up their first dimensions
+        self.observation_shapes =  observation_shapes
+        self.combined_dim = sum(np.prod(shape) for shape in observation_shapes)
+
+        # Assuming `self.num_agents` and `self.combined_dim` are already defined
+        low = np.full((self.num_agents, self.combined_dim), -np.inf, dtype=np.float32)
+        high = np.full((self.num_agents, self.combined_dim), np.inf, dtype=np.float32)
+
+        # Define the observation space
+        self.observation_space = spaces.Box(
+            low=low,
+            high=high,
+            shape=(self.num_agents, self.combined_dim),
+            dtype=np.float32,
+        )        
 
     @staticmethod
     def make(env_id, **kwargs):
@@ -142,28 +165,31 @@ class UnityBackend(Env):
     def reset(self, **kwargs):
         """
         Reset the Unity environment(s) and retrieve initial observations.
-        :return: Initial observations and info dictionary.
+        :return: Initial aggregated observations and info dictionary.
         """
         try:
             observations = [None] * self.num_agents
-
             for env_idx, env in enumerate(self.envs):
                 env.reset()
                 behavior_name = self.behavior_names[env_idx]
                 decision_steps, _ = env.get_steps(behavior_name)
-                num_agents_in_env = self.agent_per_envs[env_idx]
 
-                for local_idx in range(num_agents_in_env):
-                    global_idx = self.from_local_to_global[env_idx][local_idx]
-                    observations[global_idx] = decision_steps.obs[0][local_idx]  # Assuming single observation
+                self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
+                self.decision_agents[env_idx][decision_steps.agent_id] = True
 
-            return np.array(observations, dtype=object), {}
+                obs = self.aggregate_observations(decision_steps.obs)
+                for idx, agent_id in enumerate(decision_steps.agent_id):
+                    global_idx = self.from_local_to_global[env_idx][agent_id]
+                    # Aggregate all observation components
+                    observations[global_idx] = obs[idx]
+
+            return observations, {}
         except Exception as e:
             logging.error(f"An error occurred during reset: {e}")
             raise e
     
     def init_transitions(self):
-        return  [None] * self.num_agents, [None] * self.num_agents, [False] * self.num_agents, [False] * self.num_agents, [None] * self.num_agents
+        return  [None] * self.num_agents, [None] * self.num_agents, [None] * self.num_agents, [None] * self.num_agents, [None] * self.num_agents
     
     def step(self, actions):
         """
@@ -172,23 +198,31 @@ class UnityBackend(Env):
         :return: Tuple containing observations, rewards, terminated flags, truncated flags, and info.
         """
         try:
-            observations, rewards, terminated, truncated, final_observations = self.init_transitions()
-
             action_offset = 0
+            
             # Set actions for all environments
             for env_idx, env in enumerate(self.envs):
                 num_agents_in_env = self.agent_per_envs[env_idx]
                 env_actions = actions[action_offset:action_offset + num_agents_in_env]
                 action_offset += num_agents_in_env
-
-                action_tuple = self._create_action_tuple(env_actions, env_idx)
+                
+                decision_check = self.decision_agents[env_idx]
+                dec_actions = env_actions[decision_check]
+                
+                action_tuple = self._create_action_tuple(dec_actions, env_idx)
                 env.set_actions(self.behavior_names[env_idx], action_tuple)
                 env.step()
 
+        except Exception as e:
+            logging.error(f"An error occurred during the step: {e}")
+            raise e
+        try:
+            observations, rewards, terminated, truncated, final_observations = self.init_transitions()
             # Collect results from all environments
             for env_idx, env in enumerate(self.envs):
-                behavior_name = self.behavior_names[env_idx]
-                decision_steps, terminal_steps = env.get_steps(behavior_name)
+                decision_steps, terminal_steps = env.get_steps(self.behavior_names[env_idx])
+                self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
+                self.decision_agents[env_idx][decision_steps.agent_id] = True
 
                 # Get agent IDs and mapping from agent_id to local index
                 decision_agent_id_to_local = {agent_id: idx for idx, agent_id in enumerate(decision_steps.agent_id)}
@@ -204,16 +238,16 @@ class UnityBackend(Env):
                 terminal_only_agent_ids = set(terminal_steps.agent_id) - common_agent_ids
 
                 # Handle agents present in both decision and terminal steps
+                dec_obs = self.aggregate_observations(self.observation_shapes, decision_steps.obs)
+                term_obs = self.aggregate_observations(self.observation_shapes, terminal_steps.obs)
                 for agent_id in common_agent_ids:
                     local_idx = decision_agent_id_to_local[agent_id]
-                    global_idx = self.from_local_to_global[env_idx][local_idx]
-                    # Put terminal observation into final_observations
+                    global_idx = self.from_local_to_global[env_idx][agent_id]
+                    # Aggregate observations
                     term_local_idx = terminal_agent_id_to_local[agent_id]
-                    final_observations[global_idx] = terminal_steps.obs[0][term_local_idx]
-                    
-                    # Put decision observation into observations # autoreset case
-                    observations[global_idx] = decision_steps.obs[0][local_idx]
-                    rewards[global_idx] = decision_steps.reward[local_idx]
+                    final_observations[global_idx] = term_obs[term_local_idx]
+                    observations[global_idx] = dec_obs[local_idx]
+                    rewards[global_idx] = float(decision_steps.reward[local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False
 
@@ -221,8 +255,8 @@ class UnityBackend(Env):
                 for agent_id in decision_only_agent_ids:
                     local_idx = decision_agent_id_to_local[agent_id]
                     global_idx = self.from_local_to_global[env_idx][local_idx]
-                    observations[global_idx] = decision_steps.obs[0][local_idx]
-                    rewards[global_idx] = decision_steps.reward[local_idx]
+                    observations[global_idx] = dec_obs[local_idx]
+                    rewards[global_idx] = float(decision_steps.reward[local_idx])
                     terminated[global_idx] = False
                     truncated[global_idx] = False
 
@@ -230,31 +264,43 @@ class UnityBackend(Env):
                 for agent_id in terminal_only_agent_ids:
                     local_idx = terminal_agent_id_to_local[agent_id]
                     global_idx = self.from_local_to_global[env_idx][local_idx]
-                    observations[global_idx] = terminal_steps.obs[0][local_idx]
-                    rewards[global_idx] = terminal_steps.reward[local_idx]
+                    observations[global_idx] = term_obs[local_idx]
+                    rewards[global_idx] = float(terminal_steps.reward[local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False  # Adjust if necessary
-
-            info = {}
-            if any(final_observations):
-                info['final_observation'] = final_observations
-
-            return (
-                np.array(observations, dtype=object),
-                np.array(rewards, dtype=np.float32),
-                np.array(terminated, dtype=bool),
-                np.array(truncated, dtype=bool),
-                info
-            )
 
         except Exception as e:
             logging.error(f"An error occurred during the step: {e}")
             raise e
+    
+        info = {}
+        info['final_observation'] = final_observations
+            
+        return observations, rewards, terminated, truncated, info
 
+    def aggregate_observations(self, observations):
+        """
+        Combine observations from multiple shapes into a single aggregated vector.
+        """
+        num_agents = len(observations[0])
+        combined_dim = sum(np.prod(shape) for shape in self.observation_shapes)
+        aggregated = np.zeros((num_agents, combined_dim), dtype=np.float32)
+        if num_agents < 1:
+            return aggregated
+        offset = 0
+
+        for obs, shape in zip(observations, self.observation_shapes):
+            size = np.prod(shape)
+            obs = obs.reshape(num_agents, -1)
+            aggregated[:, offset:offset + size] = obs  # Flatten the observation and insert
+            offset += size
+
+        return aggregated
+    
     def _create_action_tuple(self, actions, env_idx):
         action_spec = self.specs[env_idx].action_spec
-        num_agents = self.agent_per_envs[env_idx]
         action_tuple = ActionTuple()
+        num_agents = len(actions)
 
         if action_spec.is_continuous():
             # Ensure actions are in the correct shape
@@ -281,3 +327,5 @@ class UnityBackend(Env):
         """
         for env in self.envs:
             env.close()
+            
+        self.envs = []

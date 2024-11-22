@@ -3,11 +3,15 @@ from flask import Flask, request, jsonify
 import numpy as np
 import logging
 from environments.factory import EnvironmentFactory
+from environments.unity_backend import UnityBackend
+
+EnvironmentFactory.register(UnityBackend)
 
 class ClientGymWrapper:
     def __init__(self):
         self.app = Flask(__name__)
         self.environments = {}
+        self.env_cnt = 0
         logging.basicConfig(level=logging.INFO)
 
         # Define routes
@@ -28,9 +32,10 @@ class ClientGymWrapper:
         
         # Store environment and metadata    
         self.environments[env_key] = {
-            "env": EnvironmentFactory.make(env_id),
+            "env": EnvironmentFactory.make(env_id, seed = self.env_cnt),
             "is_vec_env": False
         }
+        self.env_cnt += 1
         logging.info(f"Environment {env_id} created with key {env_key}.")
         return jsonify({"message": f"Environment {env_id} created.", "env_key": env_key})
 
@@ -41,9 +46,10 @@ class ClientGymWrapper:
 
         # Store vectorized environment and metadata
         self.environments[env_key] = {
-            "env": EnvironmentFactory.make_vec(env_id, num_envs=num_envs),
+            "env": EnvironmentFactory.make_vec(env_id, num_envs=num_envs, seed = self.env_cnt),
             "is_vec_env": True
         }
+        self.env_cnt += num_envs
         logging.info(f"Vectorized environment {env_id} created with {num_envs} instances, key {env_key}.")
         return jsonify({"message": f"Environment {env_id} created with {num_envs} instance(s).", "env_key": env_key})
 
@@ -69,19 +75,32 @@ class ClientGymWrapper:
                 
         action = request.json.get("action")
         action = np.array(action, dtype=np.float32) if isinstance(action, list) else action
-        
+
         if is_vec_env and action.ndim > 2:
             action = action[0]  # Adjust action dimensions for vectorized environments if needed
 
         # Take a step in the environment
         observation, reward, terminated, truncated, info = env.step(action)
         
-        observation = observation.tolist() if isinstance(observation, np.ndarray) else observation
+        if isinstance(observation, np.ndarray):
+            observation = observation.tolist()
+        elif isinstance(observation, list):
+            observation = [o.tolist() if isinstance(o, np.ndarray) else o for o in observation]
+        else:
+            observation = observation.tolist()
+            
         reward = reward.tolist() if isinstance(reward, np.ndarray) else reward
         terminated = terminated.tolist() if isinstance(terminated, np.ndarray) else terminated
         truncated = truncated.tolist() if isinstance(truncated, np.ndarray) else truncated
-        info = {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in info.items()}
-
+                
+        for key, value in info.items():
+            if isinstance(value, np.ndarray):
+                info[key] = value.tolist()
+            elif isinstance(value, list):
+                info[key] = [v.tolist() if isinstance(v, np.ndarray) else v for v in value]
+            else:
+                assert not isinstance(value, np.ndarray), f"Unexpected ndarray in key: {key}"
+                
         # Serialize observations, rewards, terminations, and truncations
         response = {
             "observation": observation,
@@ -99,15 +118,33 @@ class ClientGymWrapper:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), 400
 
         action_space = self.environments[env_key]["env"].action_space
-        
-        return jsonify({
-            "dtype": str(action_space.dtype) if hasattr(action_space, 'dtype') else None,
-            "shape": getattr(action_space, 'shape', None),
-            "high": action_space.high.tolist() if hasattr(action_space, 'high') else None,
-            "low": action_space.low.tolist() if hasattr(action_space, 'low') else None,
-            "n": getattr(action_space, 'n', None),
-            "type": action_space.__class__.__name__
-        })
+        print("action_space type", action_space.__class__.__name__)
+
+        action_space_type = action_space.__class__.__name__
+        response = {"type": action_space_type}
+
+        # Dynamically handle the attributes based on the action space type
+        if action_space_type == "Discrete":
+            response.update({
+                "n": getattr(action_space, "n", None),
+            })
+        elif action_space_type == "MultiDiscrete":
+            response.update({
+                "shape": getattr(action_space, "shape", None),
+                "nvec": getattr(action_space, "nvec", None).tolist() if hasattr(action_space, "nvec") else None,
+            })
+        elif action_space_type == "Box":
+            response.update({
+                "shape": getattr(action_space, "shape", None),
+                "dtype": str(getattr(action_space, "dtype", None)),
+                "low": getattr(action_space, "low", None).tolist() if hasattr(action_space, "low") else None,
+                "high": getattr(action_space, "high", None).tolist() if hasattr(action_space, "high") else None,
+            })
+        else:
+            response.update({
+                "error": f"Unsupported action space type: {action_space_type}"
+            })
+        return jsonify(response)
 
     def observation_space(self):
         env_key = request.args.get("env_key")
