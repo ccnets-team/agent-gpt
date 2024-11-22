@@ -238,8 +238,8 @@ class UnityBackend(Env):
                 terminal_only_agent_ids = set(terminal_steps.agent_id) - common_agent_ids
 
                 # Handle agents present in both decision and terminal steps
-                dec_obs = self.aggregate_observations(self.observation_shapes, decision_steps.obs)
-                term_obs = self.aggregate_observations(self.observation_shapes, terminal_steps.obs)
+                dec_obs = self.aggregate_observations(decision_steps.obs)
+                term_obs = self.aggregate_observations(terminal_steps.obs)
                 for agent_id in common_agent_ids:
                     local_idx = decision_agent_id_to_local[agent_id]
                     global_idx = self.from_local_to_global[env_idx][agent_id]
