@@ -26,7 +26,7 @@ class ClientGymWrapper:
         env_id = request.json.get("env_id", "Humanoid-v4")  # Default to "Humanoid-v4" if not provided
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
         
-        # Store environment and metadata
+        # Store environment and metadata    
         self.environments[env_key] = {
             "env": EnvironmentFactory.make(env_id),
             "is_vec_env": False
@@ -74,15 +74,21 @@ class ClientGymWrapper:
             action = action[0]  # Adjust action dimensions for vectorized environments if needed
 
         # Take a step in the environment
-        obs, reward, terminated, truncated, info = env.step(action)
+        observation, reward, terminated, truncated, info = env.step(action)
         
+        observation = observation.tolist() if isinstance(observation, np.ndarray) else observation
+        reward = reward.tolist() if isinstance(reward, np.ndarray) else reward
+        terminated = terminated.tolist() if isinstance(terminated, np.ndarray) else terminated
+        truncated = truncated.tolist() if isinstance(truncated, np.ndarray) else truncated
+        info = {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in info.items()}
+
         # Serialize observations, rewards, terminations, and truncations
         response = {
-            "observation": obs.tolist() if isinstance(obs, np.ndarray) else obs,
-            "reward": reward.tolist() if isinstance(reward, np.ndarray) else reward,
-            "terminated": terminated.tolist() if isinstance(terminated, np.ndarray) else terminated,
-            "truncated": truncated.tolist() if isinstance(truncated, np.ndarray) else truncated,
-            "info": {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in info.items()}
+            "observation": observation,
+            "reward": reward,
+            "terminated": terminated,
+            "truncated": truncated,
+            "info": info
         }
 
         return jsonify(response)
@@ -93,6 +99,7 @@ class ClientGymWrapper:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), 400
 
         action_space = self.environments[env_key]["env"].action_space
+        
         return jsonify({
             "dtype": str(action_space.dtype) if hasattr(action_space, 'dtype') else None,
             "shape": getattr(action_space, 'shape', None),
