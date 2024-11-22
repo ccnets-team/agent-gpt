@@ -26,7 +26,7 @@ class UnityBackend(Env):
         self.num_envs = num_envs
         self.is_vectorized = is_vectorized 
         self.no_graphics = not use_graphics
-        self.file_name = self.file_name = "../unity_environments/" + "3DBallHard" +"/"
+        self.file_name = self.file_name = "../unity_environments/" + "Crawler" +"/"
         self.time_scale = time_scale
         self.channel = EngineConfigurationChannel()
         self.channel.set_configuration_parameters(width=1280, height=720, time_scale=self.time_scale)
@@ -247,7 +247,7 @@ class UnityBackend(Env):
                     term_local_idx = terminal_agent_id_to_local[agent_id]
                     final_observations[global_idx] = term_obs[term_local_idx]
                     observations[global_idx] = dec_obs[local_idx]
-                    rewards[global_idx] = float(terminal_steps.reward[local_idx])
+                    rewards[global_idx] = float(terminal_steps.reward[term_local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False
 
