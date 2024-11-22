@@ -26,7 +26,7 @@ class UnityBackend(Env):
         self.num_envs = num_envs
         self.is_vectorized = is_vectorized 
         self.no_graphics = not use_graphics
-        self.file_name = self.file_name = "../unity_environments/" + "Crawler" +"/"
+        self.file_name = self.file_name = "../unity_environments/" + "3DBallHard" +"/"
         self.time_scale = time_scale
         self.channel = EngineConfigurationChannel()
         self.channel.set_configuration_parameters(width=1280, height=720, time_scale=self.time_scale)
@@ -208,11 +208,9 @@ class UnityBackend(Env):
                 
                 decision_check = self.decision_agents[env_idx]
                 dec_actions = env_actions[decision_check]
-                if len(dec_actions) < 1:
-                    continue
-                
-                action_tuple = self._create_action_tuple(dec_actions, env_idx)
-                env.set_actions(self.behavior_names[env_idx], action_tuple)
+                if len(dec_actions) > 0:
+                    action_tuple = self._create_action_tuple(dec_actions, env_idx)
+                    env.set_actions(self.behavior_names[env_idx], action_tuple)
                 env.step()
 
         except Exception as e:
