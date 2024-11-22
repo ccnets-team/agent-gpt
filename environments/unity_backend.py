@@ -208,9 +208,8 @@ class UnityBackend(Env):
                 
                 decision_check = self.decision_agents[env_idx]
                 dec_actions = env_actions[decision_check]
-                if len(dec_actions) > 0:
-                    action_tuple = self._create_action_tuple(dec_actions, env_idx)
-                    env.set_actions(self.behavior_names[env_idx], action_tuple)
+                action_tuple = self._create_action_tuple(dec_actions, env_idx)
+                env.set_actions(self.behavior_names[env_idx], action_tuple)
                 env.step()
 
         except Exception as e:
@@ -298,6 +297,13 @@ class UnityBackend(Env):
         return aggregated
     
     def _create_action_tuple(self, actions, env_idx):
+        """
+        Create an ActionTuple for the specified environment index.
+
+        :param actions: The actions to apply, either a list or ndarray.
+        :param env_idx: The index of the environment.
+        :return: An ActionTuple for the environment.
+        """
         action_spec = self.specs[env_idx].action_spec
         action_tuple = ActionTuple()
         num_agents = len(actions)
@@ -306,15 +312,11 @@ class UnityBackend(Env):
             # Ensure actions are in the correct shape
             if isinstance(actions, list):
                 actions = np.array(actions, dtype=np.float32)
-            if actions.ndim == 1:
-                actions = actions.reshape((num_agents, -1))
             action_tuple.add_continuous(actions)
         elif action_spec.is_discrete():
             # Ensure actions are in the correct shape
             if isinstance(actions, list):
                 actions = np.array(actions, dtype=np.int32)
-            if actions.ndim == 1:
-                actions = actions.reshape((num_agents, -1))
             action_tuple.add_discrete(actions)
         else:
             raise NotImplementedError("Mixed action spaces are not supported in this implementation.")
