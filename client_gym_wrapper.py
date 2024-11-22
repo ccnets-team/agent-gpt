@@ -33,7 +33,7 @@ class ClientGymWrapper:
         # Store environment and metadata    
         self.environments[env_key] = {
             "env": EnvironmentFactory.make(env_id, seed = self.env_cnt),
-            "is_vec_env": False
+            "is_vectorized": False
         }
         self.env_cnt += 1
         logging.info(f"Environment {env_id} created with key {env_key}.")
@@ -47,7 +47,7 @@ class ClientGymWrapper:
         # Store vectorized environment and metadata
         self.environments[env_key] = {
             "env": EnvironmentFactory.make_vec(env_id, num_envs=num_envs, seed = self.env_cnt),
-            "is_vec_env": True
+            "is_vectorized": True
         }
         self.env_cnt += num_envs
         logging.info(f"Vectorized environment {env_id} created with {num_envs} instances, key {env_key}.")
@@ -71,12 +71,12 @@ class ClientGymWrapper:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), 400
 
         env = self.environments[env_key]["env"]
-        is_vec_env = self.environments[env_key]["is_vec_env"]
+        is_vectorized = self.environments[env_key]["is_vectorized"]
                 
         action = request.json.get("action")
         action = np.array(action, dtype=np.float32) if isinstance(action, list) else action
 
-        if is_vec_env and action.ndim > 2:
+        if is_vectorized and action.ndim > 2:
             action = action[0]  # Adjust action dimensions for vectorized environments if needed
 
         # Take a step in the environment

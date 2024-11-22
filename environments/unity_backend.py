@@ -247,7 +247,7 @@ class UnityBackend(Env):
                     term_local_idx = terminal_agent_id_to_local[agent_id]
                     final_observations[global_idx] = term_obs[term_local_idx]
                     observations[global_idx] = dec_obs[local_idx]
-                    rewards[global_idx] = float(decision_steps.reward[local_idx])
+                    rewards[global_idx] = float(terminal_steps.reward[local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False
 
