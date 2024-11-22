@@ -208,6 +208,8 @@ class UnityBackend(Env):
                 
                 decision_check = self.decision_agents[env_idx]
                 dec_actions = env_actions[decision_check]
+                if len(dec_actions) < 1:
+                    continue
                 
                 action_tuple = self._create_action_tuple(dec_actions, env_idx)
                 env.set_actions(self.behavior_names[env_idx], action_tuple)
