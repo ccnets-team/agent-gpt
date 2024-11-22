@@ -11,7 +11,7 @@ class ClientGymWrapper:
     def __init__(self):
         self.app = Flask(__name__)
         self.environments = {}
-        self.env_cnt = 0
+        self.env_cnt = 0    
         logging.basicConfig(level=logging.INFO)
 
         # Define routes
@@ -118,32 +118,17 @@ class ClientGymWrapper:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), 400
 
         action_space = self.environments[env_key]["env"].action_space
-        print("action_space type", action_space.__class__.__name__)
-
-        action_space_type = action_space.__class__.__name__
-        response = {"type": action_space_type}
-
-        # Dynamically handle the attributes based on the action space type
-        if action_space_type == "Discrete":
-            response.update({
-                "n": getattr(action_space, "n", None),
-            })
-        elif action_space_type == "MultiDiscrete":
-            response.update({
-                "shape": getattr(action_space, "shape", None),
-                "nvec": getattr(action_space, "nvec", None).tolist() if hasattr(action_space, "nvec") else None,
-            })
-        elif action_space_type == "Box":
-            response.update({
-                "shape": getattr(action_space, "shape", None),
-                "dtype": str(getattr(action_space, "dtype", None)),
-                "low": getattr(action_space, "low", None).tolist() if hasattr(action_space, "low") else None,
-                "high": getattr(action_space, "high", None).tolist() if hasattr(action_space, "high") else None,
-            })
-        else:
-            response.update({
-                "error": f"Unsupported action space type: {action_space_type}"
-            })
+        action_space_type = str(action_space.__class__.__name__)
+        
+        response = {
+            "type": action_space_type,
+            "shape": tuple(getattr(action_space, "shape", ())),  # Default to empty tuple
+            "dtype": str(getattr(action_space, "dtype", "unknown")),  # Default to 'unknown'
+            "low": getattr(action_space, "low", None).tolist() if hasattr(action_space, "low") else None,
+            "high": getattr(action_space, "high", None).tolist() if hasattr(action_space, "high") else None,
+            "n": int(getattr(action_space, "n", 0)) if hasattr(action_space, "n") else None,  # Default to 0 for Discrete
+            "nvec": getattr(action_space, "nvec", None).tolist() if hasattr(action_space, "nvec") else None,  # Default None
+        }
         return jsonify(response)
 
     def observation_space(self):
@@ -153,6 +138,7 @@ class ClientGymWrapper:
 
         observation_space = self.environments[env_key]["env"].observation_space
         print("observation_space type", observation_space.__class__.__name__)
+        
         return jsonify({
             "dtype": str(observation_space.dtype) if hasattr(observation_space, 'dtype') else None,
             "shape": list(observation_space.shape),
