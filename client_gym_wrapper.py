@@ -4,6 +4,7 @@ import numpy as np
 import logging
 from environments.factory import EnvironmentFactory
 from environments.unity_backend import UnityBackend
+from utils.gym_space import serialize_space
 
 EnvironmentFactory.register(UnityBackend)
 
@@ -109,7 +110,6 @@ class ClientGymWrapper:
             "truncated": truncated,
             "info": info
         }
-
         return jsonify(response)
 
     def action_space(self):
@@ -118,18 +118,9 @@ class ClientGymWrapper:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), 400
 
         action_space = self.environments[env_key]["env"].action_space
-        action_space_type = str(action_space.__class__.__name__)
-        
-        response = {
-            "type": action_space_type,
-            "shape": tuple(getattr(action_space, "shape", ())),  # Default to empty tuple
-            "dtype": str(getattr(action_space, "dtype", "unknown")),  # Default to 'unknown'
-            "low": getattr(action_space, "low", None).tolist() if hasattr(action_space, "low") else None,
-            "high": getattr(action_space, "high", None).tolist() if hasattr(action_space, "high") else None,
-            "n": int(getattr(action_space, "n", 0)) if hasattr(action_space, "n") else None,  # Default to 0 for Discrete
-            "nvec": getattr(action_space, "nvec", None).tolist() if hasattr(action_space, "nvec") else None,  # Default None
-        }
-        return jsonify(response)
+        action_space_info = serialize_space(action_space)
+
+        return jsonify(action_space_info)
 
     def observation_space(self):
         env_key = request.args.get("env_key")
@@ -137,15 +128,9 @@ class ClientGymWrapper:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), 400
 
         observation_space = self.environments[env_key]["env"].observation_space
-        print("observation_space type", observation_space.__class__.__name__)
-        
-        return jsonify({
-            "dtype": str(observation_space.dtype) if hasattr(observation_space, 'dtype') else None,
-            "shape": list(observation_space.shape),
-            "high": observation_space.high.tolist() if hasattr(observation_space, 'high') else None,
-            "low": observation_space.low.tolist() if hasattr(observation_space, 'low') else None,
-            "type": observation_space.__class__.__name__
-        })
+        observation_space_info = serialize_space(observation_space)
+
+        return jsonify(observation_space_info)
         
     def close(self):
         env_key = request.json.get("env_key")

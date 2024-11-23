@@ -4,7 +4,6 @@ from gymnasium import Env, spaces
 from mlagents_envs.environment import UnityEnvironment, ActionTuple
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-
 class UnityBackend(Env):
     def __init__(self, env_id, num_envs=1, use_graphics=False, is_vectorized=False, time_scale=128, **kwargs):
         """
@@ -58,9 +57,10 @@ class UnityBackend(Env):
         self.num_agents = 0
         self.from_local_to_global = []
         self.decision_agents = []
-        self.alive_agents = []
-        self._setup_spaces()
-
+        self._initialize_env_info()
+        self._define_observation_space()
+        self._define_action_space()
+    
     def __exit__(self, exc_type, exc_value, traceback):
         if self.envs:
             self.close()
@@ -78,7 +78,15 @@ class UnityBackend(Env):
         )        
         return env
 
-    def _setup_spaces(self):
+    @staticmethod
+    def make(env_id, **kwargs):
+        return UnityBackend(env_id=env_id, is_vectorized=False, **kwargs)
+
+    @staticmethod
+    def make_vec(env_id, num_envs, **kwargs):
+        return UnityBackend(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
+    
+    def _initialize_env_info(self):
         total_agents = 0
         # Collect behavior names, specs, and agent counts for each environment
         for env in self.envs:
@@ -91,10 +99,10 @@ class UnityBackend(Env):
             decision_steps, _ = env.get_steps(behavior_name)
             n_agents = len(decision_steps)
             self.agent_per_envs.append(n_agents)
-            env.reset() # Reset the environment again before starting the episode
+            env.reset()  # Reset the environment again before starting the episode
 
-            self.decision_agents.append(np.zeros(n_agents, dtype=np.bool_))  
-            self.alive_agents.append(np.zeros(n_agents, dtype=np.bool_))
+            self.decision_agents.append(np.zeros(n_agents, dtype=np.bool_))
+
             # Create mapping from local to global indices
             local_to_global = []
             for local_idx in range(n_agents):
@@ -106,61 +114,63 @@ class UnityBackend(Env):
 
         self.num_agents = total_agents
 
+    def _define_observation_space(self):
+        # Define the observation space per agent
+        observation_shapes = [obs_spec.shape for obs_spec in self.specs[0].observation_specs]
+
+        # Check if any observation shape is an image
+        if any(len(shape) == 3 for shape in observation_shapes):
+            raise ValueError("Image observations are not supported.")
+
+        self.observation_shapes = observation_shapes
+        self.combined_dim = sum(np.prod(shape) for shape in observation_shapes)
+
+        self.observation_space = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(self.num_agents, self.combined_dim),
+            dtype=np.float32,
+        )
+
+    def _define_action_space(self):
         # Assume all environments have the same action and observation spaces
         self.spec = self.specs[0]
-
-        # Define the action space
         action_spec = self.spec.action_spec
-        if action_spec.is_continuous():
+
+        # Define the action space per agent
+        if action_spec.continuous_size > 0 and action_spec.discrete_size == 0:
+            # Continuous actions only
             self.action_space = spaces.Box(
                 low=-1.0,
                 high=1.0,
-                shape=(self.num_agents, action_spec.continuous_size),
+                shape=(action_spec.continuous_size,),
                 dtype=np.float32,
             )
-        elif action_spec.is_discrete():
-            # Calculate the total number of possible actions for all branches
-            total_discrete_actions = np.prod(action_spec.discrete_branches)
-            self.action_space = spaces.Discrete(total_discrete_actions)
+        elif action_spec.discrete_size > 0 and action_spec.continuous_size == 0:
+            if action_spec.discrete_size == 1:
+                # Single discrete action branch
+                self.action_space = spaces.Discrete(action_spec.discrete_branches[0])
+            else:
+                # Multiple discrete action branches
+                self.action_space = spaces.MultiDiscrete(action_spec.discrete_branches)
+        elif action_spec.continuous_size > 0 and action_spec.discrete_size > 0:
+            # Mixed actions
+            # Use spaces.Tuple to combine continuous and discrete action spaces
+            if action_spec.discrete_size == 1:
+                discrete_space = spaces.Discrete(action_spec.discrete_branches[0])
+            else:
+                discrete_space = spaces.MultiDiscrete(action_spec.discrete_branches)
+            self.action_space = spaces.Tuple((
+                spaces.Box(
+                    low=-1.0,
+                    high=1.0,
+                    shape=(action_spec.continuous_size,),
+                    dtype=np.float32,
+                ),
+                discrete_space,
+            ))
         else:
-            # Mixed action space (not fully supported in this example)
-            raise NotImplementedError("Mixed action spaces are not supported in this implementation.")
-
-        # Define the observation space
-        observation_shapes = [obs_spec.shape for obs_spec in self.spec.observation_specs]
-
-        # Helper function to determine if a shape is an image
-        def is_image(shape):
-            """An image is assumed to have at least 3 dimensions, e.g., (H, W, C)."""
-            return len(shape) == 3
-
-        # Check if any observation shape is an image
-        if any(is_image(shape) for shape in observation_shapes):
-            raise ValueError("Image observations are not supported.")
-
-        # Combine shapes by summing up their first dimensions
-        self.observation_shapes =  observation_shapes
-        self.combined_dim = sum(np.prod(shape) for shape in observation_shapes)
-
-        # Assuming `self.num_agents` and `self.combined_dim` are already defined
-        low = np.full((self.num_agents, self.combined_dim), -np.inf, dtype=np.float32)
-        high = np.full((self.num_agents, self.combined_dim), np.inf, dtype=np.float32)
-
-        # Define the observation space
-        self.observation_space = spaces.Box(
-            low=low,
-            high=high,
-            shape=(self.num_agents, self.combined_dim),
-            dtype=np.float32,
-        )        
-
-    @staticmethod
-    def make(env_id, **kwargs):
-        return UnityBackend(env_id=env_id, is_vectorized=False, **kwargs)
-
-    @staticmethod
-    def make_vec(env_id, num_envs, **kwargs):
-        return UnityBackend(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
+            raise NotImplementedError("Action space not supported.")
 
     def reset(self, **kwargs):
         """
@@ -175,7 +185,6 @@ class UnityBackend(Env):
                 decision_steps, _ = env.get_steps(behavior_name)
 
                 self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
-                self.alive_agents[env_idx][decision_steps.agent_id] = True
                 self.decision_agents[env_idx][decision_steps.agent_id] = True
 
                 obs = self.aggregate_observations(decision_steps.obs)
@@ -188,9 +197,15 @@ class UnityBackend(Env):
         except Exception as e:
             logging.error(f"An error occurred during reset: {e}")
             raise e
-    
+
     def init_transitions(self):
-        return  [None] * self.num_agents, [None] * self.num_agents, [None] * self.num_agents, [None] * self.num_agents, [None] * self.num_agents
+        num_agents = self.num_agents
+        observations = [None] * num_agents
+        rewards = [None] * num_agents
+        terminated = [None] * num_agents
+        truncated = [None] * num_agents
+        final_observations = [None] * num_agents
+        return observations, rewards, terminated, truncated, final_observations
     
     def step(self, actions):
         """
@@ -200,17 +215,18 @@ class UnityBackend(Env):
         """
         try:
             action_offset = 0
-            
+
             # Set actions for all environments
             for env_idx, env in enumerate(self.envs):
                 num_agents_in_env = self.agent_per_envs[env_idx]
                 env_actions = actions[action_offset:action_offset + num_agents_in_env]
                 action_offset += num_agents_in_env
-                
+
                 decision_check = self.decision_agents[env_idx]
                 dec_actions = env_actions[decision_check]
-                action_tuple = self._create_action_tuple(dec_actions, env_idx)
-                env.set_actions(self.behavior_names[env_idx], action_tuple)
+                if len(dec_actions) > 0:
+                    action_tuple = self._create_action_tuple(dec_actions, env_idx)
+                    env.set_actions(self.behavior_names[env_idx], action_tuple)
                 env.step()
 
         except Exception as e:
@@ -223,7 +239,6 @@ class UnityBackend(Env):
                 decision_steps, terminal_steps = env.get_steps(self.behavior_names[env_idx])
                 self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
                 self.decision_agents[env_idx][decision_steps.agent_id] = True
-                self.alive_agents[env_idx][decision_steps.agent_id] = True
 
                 # Get agent IDs and mapping from agent_id to local index
                 decision_agent_id_to_local = {agent_id: idx for idx, agent_id in enumerate(decision_steps.agent_id)}
@@ -297,31 +312,41 @@ class UnityBackend(Env):
             offset += size
 
         return aggregated
-    
+            
     def _create_action_tuple(self, actions, env_idx):
-        """
-        Create an ActionTuple for the specified environment index.
-
-        :param actions: The actions to apply, either a list or ndarray.
-        :param env_idx: The index of the environment.
-        :return: An ActionTuple for the environment.
-        """
         action_spec = self.specs[env_idx].action_spec
         action_tuple = ActionTuple()
         num_agents = len(actions)
 
-        if action_spec.is_continuous():
-            # Ensure actions are in the correct shape
-            if isinstance(actions, list):
-                actions = np.array(actions, dtype=np.float32)
+        if num_agents == 0:
+            # No agents to act upon
+            return action_tuple
+
+        if isinstance(self.action_space, spaces.Box):
+            # Continuous actions only
+            actions = np.asarray(actions, dtype=np.float32).reshape(num_agents, -1)
             action_tuple.add_continuous(actions)
-        elif action_spec.is_discrete():
-            # Ensure actions are in the correct shape
-            if isinstance(actions, list):
-                actions = np.array(actions, dtype=np.int32)
+        elif isinstance(self.action_space, spaces.Discrete) or isinstance(self.action_space, spaces.MultiDiscrete):
+            # Discrete actions only
+            actions = np.asarray(actions, dtype=np.int32).reshape(num_agents, -1)
             action_tuple.add_discrete(actions)
+        elif isinstance(self.action_space, spaces.Tuple):
+            # Mixed actions: actions are tuples (continuous_action, discrete_action)
+            continuous_actions = []
+            discrete_actions = []
+
+            for action in actions:
+                continuous_action, discrete_action = action  # Unpack the tuple
+                continuous_actions.append(continuous_action)
+                discrete_actions.append(discrete_action)
+
+            continuous_actions = np.asarray(continuous_actions, dtype=np.float32).reshape(num_agents, -1)
+            discrete_actions = np.asarray(discrete_actions, dtype=np.int32).reshape(num_agents, -1)
+
+            action_tuple.add_continuous(continuous_actions)
+            action_tuple.add_discrete(discrete_actions)
         else:
-            raise NotImplementedError("Mixed action spaces are not supported in this implementation.")
+            raise NotImplementedError("Action type not supported.")
 
         return action_tuple
 
