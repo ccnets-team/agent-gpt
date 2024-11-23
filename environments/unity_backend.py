@@ -6,7 +6,7 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 
 
 class UnityBackend(Env):
-    def __init__(self, env_id, num_envs=1, use_graphics=False, is_vectorized=False, time_scale=20, **kwargs):
+    def __init__(self, env_id, num_envs=1, use_graphics=False, is_vectorized=False, time_scale=128, **kwargs):
         """
         Initialize a Unity environment.
 
@@ -57,8 +57,8 @@ class UnityBackend(Env):
         self.agent_per_envs = [] 
         self.num_agents = 0
         self.from_local_to_global = []
-        self.env_agent_offsets = []  # Offsets for agent indices in each env
         self.decision_agents = []
+        self.alive_agents = []
         self._setup_spaces()
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -89,20 +89,20 @@ class UnityBackend(Env):
 
             # Get initial agent IDs and count
             decision_steps, _ = env.get_steps(behavior_name)
-            num_agents = len(decision_steps)
-            self.agent_per_envs.append(num_agents)
-            self.env_agent_offsets.append(total_agents)
+            n_agents = len(decision_steps)
+            self.agent_per_envs.append(n_agents)
             env.reset() # Reset the environment again before starting the episode
 
-            self.decision_agents.append(np.zeros(num_agents, dtype=np.bool_))  
+            self.decision_agents.append(np.zeros(n_agents, dtype=np.bool_))  
+            self.alive_agents.append(np.zeros(n_agents, dtype=np.bool_))
             # Create mapping from local to global indices
             local_to_global = []
-            for local_idx in range(num_agents):
+            for local_idx in range(n_agents):
                 global_idx = total_agents + local_idx
                 local_to_global.append(global_idx)
             self.from_local_to_global.append(local_to_global)
 
-            total_agents += num_agents
+            total_agents += n_agents
 
         self.num_agents = total_agents
 
@@ -175,6 +175,7 @@ class UnityBackend(Env):
                 decision_steps, _ = env.get_steps(behavior_name)
 
                 self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
+                self.alive_agents[env_idx][decision_steps.agent_id] = True
                 self.decision_agents[env_idx][decision_steps.agent_id] = True
 
                 obs = self.aggregate_observations(decision_steps.obs)
@@ -222,6 +223,7 @@ class UnityBackend(Env):
                 decision_steps, terminal_steps = env.get_steps(self.behavior_names[env_idx])
                 self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
                 self.decision_agents[env_idx][decision_steps.agent_id] = True
+                self.alive_agents[env_idx][decision_steps.agent_id] = True
 
                 # Get agent IDs and mapping from agent_id to local index
                 decision_agent_id_to_local = {agent_id: idx for idx, agent_id in enumerate(decision_steps.agent_id)}
@@ -240,38 +242,38 @@ class UnityBackend(Env):
                 dec_obs = self.aggregate_observations(decision_steps.obs)
                 term_obs = self.aggregate_observations(terminal_steps.obs)
                 for agent_id in common_agent_ids:
-                    local_idx = decision_agent_id_to_local[agent_id]
+                    dec_local_idx = decision_agent_id_to_local[agent_id]
+                    term_local_idx = terminal_agent_id_to_local[agent_id]
                     global_idx = self.from_local_to_global[env_idx][agent_id]
                     # Aggregate observations
-                    term_local_idx = terminal_agent_id_to_local[agent_id]
                     final_observations[global_idx] = term_obs[term_local_idx]
-                    observations[global_idx] = dec_obs[local_idx]
+                    observations[global_idx] = dec_obs[dec_local_idx]
                     rewards[global_idx] = float(terminal_steps.reward[term_local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False
 
                 # Handle agents only in decision steps
                 for agent_id in decision_only_agent_ids:
-                    local_idx = decision_agent_id_to_local[agent_id]
-                    global_idx = self.from_local_to_global[env_idx][local_idx]
-                    observations[global_idx] = dec_obs[local_idx]
-                    rewards[global_idx] = float(decision_steps.reward[local_idx])
+                    dec_local_idx = decision_agent_id_to_local[agent_id]
+                    global_idx = self.from_local_to_global[env_idx][agent_id]
+                    observations[global_idx] = dec_obs[dec_local_idx]
+                    rewards[global_idx] = float(decision_steps.reward[dec_local_idx])
                     terminated[global_idx] = False
                     truncated[global_idx] = False
 
                 # Handle agents only in terminal steps
                 for agent_id in terminal_only_agent_ids:
-                    local_idx = terminal_agent_id_to_local[agent_id]
-                    global_idx = self.from_local_to_global[env_idx][local_idx]
-                    observations[global_idx] = term_obs[local_idx]
-                    rewards[global_idx] = float(terminal_steps.reward[local_idx])
+                    dec_local_idx = terminal_agent_id_to_local[agent_id]
+                    global_idx = self.from_local_to_global[env_idx][agent_id]
+                    observations[global_idx] = term_obs[dec_local_idx]
+                    rewards[global_idx] = float(terminal_steps.reward[dec_local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False  # Adjust if necessary
 
         except Exception as e:
             logging.error(f"An error occurred during the step: {e}")
             raise e
-    
+   
         info = {}
         info['final_observation'] = final_observations
             
