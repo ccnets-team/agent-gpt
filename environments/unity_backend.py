@@ -25,7 +25,7 @@ class UnityBackend(Env):
         self.num_envs = num_envs
         self.is_vectorized = is_vectorized 
         self.no_graphics = not use_graphics
-        self.file_name = self.file_name = "../unity_environments/" + "PushBlock" +"/"
+        self.file_name = self.file_name = "../unity_environments/" + "3DBallHard" +"/"
         self.time_scale = time_scale
         self.channel = EngineConfigurationChannel()
         self.channel.set_configuration_parameters(width=1280, height=720, time_scale=self.time_scale)
@@ -120,19 +120,22 @@ class UnityBackend(Env):
 
         # Check if any observation shape is an image
         if any(len(shape) == 3 for shape in observation_shapes):
-            raise ValueError("Image observations are not supported.")
-
-        self.observation_shapes = observation_shapes
-        self.combined_dim = sum(np.prod(shape) for shape in observation_shapes)
-
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(self.num_agents, self.combined_dim),
-            dtype=np.float32,
+            raise ValueError("Image observations are not supported.")        
+        # Multiple observation spaces: Combine them into a single space
+        self.observation_space = spaces.Tuple(
+            [
+                spaces.Box(
+                    low=-np.inf,
+                    high=np.inf,
+                    shape=(self.num_agents, *shape) if isinstance(shape, tuple) else (self.num_agents, shape),
+                    dtype=np.float32
+                )
+                for shape in observation_shapes
+            ]
         )
+        self.observation_shapes = observation_shapes
 
-    def _define_action_space(self):
+    def _define_action_space(self, start = 1):
         # Assume all environments have the same action and observation spaces
         self.spec = self.specs[0]
         action_spec = self.spec.action_spec
@@ -141,44 +144,47 @@ class UnityBackend(Env):
         if action_spec.continuous_size > 0 and action_spec.discrete_size == 0:
             # Continuous actions only
             self.action_space = spaces.Box(
-                low=-1.0,
-                high=1.0,
+                low=-1,
+                high=1,
                 shape=(action_spec.continuous_size,),
                 dtype=np.float32,
             )
         elif action_spec.discrete_size > 0 and action_spec.continuous_size == 0:
+            # Discrete actions only
             if action_spec.discrete_size == 1:
                 # Single discrete action branch
-                self.action_space = spaces.Discrete(action_spec.discrete_branches[0]-1, start=1)
+                self.action_space = spaces.Discrete(
+                    action_spec.discrete_branches[0] - start, start=start
+                )
             else:
                 # Multiple discrete action branches
-                self.action_space = spaces.MultiDiscrete(action_spec.discrete_branches)
+                self.action_space = spaces.MultiDiscrete(action_spec.discrete_branches - start, start=start)
         elif action_spec.continuous_size > 0 and action_spec.discrete_size > 0:
-            # Mixed actions
-            # Use spaces.Tuple to combine continuous and discrete action spaces
+            # Mixed actions: Combine continuous and discrete spaces using Tuple
+            continuous_space = spaces.Box(
+                low=-1,
+                high=1,
+                shape=(action_spec.continuous_size,),
+                dtype=np.float32,
+            )
             if action_spec.discrete_size == 1:
-                discrete_space = spaces.Discrete(action_spec.discrete_branches[0])
+                discrete_space = spaces.Discrete(
+                    action_spec.discrete_branches[0] - start, start=start
+                )
             else:
-                discrete_space = spaces.MultiDiscrete(action_spec.discrete_branches)
-            self.action_space = spaces.Tuple((
-                spaces.Box(
-                    low=-1.0,
-                    high=1.0,
-                    shape=(action_spec.continuous_size,),
-                    dtype=np.float32,
-                ),
-                discrete_space,
-            ))
+                discrete_space = spaces.MultiDiscrete(action_spec.discrete_branches - start, start=start)
+            self.action_space = spaces.Tuple((continuous_space, discrete_space))
         else:
-            raise NotImplementedError("Action space not supported.")
+            raise NotImplementedError("Action space configuration not supported.")
 
     def reset(self, **kwargs):
         """
         Reset the Unity environment(s) and retrieve initial observations.
         :return: Initial aggregated observations and info dictionary.
         """
+        obs_len = len(self.observation_shapes)
         try:
-            observations = [None] * self.num_agents
+            observations = tuple([[None] * self.num_agents for _ in range(obs_len)]) 
             for env_idx, env in enumerate(self.envs):
                 env.reset()
                 behavior_name = self.behavior_names[env_idx]
@@ -186,26 +192,31 @@ class UnityBackend(Env):
 
                 self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
                 self.decision_agents[env_idx][decision_steps.agent_id] = True
-
-                obs = self.aggregate_observations(decision_steps.obs)
+                obs = decision_steps.obs
                 for idx, agent_id in enumerate(decision_steps.agent_id):
                     global_idx = self.from_local_to_global[env_idx][agent_id]
                     # Aggregate all observation components
-                    observations[global_idx] = obs[idx]
+                    for i in range(obs_len):
+                        observations[i][global_idx] = obs[i][idx]
 
             return observations, {}
         except Exception as e:
             logging.error(f"An error occurred during reset: {e}")
             raise e
 
-    def init_transitions(self):
+    def init_transitions(self, obs_len):
+
         num_agents = self.num_agents
-        observations = [None] * num_agents
+        
+        observations = tuple([[None] * num_agents for _ in range(obs_len)]) 
+        final_observations = tuple([[None] * num_agents for _ in range(obs_len)]) 
+        
+        # Initialize other transition variables
         rewards = [None] * num_agents
         terminated = [None] * num_agents
         truncated = [None] * num_agents
-        final_observations = [None] * num_agents
-        return observations, rewards, terminated, truncated, final_observations
+
+        return observations, rewards, terminated, truncated, final_observations    
     
     def step(self, actions):
         """
@@ -233,7 +244,8 @@ class UnityBackend(Env):
             logging.error(f"An error occurred during the step: {e}")
             raise e
         try:
-            observations, rewards, terminated, truncated, final_observations = self.init_transitions()
+            obs_len = len(self.observation_shapes)
+            observations, rewards, terminated, truncated, final_observations = self.init_transitions(obs_len)
             # Collect results from all environments
             for env_idx, env in enumerate(self.envs):
                 decision_steps, terminal_steps = env.get_steps(self.behavior_names[env_idx])
@@ -254,15 +266,17 @@ class UnityBackend(Env):
                 terminal_only_agent_ids = set(terminal_steps.agent_id) - common_agent_ids
 
                 # Handle agents present in both decision and terminal steps
-                dec_obs = self.aggregate_observations(decision_steps.obs)
-                term_obs = self.aggregate_observations(terminal_steps.obs)
+                dec_obs = decision_steps.obs
+                term_obs = terminal_steps.obs
                 for agent_id in common_agent_ids:
                     dec_local_idx = decision_agent_id_to_local[agent_id]
                     term_local_idx = terminal_agent_id_to_local[agent_id]
                     global_idx = self.from_local_to_global[env_idx][agent_id]
                     # Aggregate observations
-                    final_observations[global_idx] = term_obs[term_local_idx]
-                    observations[global_idx] = dec_obs[dec_local_idx]
+                    for i in range(obs_len):
+                        final_observations[i][global_idx] = term_obs[i][term_local_idx]
+                        observations[i][global_idx] = dec_obs[i][dec_local_idx]
+                    
                     rewards[global_idx] = float(terminal_steps.reward[term_local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False
@@ -271,7 +285,8 @@ class UnityBackend(Env):
                 for agent_id in decision_only_agent_ids:
                     dec_local_idx = decision_agent_id_to_local[agent_id]
                     global_idx = self.from_local_to_global[env_idx][agent_id]
-                    observations[global_idx] = dec_obs[dec_local_idx]
+                    for i in range(obs_len):
+                        observations[i][global_idx] = dec_obs[i][dec_local_idx]
                     rewards[global_idx] = float(decision_steps.reward[dec_local_idx])
                     terminated[global_idx] = False
                     truncated[global_idx] = False
@@ -280,7 +295,8 @@ class UnityBackend(Env):
                 for agent_id in terminal_only_agent_ids:
                     dec_local_idx = terminal_agent_id_to_local[agent_id]
                     global_idx = self.from_local_to_global[env_idx][agent_id]
-                    observations[global_idx] = term_obs[dec_local_idx]
+                    for i in range(obs_len):
+                        observations[i][global_idx] = term_obs[i][dec_local_idx]
                     rewards[global_idx] = float(terminal_steps.reward[dec_local_idx])
                     terminated[global_idx] = True
                     truncated[global_idx] = False  # Adjust if necessary
@@ -293,26 +309,7 @@ class UnityBackend(Env):
         info['final_observation'] = final_observations
             
         return observations, rewards, terminated, truncated, info
-
-    def aggregate_observations(self, observations):
-        """
-        Combine observations from multiple shapes into a single aggregated vector.
-        """
-        num_agents = len(observations[0])
-        combined_dim = sum(np.prod(shape) for shape in self.observation_shapes)
-        aggregated = np.zeros((num_agents, combined_dim), dtype=np.float32)
-        if num_agents < 1:
-            return aggregated
-        offset = 0
-
-        for obs, shape in zip(observations, self.observation_shapes):
-            size = np.prod(shape)
-            obs = obs.reshape(num_agents, -1)
-            aggregated[:, offset:offset + size] = obs  # Flatten the observation and insert
-            offset += size
-
-        return aggregated
-            
+    
     def _create_action_tuple(self, actions, env_idx):
         action_spec = self.specs[env_idx].action_spec
         action_tuple = ActionTuple()
@@ -334,14 +331,9 @@ class UnityBackend(Env):
             # Mixed actions: actions are tuples (continuous_action, discrete_action)
             continuous_actions = []
             discrete_actions = []
-
-            for action in actions:
-                continuous_action, discrete_action = action  # Unpack the tuple
-                continuous_actions.append(continuous_action)
-                discrete_actions.append(discrete_action)
-
-            continuous_actions = np.asarray(continuous_actions, dtype=np.float32).reshape(num_agents, -1)
-            discrete_actions = np.asarray(discrete_actions, dtype=np.int32).reshape(num_agents, -1)
+            continuous_action, discrete_action = actions
+            continuous_action = np.asarray(continuous_action, dtype=np.float32).reshape(num_agents, -1)
+            discrete_action = np.asarray(discrete_action, dtype=np.int32).reshape(num_agents, -1)
 
             action_tuple.add_continuous(continuous_actions)
             action_tuple.add_discrete(discrete_actions)

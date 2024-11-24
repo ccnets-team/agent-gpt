@@ -4,9 +4,60 @@ import numpy as np
 import logging
 from environments.factory import EnvironmentFactory
 from environments.unity_backend import UnityBackend
+from environments.mujoco_backend import MujocoBackend
 from utils.gym_space import serialize_space
 
 EnvironmentFactory.register(UnityBackend)
+
+def convert_list_to_ndarray(data, dtype):
+    """
+    Recursively convert all lists in the given data structure (dict, list, tuple)
+    to numpy arrays, preserving the original structure and handling None values.
+
+    Args:
+        data: The input data, which can be a dict, list, tuple, or any other type.
+
+    Returns:
+        The data with all lists converted to numpy arrays where applicable.
+    """
+    if isinstance(data, list):
+        # Convert the list to an ndarray if it contains no None values
+        if all(item is not None for item in data):
+            return np.array([convert_list_to_ndarray(item, dtype) for item in data], dtype=dtype)
+        else:
+            # Keep as list if there are None values
+            return [convert_list_to_ndarray(item, dtype) if item is not None else None for item in data]
+    elif isinstance(data, tuple):
+        # Process tuple elements individually, preserving tuple structure
+        return tuple(convert_list_to_ndarray(item, dtype) for item in data)
+    elif isinstance(data, dict):
+        # Process dict values recursively
+        return {key: convert_list_to_ndarray(value, dtype) for key, value in data.items()}
+    else:
+        # Return the element as is if it's not a list, tuple, or dict
+        return data
+    
+def convert_ndarray_to_list(data):
+    """
+    Recursively convert all numpy arrays in the given data structure (dict, list, tuple)
+    to lists, preserving the original structure.
+
+    Args:
+        data: The input data, which can be a dict, list, tuple, or np.ndarray.
+
+    Returns:
+        The data with all numpy arrays converted to lists.
+    """
+    if isinstance(data, np.ndarray):
+        return data.tolist()
+    elif isinstance(data, list):
+        return [convert_ndarray_to_list(item) for item in data]
+    elif isinstance(data, tuple):
+        return tuple(convert_ndarray_to_list(item) for item in data)
+    elif isinstance(data, dict):
+        return {key: convert_ndarray_to_list(value) for key, value in data.items()}
+    else:
+        return data  # Return the element as is if it's not an ndarray, list, tuple, or dict
 
 class ClientGymWrapper:
     def __init__(self):
@@ -18,7 +69,7 @@ class ClientGymWrapper:
         # Define routes
         self._define_routes()
 
-    def _define_routes(self):
+    def _define_routes(self):   
         self.app.add_url_rule("/make", "make", self.make, methods=["POST"])
         self.app.add_url_rule("/make_vec", "make_vec", self.make_vec, methods=["POST"])
         self.app.add_url_rule("/reset", "reset", self.reset, methods=["POST"])
@@ -33,6 +84,7 @@ class ClientGymWrapper:
         
         # Store environment and metadata    
         self.environments[env_key] = {
+            # "env": EnvironmentFactory.make(env_id),
             "env": EnvironmentFactory.make(env_id, seed = self.env_cnt),
             "is_vectorized": False
         }
@@ -47,6 +99,7 @@ class ClientGymWrapper:
 
         # Store vectorized environment and metadata
         self.environments[env_key] = {
+            # "env": EnvironmentFactory.make_vec(env_id, num_envs=num_envs),
             "env": EnvironmentFactory.make_vec(env_id, num_envs=num_envs, seed = self.env_cnt),
             "is_vectorized": True
         }
@@ -62,9 +115,12 @@ class ClientGymWrapper:
         seed = request.json.get("seed", None)
         options = request.json.get("options", None)
         env = self.environments[env_key]["env"]
-        obs, _ = env.reset(seed=seed, options=options)
+        observation, info = env.reset(seed=seed, options=options)
         
-        return jsonify({"observation": obs.tolist() if isinstance(obs, np.ndarray) else [o.tolist() for o in obs]})
+        observation = convert_ndarray_to_list(observation)
+        info = convert_ndarray_to_list(info)
+                    
+        return jsonify({"observation": observation, "info": info})
 
     def step(self):
         env_key = request.json.get("env_key")
@@ -72,36 +128,23 @@ class ClientGymWrapper:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), 400
 
         env = self.environments[env_key]["env"]
-        is_vectorized = self.environments[env_key]["is_vectorized"]
                 
         action = request.json.get("action")
-        action = np.array(action, dtype=np.float32) if isinstance(action, list) else action
-
-        if is_vectorized and action.ndim > 2:
-            action = action[0]  # Adjust action dimensions for vectorized environments if needed
-
+        # Check if action is a list of lists (for Tuple or MultiDiscrete action spaces)
+        if isinstance(action, list):
+            action = np.array(action, dtype=np.float32)
+        elif isinstance(action, tuple):
+            action = tuple(np.array(a, dtype=np.float32) for a in action)
+        
         # Take a step in the environment
         observation, reward, terminated, truncated, info = env.step(action)
         
-        if isinstance(observation, np.ndarray):
-            observation = observation.tolist()
-        elif isinstance(observation, list):
-            observation = [o.tolist() if isinstance(o, np.ndarray) else o for o in observation]
-        else:
-            observation = observation.tolist()
-            
-        reward = reward.tolist() if isinstance(reward, np.ndarray) else reward
-        terminated = terminated.tolist() if isinstance(terminated, np.ndarray) else terminated
-        truncated = truncated.tolist() if isinstance(truncated, np.ndarray) else truncated
-                
-        for key, value in info.items():
-            if isinstance(value, np.ndarray):
-                info[key] = value.tolist()
-            elif isinstance(value, list):
-                info[key] = [v.tolist() if isinstance(v, np.ndarray) else v for v in value]
-            else:
-                assert not isinstance(value, np.ndarray), f"Unexpected ndarray in key: {key}"
-                
+        observation = convert_ndarray_to_list(observation)
+        reward = convert_ndarray_to_list(reward)
+        terminated = convert_ndarray_to_list(terminated)
+        truncated = convert_ndarray_to_list(truncated)
+        info = convert_ndarray_to_list(info)
+               
         # Serialize observations, rewards, terminations, and truncations
         response = {
             "observation": observation,
