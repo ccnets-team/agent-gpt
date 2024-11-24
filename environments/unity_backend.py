@@ -25,7 +25,7 @@ class UnityBackend(Env):
         self.num_envs = num_envs
         self.is_vectorized = is_vectorized 
         self.no_graphics = not use_graphics
-        self.file_name = self.file_name = "../unity_environments/" + "3DBallHard" +"/"
+        self.file_name = self.file_name = "../unity_environments/" + "PushBlock" +"/"
         self.time_scale = time_scale
         self.channel = EngineConfigurationChannel()
         self.channel.set_configuration_parameters(width=1280, height=720, time_scale=self.time_scale)
@@ -149,7 +149,7 @@ class UnityBackend(Env):
         elif action_spec.discrete_size > 0 and action_spec.continuous_size == 0:
             if action_spec.discrete_size == 1:
                 # Single discrete action branch
-                self.action_space = spaces.Discrete(action_spec.discrete_branches[0])
+                self.action_space = spaces.Discrete(action_spec.discrete_branches[0]-1, start=1)
             else:
                 # Multiple discrete action branches
                 self.action_space = spaces.MultiDiscrete(action_spec.discrete_branches)
