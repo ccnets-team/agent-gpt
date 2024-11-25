@@ -118,7 +118,7 @@ class UnityEnv(Env):
             current_shapes = [obs_spec.shape for obs_spec in spec.observation_specs]
             if reference_shapes != current_shapes:
                 raise ValueError("Observation shapes are inconsistent across specs.")
-        
+            
         # Define the observation space per agent
         observation_shapes = reference_shapes  # Use the consistent shapes from the first spec
 
@@ -127,17 +127,39 @@ class UnityEnv(Env):
             raise ValueError("Image observations are not supported.")        
         
         # Multiple observation spaces: Combine them into a single space
-        self.observation_space = spaces.Tuple(
-            [
-                spaces.Box(
-                    low=-np.inf,
-                    high=np.inf,
-                    shape=(self.num_agents, *shape) if isinstance(shape, tuple) else (self.num_agents, shape),
-                    dtype=np.float32
+        for obs_spec in self.specs[0].observation_specs:
+            if "RayPerceptionSensor" in obs_spec.name:
+                # Adjust the low and high bounds for the observation space
+                self.observation_space = spaces.Tuple(
+                    [
+                        spaces.Box(
+                            low=0.0,  # Normalized lower bound
+                            high=1.0, # Normalized upper bound
+                            shape=(self.num_agents, *obs_spec.shape) 
+                                if isinstance(obs_spec.shape, tuple) 
+                                else (self.num_agents, obs_spec.shape),
+                            dtype=np.float32
+                        )
+                        for obs_spec in self.specs[0].observation_specs
+                    ]
                 )
-                for shape in observation_shapes
-            ]
-        )
+                print("RayPerceptionSensor observation space.")
+                break
+        else:
+            # Default to an infinite range if no RayPerceptionSensor is found
+            self.observation_space = spaces.Tuple(
+                [
+                    spaces.Box(
+                        low=-np.inf,
+                        high=np.inf,
+                        shape=(self.num_agents, *obs_spec.shape) 
+                            if isinstance(obs_spec.shape, tuple) 
+                            else (self.num_agents, obs_spec.shape),
+                        dtype=np.float32
+                    )
+                    for obs_spec in self.specs[0].observation_specs
+                ]
+            )
         self.observation_shapes = observation_shapes
 
     def _define_action_space(self, start=1):
