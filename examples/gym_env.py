@@ -4,7 +4,7 @@ except ImportError:
     gym = None
     print("Gymnasium not installed. Please install it to use the Gym backend.")
 
-from environments.factory import EnvironmentFactory
+from environments.environment_factory import EnvironmentFactory
 
 class GymBackend(gym):
     pass

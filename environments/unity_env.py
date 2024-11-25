@@ -1,13 +1,12 @@
 import numpy as np
-import logging
 from gymnasium import Env, spaces
 from mlagents_envs.environment import UnityEnvironment, ActionTuple
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-class UnityBackend(Env):
+class UnityEnv(Env):
     # Class-level attribute to track instance count
     instance_count = 0    
-    def __init__(self, env_id, num_envs=1, use_graphics=False, is_vectorized=False, time_scale=128, **kwargs):
+    def __init__(self, env_id, num_envs=1, is_vectorized=False, **kwargs):
         """
         Initialize a Unity environment.
 
@@ -20,9 +19,12 @@ class UnityBackend(Env):
         :param time_scale: Time scale for the Unity environment.
         """
         super().__init__()
-        self.seed = UnityBackend.instance_count
-        UnityBackend.instance_count += num_envs
-
+        self.seed = UnityEnv.instance_count
+        UnityEnv.instance_count += num_envs
+        
+        use_graphics = kwargs.get("use_graphics", False)
+        time_scale = kwargs.get("time_scale", 128)
+        
         self.worker_id = self.seed
         self.env_id = env_id
         self.file_name = "../unity_environments/" + self.env_id + "/"
@@ -81,14 +83,6 @@ class UnityBackend(Env):
         )        
         return env
 
-    @staticmethod
-    def make(env_id, **kwargs):
-        return UnityBackend(env_id=env_id, is_vectorized=False, **kwargs)
-
-    @staticmethod
-    def make_vec(env_id, num_envs, **kwargs):
-        return UnityBackend(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
-    
     def _initialize_env_info(self):
         total_agents = 0
         # Collect behavior names, specs, and agent counts for each environment
@@ -193,142 +187,8 @@ class UnityBackend(Env):
             self.action_space = spaces.Tuple((continuous_space, discrete_space))
         else:
             raise NotImplementedError("Action space configuration not supported.")
-
-    def reset(self, **kwargs):
-        """
-        Reset the Unity environment(s) and retrieve initial observations.
-        :return: Initial aggregated observations and info dictionary.
-        """
-        obs_len = len(self.observation_shapes)
-        try:
-            observations = tuple([[None] * self.num_agents for _ in range(obs_len)]) 
-            for env_idx, env in enumerate(self.envs):
-                env.reset()
-                behavior_name = self.behavior_names[env_idx]
-                decision_steps, _ = env.get_steps(behavior_name)
-
-                self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
-                self.decision_agents[env_idx][decision_steps.agent_id] = True
-                obs = decision_steps.obs
-                for idx, agent_id in enumerate(decision_steps.agent_id):
-                    global_idx = self.from_local_to_global[env_idx][agent_id]
-                    # Aggregate all observation components
-                    for i in range(obs_len):
-                        observations[i][global_idx] = obs[i][idx]
-
-            return observations, {}
-        except Exception as e:
-            logging.error(f"An error occurred during reset: {e}")
-            raise e
-
-    def init_transitions(self, obs_len):
-
-        num_agents = self.num_agents
-        
-        observations = tuple([[None] * num_agents for _ in range(obs_len)]) 
-        final_observations = tuple([[None] * num_agents for _ in range(obs_len)]) 
-        
-        # Initialize other transition variables
-        rewards = [None] * num_agents
-        terminated = [None] * num_agents
-        truncated = [None] * num_agents
-
-        return observations, rewards, terminated, truncated, final_observations    
-    
-    def step(self, actions):
-        """
-        Perform a step in the Unity environment(s).
-        :param actions: Actions to take for all agents.
-        :return: Tuple containing observations, rewards, terminated flags, truncated flags, and info.
-        """
-        try:
-            action_offset = 0
-
-            # Set actions for all environments
-            for env_idx, env in enumerate(self.envs):
-                num_agents_in_env = self.agent_per_envs[env_idx]
-                env_actions = actions[action_offset:action_offset + num_agents_in_env]
-                action_offset += num_agents_in_env
-
-                decision_check = self.decision_agents[env_idx]
-                dec_actions = env_actions[decision_check]
-                if len(dec_actions) > 0:
-                    action_tuple = self._create_action_tuple(dec_actions, env_idx)
-                    env.set_actions(self.behavior_names[env_idx], action_tuple)
-                env.step()
-
-        except Exception as e:
-            logging.error(f"An error occurred during the step: {e}")
-            raise e
-        try:
-            obs_len = len(self.observation_shapes)
-            observations, rewards, terminated, truncated, final_observations = self.init_transitions(obs_len)
-            # Collect results from all environments
-            for env_idx, env in enumerate(self.envs):
-                decision_steps, terminal_steps = env.get_steps(self.behavior_names[env_idx])
-                self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
-                self.decision_agents[env_idx][decision_steps.agent_id] = True
-
-                # Get agent IDs and mapping from agent_id to local index
-                decision_agent_id_to_local = {agent_id: idx for idx, agent_id in enumerate(decision_steps.agent_id)}
-                terminal_agent_id_to_local = {agent_id: idx for idx, agent_id in enumerate(terminal_steps.agent_id)}
-
-                # Agents present in both decision and terminal steps
-                common_agent_ids = set(decision_steps.agent_id).intersection(terminal_steps.agent_id)
-
-                # Agents only in decision steps
-                decision_only_agent_ids = set(decision_steps.agent_id) - common_agent_ids
-
-                # Agents only in terminal steps
-                terminal_only_agent_ids = set(terminal_steps.agent_id) - common_agent_ids
-
-                # Handle agents present in both decision and terminal steps
-                dec_obs = decision_steps.obs
-                term_obs = terminal_steps.obs
-                for agent_id in common_agent_ids:
-                    dec_local_idx = decision_agent_id_to_local[agent_id]
-                    term_local_idx = terminal_agent_id_to_local[agent_id]
-                    global_idx = self.from_local_to_global[env_idx][agent_id]
-                    # Aggregate observations
-                    for i in range(obs_len):
-                        final_observations[i][global_idx] = term_obs[i][term_local_idx]
-                        observations[i][global_idx] = dec_obs[i][dec_local_idx]
-                    
-                    rewards[global_idx] = float(terminal_steps.reward[term_local_idx])
-                    terminated[global_idx] = True
-                    truncated[global_idx] = False
-
-                # Handle agents only in decision steps
-                for agent_id in decision_only_agent_ids:
-                    dec_local_idx = decision_agent_id_to_local[agent_id]
-                    global_idx = self.from_local_to_global[env_idx][agent_id]
-                    for i in range(obs_len):
-                        observations[i][global_idx] = dec_obs[i][dec_local_idx]
-                    rewards[global_idx] = float(decision_steps.reward[dec_local_idx])
-                    terminated[global_idx] = False
-                    truncated[global_idx] = False
-
-                # Handle agents only in terminal steps
-                for agent_id in terminal_only_agent_ids:
-                    dec_local_idx = terminal_agent_id_to_local[agent_id]
-                    global_idx = self.from_local_to_global[env_idx][agent_id]
-                    for i in range(obs_len):
-                        observations[i][global_idx] = term_obs[i][dec_local_idx]
-                    rewards[global_idx] = float(terminal_steps.reward[dec_local_idx])
-                    terminated[global_idx] = True
-                    truncated[global_idx] = False  # Adjust if necessary
-
-        except Exception as e:
-            logging.error(f"An error occurred during the step: {e}")
-            raise e
-   
-        info = {}
-        info['final_observation'] = final_observations
-            
-        return observations, rewards, terminated, truncated, info
     
     def _create_action_tuple(self, actions, env_idx):
-        action_spec = self.specs[env_idx].action_spec
         action_tuple = ActionTuple()
         num_agents = len(actions)
 
@@ -358,6 +218,134 @@ class UnityBackend(Env):
             raise NotImplementedError("Action type not supported.")
 
         return action_tuple
+    
+    def init_transitions(self, obs_len):
+
+        num_agents = self.num_agents
+        
+        observations = tuple([[None] * num_agents for _ in range(obs_len)]) 
+        final_observations = tuple([[None] * num_agents for _ in range(obs_len)]) 
+        
+        # Initialize other transition variables
+        rewards = [None] * num_agents
+        terminated = [None] * num_agents
+        truncated = [None] * num_agents
+
+        return observations, rewards, terminated, truncated, final_observations    
+
+    @staticmethod
+    def make(env_id, **kwargs):
+        return UnityEnv(env_id=env_id, is_vectorized=False, **kwargs)
+
+    @staticmethod
+    def make_vec(env_id, num_envs, **kwargs):
+        return UnityEnv(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
+            
+    def reset(self, **kwargs):
+        """
+        Reset the Unity environment(s) and retrieve initial observations.
+        :return: Initial aggregated observations and info dictionary.
+        """
+        obs_len = len(self.observation_shapes)
+        observations = tuple([[None] * self.num_agents for _ in range(obs_len)]) 
+        for env_idx, env in enumerate(self.envs):
+            env.reset()
+            behavior_name = self.behavior_names[env_idx]
+            decision_steps, _ = env.get_steps(behavior_name)
+
+            self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
+            self.decision_agents[env_idx][decision_steps.agent_id] = True
+            obs = decision_steps.obs
+            for idx, agent_id in enumerate(decision_steps.agent_id):
+                global_idx = self.from_local_to_global[env_idx][agent_id]
+                # Aggregate all observation components
+                for i in range(obs_len):
+                    observations[i][global_idx] = obs[i][idx]
+
+        return observations, {}
+    
+    def step(self, actions):
+        """
+        Perform a step in the Unity environment(s).
+        :param actions: Actions to take for all agents.
+        :return: Tuple containing observations, rewards, terminated flags, truncated flags, and info.
+        """
+        action_offset = 0
+
+        # Set actions for all environments
+        for env_idx, env in enumerate(self.envs):
+            num_agents_in_env = self.agent_per_envs[env_idx]
+            env_actions = actions[action_offset:action_offset + num_agents_in_env]
+            action_offset += num_agents_in_env
+
+            decision_check = self.decision_agents[env_idx]
+            dec_actions = env_actions[decision_check]
+            if len(dec_actions) > 0:
+                action_tuple = self._create_action_tuple(dec_actions, env_idx)
+                env.set_actions(self.behavior_names[env_idx], action_tuple)
+            env.step()
+
+        obs_len = len(self.observation_shapes)
+        observations, rewards, terminated, truncated, final_observations = self.init_transitions(obs_len)
+        # Collect results from all environments
+        for env_idx, env in enumerate(self.envs):
+            decision_steps, terminal_steps = env.get_steps(self.behavior_names[env_idx])
+            self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
+            self.decision_agents[env_idx][decision_steps.agent_id] = True
+
+            # Get agent IDs and mapping from agent_id to local index
+            decision_agent_id_to_local = {agent_id: idx for idx, agent_id in enumerate(decision_steps.agent_id)}
+            terminal_agent_id_to_local = {agent_id: idx for idx, agent_id in enumerate(terminal_steps.agent_id)}
+
+            # Agents present in both decision and terminal steps
+            common_agent_ids = set(decision_steps.agent_id).intersection(terminal_steps.agent_id)
+
+            # Agents only in decision steps
+            decision_only_agent_ids = set(decision_steps.agent_id) - common_agent_ids
+
+            # Agents only in terminal steps
+            terminal_only_agent_ids = set(terminal_steps.agent_id) - common_agent_ids
+
+            # Handle agents present in both decision and terminal steps
+            dec_obs = decision_steps.obs
+            term_obs = terminal_steps.obs
+            for agent_id in common_agent_ids:
+                dec_local_idx = decision_agent_id_to_local[agent_id]
+                term_local_idx = terminal_agent_id_to_local[agent_id]
+                global_idx = self.from_local_to_global[env_idx][agent_id]
+                # Aggregate observations
+                for i in range(obs_len):
+                    final_observations[i][global_idx] = term_obs[i][term_local_idx]
+                    observations[i][global_idx] = dec_obs[i][dec_local_idx]
+                
+                rewards[global_idx] = float(terminal_steps.reward[term_local_idx])
+                terminated[global_idx] = True
+                truncated[global_idx] = False
+
+            # Handle agents only in decision steps
+            for agent_id in decision_only_agent_ids:
+                dec_local_idx = decision_agent_id_to_local[agent_id]
+                global_idx = self.from_local_to_global[env_idx][agent_id]
+                for i in range(obs_len):
+                    observations[i][global_idx] = dec_obs[i][dec_local_idx]
+                rewards[global_idx] = float(decision_steps.reward[dec_local_idx])
+                terminated[global_idx] = False
+                truncated[global_idx] = False
+
+            # Handle agents only in terminal steps
+            for agent_id in terminal_only_agent_ids:
+                dec_local_idx = terminal_agent_id_to_local[agent_id]
+                global_idx = self.from_local_to_global[env_idx][agent_id]
+                for i in range(obs_len):
+                    observations[i][global_idx] = term_obs[i][dec_local_idx]
+                rewards[global_idx] = float(terminal_steps.reward[dec_local_idx])
+                terminated[global_idx] = True
+                truncated[global_idx] = False  # Adjust if necessary
+   
+        info = {}
+        info['final_observation'] = final_observations
+            
+        return observations, rewards, terminated, truncated, info
 
     def close(self):
         """

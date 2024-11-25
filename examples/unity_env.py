@@ -1,7 +1,7 @@
 print('Example ML-Agents environment wrapper code here')
 
 
-from environments.factory import EnvironmentFactory
+from environments.environment_factory import EnvironmentFactory
 from unity3d.unity_backend import UnityBackend
 
 # Register UnityBackend

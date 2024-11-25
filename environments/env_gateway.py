@@ -1,21 +1,18 @@
-# client_gym_wrapper.py - A simple Flask API wrapper for OpenAI Gym environments.
+# environment_gateway.py - A simple Flask API wrapper for OpenAI Gym environments.
 from flask import Flask, request, jsonify
 import numpy as np
 import logging
-from environments.factory import EnvironmentFactory
-from environments.unity_backend import UnityBackend
-from environments.mujoco_backend import MujocoBackend
-from utils.converters import convert_ndarrays_to_nested_lists, convert_nested_lists_to_ndarrays
+from utils.data_converters import convert_ndarrays_to_nested_lists, convert_nested_lists_to_ndarrays
 from utils.gym_space import serialize_space
-
-EnvironmentFactory.register(UnityBackend)
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200
 HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
 
-class EnvironmentGateway:
+class EnvGateway:
+    _backend = None  # Class-level variable to store the backend
+
     def __init__(self):
         self.app = Flask(__name__)
         self.environments = {}
@@ -36,10 +33,13 @@ class EnvironmentGateway:
     def make(self):
         env_id = request.json.get("env_id", "Humanoid-v4")  # Default to "Humanoid-v4" if not provided
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
+
+        if self._backend is None or not hasattr(self._backend, "make"):
+            return jsonify({"error": "Backend not properly registered."}), HTTP_BAD_REQUEST
         
         # Store environment and metadata    
         self.environments[env_key] = {
-            "env": EnvironmentFactory.make(env_id),
+            "env": self._backend.make(env_id),
             "is_vectorized": False
         }
         logging.info(f"Environment {env_id} created with key {env_key}.")
@@ -50,9 +50,12 @@ class EnvironmentGateway:
         num_envs = request.json.get("num_envs", 1)  # Optional parameter for vectorized environments
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
+        if self._backend is None or not hasattr(self._backend, "make_vec"):
+            return jsonify({"error": "Backend not properly registered."}), HTTP_BAD_REQUEST
+
         # Store vectorized environment and metadata
         self.environments[env_key] = {
-            "env": EnvironmentFactory.make_vec(env_id, num_envs=num_envs),
+            "env": self._backend.make_vec(env_id, num_envs=num_envs),
             "is_vectorized": True
         }
         logging.info(f"Vectorized environment {env_id} created with {num_envs} instances, key {env_key}.")
@@ -130,10 +133,24 @@ class EnvironmentGateway:
         
         return jsonify({"error": "No environment with this key to close."}), HTTP_BAD_REQUEST
 
-    def run(self, port):
-        logging.info(f"Starting Gym API server on port {port}.")
-        self.app.run(port=port)
+    # def run(self, port):
+    #     logging.info(f"Starting Gym API server on port {port}.")
+    #     self.app.run(port=port)
+
+    @classmethod
+    def run(cls, backend, port=5000):
+        """
+        Register a backend and start the EnvironmentGateway server.
+        :param backend: Backend class implementing `make` and `make_vec` methods.
+        :param port: Port to run the server on.
+        """
+        cls._backend = backend
+        logging.info(f"Backend {backend.__name__} registered successfully.")
+
+        logging.info(f"Starting EnvironmentGateway server on port {port} with backend {backend.__name__}.")
+        gateway = cls()  # Create an instance with the registered backend
+        gateway.app.run(port=port)
 
 if __name__ == "__main__":
-    server = EnvironmentGateway()
+    server = EnvGateway()
     server.run(port=5000)

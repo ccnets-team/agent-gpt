@@ -1,6 +1,6 @@
 import gymnasium as gym
 
-class MujocoBackend:
+class GymEnv:
     def __init__(self, env, **kwargs):
         """Initialize the backend."""
         self.env = env
