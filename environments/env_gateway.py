@@ -133,10 +133,6 @@ class EnvGateway:
         
         return jsonify({"error": "No environment with this key to close."}), HTTP_BAD_REQUEST
 
-    # def run(self, port):
-    #     logging.info(f"Starting Gym API server on port {port}.")
-    #     self.app.run(port=port)
-
     @classmethod
     def run(cls, backend, port=5000):
         """
@@ -150,7 +146,3 @@ class EnvGateway:
         logging.info(f"Starting EnvironmentGateway server on port {port} with backend {backend.__name__}.")
         gateway = cls()  # Create an instance with the registered backend
         gateway.app.run(port=port)
-
-if __name__ == "__main__":
-    server = EnvGateway()
-    server.run(port=5000)
