@@ -40,13 +40,13 @@ Our platform is designed with flexibility and robustness in mind, enabling seaml
 - **Versatile Action and Observation Spaces:** Supports discrete, continuous, and hybrid configurations, adapting to diverse RL tasks seamlessly.
 - **Seamless Unity and ML Agent Integration :** Automatically detects and integrates Unity ML-Agent data for effortless setup.
 - **Automatic Parameter Tuning:** Automatically optimizes hyperparameters like learning rates, exploration rates, and reward thresholds, letting you focus on environment design.
--**Gymnasium-Compatible Design:** Fully adheres to Gymnasium standards (v1.0 and earlier), ensuring easy integration. 
--**Environment Autoreset and Robust Handling:** Automatically resets environments after episodes, ensuring smooth transitions and minimizing downtime.
--**Multi-Agent Support:** Handles multi-agent environments effortlessly, ensuring consistent indexing and smooth coordination of agent-specific observations, actions, and rewards.
--**Flexible API for Advanced Users:** Provides an easy-to-use API for basic operations while offering advanced customization options for experienced developers.
--**Cost-Optimized Cloud Integration:** Minimizes AWS costs while maximizing performance, with flexible pay-per-use pricing models for expense control.
+- **Gymnasium-Compatible Design:** Fully adheres to Gymnasium standards (v1.0 and earlier), ensuring easy integration. 
+- **Environment Autoreset and Robust Handling:** Automatically resets environments after episodes, ensuring smooth transitions and minimizing downtime.
+- **Multi-Agent Support:** Handles multi-agent environments effortlessly, ensuring consistent indexing and smooth coordination of agent-specific observations, actions, and rewards.
+- **Flexible API for Advanced Users:** Provides an easy-to-use API for basic operations while offering advanced customization options for experienced developers.
+- **Cost-Optimized Cloud Integration:** Minimizes AWS costs while maximizing performance, with flexible pay-per-use pricing models for expense control.
 
-For more informations about our 1-Click Robot Training Cloud Services here : 
+For more informations about our **1-Click Robot Training Cloud Services** here : 
 https://www.linkedin.com/posts/ccnets_1-click-robotics-activity-7231567120537464832-k-o_?utm_source=share&utm_medium=member_desktop
 
 ### Performance Highlights
