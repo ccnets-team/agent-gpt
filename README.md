@@ -35,7 +35,7 @@ The Remote Gymnasium system is a cloud platform that simplifies the process of t
 Our platform is designed with flexibility and robustness in mind, enabling seamless integration with a variety of environments. Whetㅇher you're using popular platforms like Unity ML-Agents and Unreal Engine, or building custom game engines, our system adapts to your needs. Additionally, we provide support for Gymnasium version 1.0 and earlier, ensuring compatibility across legacy and modern setups.
 
 ### Key Features:
--**One-Click Training Process:** Streamline workflows with a single click. Upload your environment, start training, and get actionable insights instantly.
+- **One-Click Training Process:** Streamline workflows with a single click. Upload your environment, start training, and get actionable insights instantly.
 - **One-Line Coding Simplicity:** Train agents with just a single line of code, reducing setup complexity and time.
 - **Versatile Action and Observation Spaces:** Supports discrete, continuous, and hybrid configurations, adapting to diverse RL tasks seamlessly.
 - **Seamless Unity and ML Agent Integration :** Automatically detects and integrates Unity ML-Agent data for effortless setup.
@@ -46,7 +46,7 @@ Our platform is designed with flexibility and robustness in mind, enabling seaml
 -**Flexible API for Advanced Users:** Provides an easy-to-use API for basic operations while offering advanced customization options for experienced developers.
 -**Cost-Optimized Cloud Integration:** Minimizes AWS costs while maximizing performance, with flexible pay-per-use pricing models for expense control.
 
-For more informations about our 1-Click Robot Training Cloud Serviceshere : 
+For more informations about our 1-Click Robot Training Cloud Services here : 
 https://www.linkedin.com/posts/ccnets_1-click-robotics-activity-7231567120537464832-k-o_?utm_source=share&utm_medium=member_desktop
 
 ### Performance Highlights
@@ -59,8 +59,7 @@ Our algorithm demonstrates state-of-the-art performance, setting new benchmarks 
 For more details and a demonstration of our GPT-2-powered agent's benchmark score, check out our latest update on LinkedIn: https://www.linkedin.com/posts/ccnets_gpt-2-agent-benchmark-score-with-1-click-activity-7257653827506429952-Ojet?utm_source=share&utm_medium=member_desktop
 
 ### How Does It Work:
-1. **Prepare Your Environment** : Design or Customize your game using Unity ML-Agents, or other platform. However, ensure that it adheres to the Gymnasium API Standards ('/reset()' and '/step()') 
-
+1. **Prepare Your Environment** : Design or Customize your game using Unity ML-Agents, or other platform. However, ensure that it adheres to the Gymnasium API Standards (`/reset()` and `/step()`) 
 2. **Upload and Connect** : Upload your game to the system via API 
 3. **Train Your Agent** : Start training your agent with minimal setup. 
 4. **Monitor Progress** : Track training performance in real-time 
