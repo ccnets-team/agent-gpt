@@ -5,6 +5,8 @@ from mlagents_envs.environment import UnityEnvironment, ActionTuple
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
 class UnityBackend(Env):
+    # Class-level attribute to track instance count
+    instance_count = 0    
     def __init__(self, env_id, num_envs=1, use_graphics=False, is_vectorized=False, time_scale=128, **kwargs):
         """
         Initialize a Unity environment.
@@ -18,17 +20,18 @@ class UnityBackend(Env):
         :param time_scale: Time scale for the Unity environment.
         """
         super().__init__()
-        
-        self.seed = kwargs.get("seed", 0)
+        self.seed = UnityBackend.instance_count
+        UnityBackend.instance_count += num_envs
+
         self.worker_id = self.seed
         self.env_id = env_id
+        self.file_name = "../unity_environments/" + self.env_id + "/"
+        
         self.num_envs = num_envs
         self.is_vectorized = is_vectorized 
         self.no_graphics = not use_graphics
-        self.file_name = self.file_name = "../unity_environments/" + "3DBallHard" +"/"
-        self.time_scale = time_scale
         self.channel = EngineConfigurationChannel()
-        self.channel.set_configuration_parameters(width=1280, height=720, time_scale=self.time_scale)
+        self.channel.set_configuration_parameters(width=1280, height=720, time_scale=time_scale)
 
         if is_vectorized:
             # Create multiple environments without graphics for performance
@@ -54,9 +57,9 @@ class UnityBackend(Env):
         self.behavior_names = []
         self.specs = []
         self.agent_per_envs = [] 
-        self.num_agents = 0
         self.from_local_to_global = []
         self.decision_agents = []
+        self.num_agents = 0
         self._initialize_env_info()
         self._define_observation_space()
         self._define_action_space()
@@ -115,12 +118,20 @@ class UnityBackend(Env):
         self.num_agents = total_agents
 
     def _define_observation_space(self):
+        # Check consistency of observation shapes across all specs
+        reference_shapes = [obs_spec.shape for obs_spec in self.specs[0].observation_specs]
+        for spec in self.specs[1:]:
+            current_shapes = [obs_spec.shape for obs_spec in spec.observation_specs]
+            if reference_shapes != current_shapes:
+                raise ValueError("Observation shapes are inconsistent across specs.")
+        
         # Define the observation space per agent
-        observation_shapes = [obs_spec.shape for obs_spec in self.specs[0].observation_specs]
+        observation_shapes = reference_shapes  # Use the consistent shapes from the first spec
 
         # Check if any observation shape is an image
         if any(len(shape) == 3 for shape in observation_shapes):
             raise ValueError("Image observations are not supported.")        
+        
         # Multiple observation spaces: Combine them into a single space
         self.observation_space = spaces.Tuple(
             [
@@ -135,10 +146,16 @@ class UnityBackend(Env):
         )
         self.observation_shapes = observation_shapes
 
-    def _define_action_space(self, start = 1):
-        # Assume all environments have the same action and observation spaces
-        self.spec = self.specs[0]
-        action_spec = self.spec.action_spec
+    def _define_action_space(self, start=1):
+        # Ensure consistency of action specifications across all specs
+        reference_action_spec = self.specs[0].action_spec
+        for spec in self.specs[1:]:
+            if spec.action_spec != reference_action_spec:
+                raise ValueError("Action specifications are inconsistent across specs.")
+
+        # Assume all environments have the same action space
+        self.spec = self.specs[0]  # Use the first spec as the reference
+        action_spec = self.spec.action_spec        
 
         # Define the action space per agent
         if action_spec.continuous_size > 0 and action_spec.discrete_size == 0:
