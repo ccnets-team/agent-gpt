@@ -37,8 +37,8 @@ Unity ML-Agents와 OpenAI Gymnasium API를 기반으로 강화학습 실험 및 
 ### 사용 방법
 #### 1. 설치
   1. Unity ML-Agents 설치 <br>
-     'pip install mlagents'
+     `pip install mlagents`
   2. Mujoco 및 Gymnasium 설치 <br>
-     'pip install gymnasium[mujoco]'
+     `pip install gymnasium[mujoco]`
 
 
