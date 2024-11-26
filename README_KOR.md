@@ -1,4 +1,8 @@
-## 환경 생성 및 제어 프레임워크 (UnityBackend, MujocoBackend, EnvironmentFactory)
+## 환경 생성 및 제어 프레임워크 <br>(UnityBackend, MujocoBackend, EnvironmentFactory)
+현재 버전: 1.0.0 <br>
+최신 업데이트: 2024-11-25
+
+---
 
 ### 소개
 이 프레임워크는 강화학습 환경을 손쉽게 생성하고 제어하기 위해 설계되었습니다. <br>
@@ -17,7 +21,7 @@ Unity와 Mujoco 같은 다양한 환경 백엔드를 공통 인터페이스로 �
 #### ㆍ확장성
 Unity ML-Agents와 OpenAI Gymnasium API를 기반으로 강화학습 실험 및 연구에 유연하게 활용 가능합니다.
 
- <br>
+<br>
 
 ### 코드 구성
 #### UnityBackend
@@ -32,13 +36,29 @@ Unity ML-Agents와 OpenAI Gymnasium API를 기반으로 강화학습 실험 및 
 ㆍ Unity와 Mujoco 백엔드를 통합적으로 관리합니다. <br>
 ㆍ 백엔드 등록 후 단일 인터페이스를 통해 환경 생성 및 제어 가능.
 
-<br>
+---
 
 ### 사용 방법
 #### 1. 설치
-  1. Unity ML-Agents 설치 <br>
-     `pip install mlagents`
-  2. Mujoco 및 Gymnasium 설치 <br>
-     `pip install gymnasium[mujoco]`
+1. **Unity ML-Agents 설치**
+   ```bash
+   pip install mlagents
+  
+2. **Mujoco 및 Gymnasium 설치**
+   ```bash
+   pip install gymnasium[mujoco]
 
+#### 2. 백엔드 등록 및 환경 생성
+
+1. **백엔드 등록**
+```python
+from UnityBackend import UnityBackend
+from MujocoBackend import MujocoBackend
+from EnvironmentFactory import EnvironmentFactory
+
+# UnityBackend 등록
+EnvironmentFactory.register(UnityBackend)
+
+# MujocoBackend 등록
+EnvironmentFactory.register(MujocoBackend)
 
