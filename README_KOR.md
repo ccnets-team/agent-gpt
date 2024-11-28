@@ -35,6 +35,7 @@ EnvGateway는 OpenAI Gym과 Unity ML-Agents 환경을 RESTful API로 감싸는 �
 - `environments`: 생성된 환경을 저장하는 딕셔너리.
 - `_backend`: 환경 생성에 사용되는 백엔드 클래스 (GymEnv, UnityEnv 등).
 
+<br>
 
 **주요 메서드**<br>
 `__init__()`: 앱 초기화 및 라우트 정의. <br>
@@ -48,12 +49,18 @@ EnvGateway는 OpenAI Gym과 Unity ML-Agents 환경을 RESTful API로 감싸는 �
 `close()`: 환경 종료 (/close 엔드포인트).<br>
 `run()`: 서버 실행 및 백엔드 등록.
 
+<br>
+
 **상수 및 유틸리티**<br>
 - HTTP 상태 코드 상수: HTTP_OK, HTTP_BAD_REQUEST 등.<br>
 - 유틸리티 모듈: 데이터 변환 및 공간 직렬화를 위한 모듈 (convert_ndarrays_to_nested_lists, serialize_space 등).<br>
 
+<br>
+
 **2. GymEnv 클래스**<br>
 **설명:** OpenAI Gym 환경을 위한 백엔드 구현체입니다.
+
+<br>
 
 **주요 메서드**<br>
 `__init__(self, env, **kwargs)`: 환경 인스턴스 초기화.<br>
@@ -63,13 +70,19 @@ EnvGateway는 OpenAI Gym과 Unity ML-Agents 환경을 RESTful API로 감싸는 �
 `step(action)`: 환경에서 한 단계 진행.<br>
 `close()`: 환경 종료.<br>
 
+<br>
+
 **3. UnityEnv 클래스** <br>
 **설명:** Unity ML-Agents 환경을 Gym 인터페이스로 감싸는 클래스입니다.
+
+<br>
 
 **주요 기능**
 - 여러 Unity 환경을 병렬로 실행하여 벡터화된 환경 지원.
 - 관측 공간과 액션 공간을 Gym 스페이스로 변환.
 - 환경의 초기화, 재설정, 단계 진행, 종료 관리.
+
+<br>
 
 **주요 메서드**<br>
 `__init__(self, env_id, num_envs=1, is_vectorized=False, **kwargs)`: 환경 초기화.<br>
