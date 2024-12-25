@@ -134,7 +134,7 @@ class EnvGateway:
         return jsonify({"error": "No environment with this key to close."}), HTTP_BAD_REQUEST
 
     @classmethod
-    def run(cls, backend, port=5000):
+    def train(cls, backend, port=5000):
         """
         Register a backend and start the EnvironmentGateway server.
         :param backend: Backend class implementing `make` and `make_vec` methods.
