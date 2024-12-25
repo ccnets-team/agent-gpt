@@ -23,9 +23,8 @@ class UnityEnv(Env):
         UnityEnv.instance_count += num_envs
         
         use_graphics = kwargs.get("use_graphics", False)
-        time_scale = kwargs.get("time_scale", 128)
+        time_scale = kwargs.get("time_scale", 4)
         
-        self.worker_id = self.seed
         self.env_id = env_id
         self.file_name = "../unity_environments/" + self.env_id + "/"
         
@@ -43,7 +42,7 @@ class UnityEnv(Env):
                     self.channel,
                     no_graphics=True,
                     seed=self.seed + i,
-                    worker_id=self.worker_id + i
+                    worker_id=self.seed + i
                 ) for i in range(num_envs)
             ]
         else:
@@ -51,8 +50,8 @@ class UnityEnv(Env):
                 self.file_name,
                 self.channel,
                 no_graphics=self.no_graphics,
-                seed=self.seed,
-                worker_id=self.worker_id
+                seed=self.seed + 100,
+                worker_id=self.seed + 100
             )
             self.envs = [self.env]  # For consistency, make self.envs a list
 
@@ -72,7 +71,7 @@ class UnityEnv(Env):
         
     @staticmethod
     def create_unity_env(file_name, channel, no_graphics, seed, worker_id):
-        base_port = UnityEnvironment.BASE_ENVIRONMENT_PORT + worker_id
+        base_port = UnityEnvironment.BASE_ENVIRONMENT_PORT
         env = UnityEnvironment(
             file_name=file_name,
             base_port=base_port,
@@ -92,10 +91,10 @@ class UnityEnv(Env):
             self.behavior_names.append(behavior_name)
             self.specs.append(env.behavior_specs[behavior_name])
             # Get initial agent IDs and count
-            decision_steps, _ = env.get_steps(behavior_name)
-            n_agents = len(decision_steps)
+            # decision_steps, _ = env.get_steps(behavior_name)
+            n_agents = len(env._env_state[behavior_name][0])
             self.agent_per_envs.append(n_agents)
-            env.reset()  # Reset the environment again before starting the episode
+            # env.reset()  # Reset the environment again before starting the episode
 
             self.decision_agents.append(np.zeros(n_agents, dtype=np.bool_))
 
@@ -256,6 +255,9 @@ class UnityEnv(Env):
             decision_steps, _ = env.get_steps(behavior_name)
 
             self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
+            if len(decision_steps.agent_id) == 0:
+                # No agents to act upon
+                continue
             self.decision_agents[env_idx][decision_steps.agent_id] = True
             obs = decision_steps.obs
             for idx, agent_id in enumerate(decision_steps.agent_id):
@@ -285,7 +287,7 @@ class UnityEnv(Env):
             if len(dec_actions) > 0:
                 action_tuple = self._create_action_tuple(dec_actions, env_idx)
                 env.set_actions(self.behavior_names[env_idx], action_tuple)
-            self.decision_agents[env_idx] = False
+            self.decision_agents[env_idx].fill(False)
             env.step()
 
         obs_len = len(self.observation_shapes)
@@ -294,6 +296,9 @@ class UnityEnv(Env):
         for env_idx, env in enumerate(self.envs):
             decision_steps, terminal_steps = env.get_steps(self.behavior_names[env_idx])
             self.decision_agents[env_idx] = np.zeros_like(self.decision_agents[env_idx])
+            if len(decision_steps.agent_id) == 0:
+                # No agents to act upon
+                continue
             self.decision_agents[env_idx][decision_steps.agent_id] = True
 
             # Get agent IDs and mapping from agent_id to local index
