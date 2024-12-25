@@ -91,7 +91,6 @@ class UnityEnv(Env):
             behavior_name = list(env.behavior_specs.keys())[0]
             self.behavior_names.append(behavior_name)
             self.specs.append(env.behavior_specs[behavior_name])
-
             # Get initial agent IDs and count
             decision_steps, _ = env.get_steps(behavior_name)
             n_agents = len(decision_steps)
@@ -286,6 +285,7 @@ class UnityEnv(Env):
             if len(dec_actions) > 0:
                 action_tuple = self._create_action_tuple(dec_actions, env_idx)
                 env.set_actions(self.behavior_names[env_idx], action_tuple)
+            self.decision_agents[env_idx] = False
             env.step()
 
         obs_len = len(self.observation_shapes)
@@ -322,8 +322,12 @@ class UnityEnv(Env):
                     observations[i][global_idx] = dec_obs[i][dec_local_idx]
                 
                 rewards[global_idx] = float(terminal_steps.reward[term_local_idx])
-                terminated[global_idx] = True
-                truncated[global_idx] = False
+                if terminal_steps.interrupted[term_local_idx]:
+                    truncated[global_idx] = True  # Adjust if necessary
+                    terminated[global_idx] = False
+                else:
+                    terminated[global_idx] = True
+                    truncated[global_idx] = False
 
             # Handle agents only in decision steps
             for agent_id in decision_only_agent_ids:
@@ -337,13 +341,17 @@ class UnityEnv(Env):
 
             # Handle agents only in terminal steps
             for agent_id in terminal_only_agent_ids:
-                dec_local_idx = terminal_agent_id_to_local[agent_id]
+                term_local_idx = terminal_agent_id_to_local[agent_id]
                 global_idx = self.from_local_to_global[env_idx][agent_id]
                 for i in range(obs_len):
-                    observations[i][global_idx] = term_obs[i][dec_local_idx]
-                rewards[global_idx] = float(terminal_steps.reward[dec_local_idx])
-                terminated[global_idx] = True
-                truncated[global_idx] = False  # Adjust if necessary
+                    observations[i][global_idx] = term_obs[i][term_local_idx]
+                rewards[global_idx] = float(terminal_steps.reward[term_local_idx])
+                if terminal_steps.interrupted[term_local_idx]:
+                    truncated[global_idx] = True  # Adjust if necessary
+                    terminated[global_idx] = False
+                else:
+                    terminated[global_idx] = True
+                    truncated[global_idx] = False
    
         info = {}
         info['final_observation'] = final_observations
