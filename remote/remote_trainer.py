@@ -1,18 +1,19 @@
-# environment_gateway.py - A simple Flask API wrapper for OpenAI Gym environments.
+# env_remote_trainer.py
 from flask import Flask, request, jsonify
 import numpy as np
 import logging
 from utils.data_converters import convert_ndarrays_to_nested_lists, convert_nested_lists_to_ndarrays
 from utils.gym_space import serialize_space
-from .train_sagemaker import train_sagemaker
+from .one_click_sagemaker import one_click_sagemaker_training
+from .one_click_params import OneClickHyperparameters
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200
 HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
 
-class EnvGateway:
-    env_type = None  # Class-level variable to store the backend
+class RemoteTrainer:
+    env_simulator = None  # Class-level variable to store the backend
 
     def __init__(self):
         self.app = Flask(__name__)
@@ -35,12 +36,12 @@ class EnvGateway:
         env_id = request.json.get("env_id", "Humanoid-v4")  # Default to "Humanoid-v4" if not provided
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
-        if self.env_type is None or not hasattr(self.env_type, "make"):
+        if self.env_simulator is None or not hasattr(self.env_simulator, "make"):
             return jsonify({"error": "Backend not properly registered."}), HTTP_BAD_REQUEST
         
         # Store environment and metadata    
         self.environments[env_key] = {
-            "env": self.env_type.make(env_id),
+            "env": self.env_simulator.make(env_id),
             "is_vectorized": False
         }
         logging.info(f"Environment {env_id} created with key {env_key}.")
@@ -51,12 +52,12 @@ class EnvGateway:
         num_envs = request.json.get("num_envs", 1)  # Optional parameter for vectorized environments
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
-        if self.env_type is None or not hasattr(self.env_type, "make_vec"):
+        if self.env_simulator is None or not hasattr(self.env_simulator, "make_vec"):
             return jsonify({"error": "Backend not properly registered."}), HTTP_BAD_REQUEST
 
         # Store vectorized environment and metadata
         self.environments[env_key] = {
-            "env": self.env_type.make_vec(env_id, num_envs=num_envs),
+            "env": self.env_simulator.make_vec(env_id, num_envs=num_envs),
             "is_vectorized": True
         }
         logging.info(f"Vectorized environment {env_id} created with {num_envs} instances, key {env_key}.")
@@ -135,19 +136,20 @@ class EnvGateway:
         return jsonify({"error": "No environment with this key to close."}), HTTP_BAD_REQUEST
 
     @classmethod
-    def train(cls, env_type, port=5000, sage_config = None):
+    def train(cls, env_simulator, port=5000, one_click_params: OneClickHyperparameters = None):
         """
         Register a backend and start the EnvironmentGateway server.
         :param backend: Backend class implementing `make` and `make_vec` methods.
         :param port: Port to run the server on.
         """
-        cls.env_type = env_type
-        logging.info(f"Backend {env_type.__name__} registered successfully.")
+        cls.env_simulator = env_simulator
+        logging.info(f"Backend {env_simulator.__name__} registered successfully.")
 
-        logging.info(f"Starting EnvironmentGateway server on port {port} with backend {env_type.__name__}.")
-        gateway = cls()  # Create an instance with the registered backend
-        gateway.app.run(port=port)
+        logging.info(f"Starting EnvironmentGateway server on port {port} with backend {env_simulator.__name__}.")
+        trainer = cls()  # Create an instance with the registered backend
+        trainer.app.run(port=port)
         
-        train_sagemaker(sage_config) 
+        if one_click_params is not None:
+            one_click_sagemaker_training(one_click_params) 
         
         
