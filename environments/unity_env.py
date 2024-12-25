@@ -5,7 +5,9 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 
 class UnityEnv(Env):
     # Class-level attribute to track instance count
-    instance_count = 0    
+    _instance_count = 0    
+    _file_path = None
+    _id = None
     def __init__(self, env_id, num_envs=1, is_vectorized=False, **kwargs):
         """
         Initialize a Unity environment.
@@ -19,14 +21,14 @@ class UnityEnv(Env):
         :param time_scale: Time scale for the Unity environment.
         """
         super().__init__()
-        self.seed = UnityEnv.instance_count
-        UnityEnv.instance_count += num_envs
+        self.seed = UnityEnv._instance_count
+        UnityEnv._instance_count += num_envs
         
         use_graphics = kwargs.get("use_graphics", False)
         time_scale = kwargs.get("time_scale", 4)
+        UnityEnv._file_path = UnityEnv._file_path or "../unity_environments/" + self.env_id + "/"
         
         self.env_id = env_id
-        self.file_name = "../unity_environments/" + self.env_id + "/"
         
         self.num_envs = num_envs
         self.is_vectorized = is_vectorized 
@@ -38,7 +40,7 @@ class UnityEnv(Env):
             # Create multiple environments without graphics for performance
             self.envs = [
                 self.create_unity_env(
-                    self.file_name,
+                    UnityEnv._file_path,
                     self.channel,
                     no_graphics=True,
                     seed=self.seed + i,
@@ -47,7 +49,7 @@ class UnityEnv(Env):
             ]
         else:
             self.env = self.create_unity_env(
-                self.file_name,
+                UnityEnv._file_path,
                 self.channel,
                 no_graphics=self.no_graphics,
                 seed=self.seed + 100,
@@ -64,11 +66,17 @@ class UnityEnv(Env):
         self._initialize_env_info()
         self._define_observation_space()
         self._define_action_space()
+
+    @classmethod
+    def register(cls, env_id, file_path):
+        UnityEnv._file_path = file_path
+        UnityEnv._id = env_id
+        print(f"Registering environment: {env_id} with file path: {file_path}")
     
     def __exit__(self, exc_type, exc_value, traceback):
         if self.envs:
             self.close()
-        
+
     @staticmethod
     def create_unity_env(file_name, channel, no_graphics, seed, worker_id):
         base_port = UnityEnvironment.BASE_ENVIRONMENT_PORT

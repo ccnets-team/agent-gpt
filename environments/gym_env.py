@@ -1,4 +1,6 @@
 import gymnasium as gym
+from gymnasium import Env, spaces
+from gymnasium.envs import registration
 
 class GymEnv:
     def __init__(self, env, **kwargs):
@@ -26,4 +28,24 @@ class GymEnv:
     def close(self):
         """Close the environment."""
         self.env.close()
-    
+        
+    @classmethod
+    def register(cls, env_id, entry_point):
+        
+        # Dynamically retrieve module and class name
+        module_path = cls.__module__    
+        class_name = cls.__name__
+        
+        # Handle `None` for env_id naturally
+        if env_id is None:
+            env_id = f"{class_name}"  # Use a default name if env_id is None
+
+        # Additional logic to register the environment
+        print(f"Registering environment: {env_id} with API URL: {entry_point}")
+
+        # Register environment with dynamic module path and class name, and pass env_url via kwargs
+        registration.register(
+            id=env_id,
+            entry_point=f"{module_path}:{class_name}",
+            kwargs={"entry_point": entry_point, "id": env_id}  # Add env_id to kwargs
+        )

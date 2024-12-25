@@ -4,6 +4,7 @@ import numpy as np
 import logging
 from utils.data_converters import convert_ndarrays_to_nested_lists, convert_nested_lists_to_ndarrays
 from utils.gym_space import serialize_space
+from .train_sagemaker import train_sagemaker
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200
@@ -11,7 +12,7 @@ HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
 
 class EnvGateway:
-    _backend = None  # Class-level variable to store the backend
+    env_type = None  # Class-level variable to store the backend
 
     def __init__(self):
         self.app = Flask(__name__)
@@ -34,12 +35,12 @@ class EnvGateway:
         env_id = request.json.get("env_id", "Humanoid-v4")  # Default to "Humanoid-v4" if not provided
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
-        if self._backend is None or not hasattr(self._backend, "make"):
+        if self.env_type is None or not hasattr(self.env_type, "make"):
             return jsonify({"error": "Backend not properly registered."}), HTTP_BAD_REQUEST
         
         # Store environment and metadata    
         self.environments[env_key] = {
-            "env": self._backend.make(env_id),
+            "env": self.env_type.make(env_id),
             "is_vectorized": False
         }
         logging.info(f"Environment {env_id} created with key {env_key}.")
@@ -50,12 +51,12 @@ class EnvGateway:
         num_envs = request.json.get("num_envs", 1)  # Optional parameter for vectorized environments
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
-        if self._backend is None or not hasattr(self._backend, "make_vec"):
+        if self.env_type is None or not hasattr(self.env_type, "make_vec"):
             return jsonify({"error": "Backend not properly registered."}), HTTP_BAD_REQUEST
 
         # Store vectorized environment and metadata
         self.environments[env_key] = {
-            "env": self._backend.make_vec(env_id, num_envs=num_envs),
+            "env": self.env_type.make_vec(env_id, num_envs=num_envs),
             "is_vectorized": True
         }
         logging.info(f"Vectorized environment {env_id} created with {num_envs} instances, key {env_key}.")
@@ -134,15 +135,19 @@ class EnvGateway:
         return jsonify({"error": "No environment with this key to close."}), HTTP_BAD_REQUEST
 
     @classmethod
-    def train(cls, backend, port=5000):
+    def train(cls, env_type, port=5000, sage_config = None):
         """
         Register a backend and start the EnvironmentGateway server.
         :param backend: Backend class implementing `make` and `make_vec` methods.
         :param port: Port to run the server on.
         """
-        cls._backend = backend
-        logging.info(f"Backend {backend.__name__} registered successfully.")
+        cls.env_type = env_type
+        logging.info(f"Backend {env_type.__name__} registered successfully.")
 
-        logging.info(f"Starting EnvironmentGateway server on port {port} with backend {backend.__name__}.")
+        logging.info(f"Starting EnvironmentGateway server on port {port} with backend {env_type.__name__}.")
         gateway = cls()  # Create an instance with the registered backend
         gateway.app.run(port=port)
+        
+        train_sagemaker(sage_config) 
+        
+        
