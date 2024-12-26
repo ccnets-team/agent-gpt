@@ -11,7 +11,7 @@ HTTP_OK = 200
 HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
 
-class RemoteEnvHost:
+class EnvHost:
     def __init__(self, env_simulator, port):
         self.env_simulator = env_simulator
         self.environments = {}

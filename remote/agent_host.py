@@ -21,9 +21,6 @@ class RemoteAgentHost:
 
         logging.basicConfig(level=logging.INFO)
 
-        # OPTIONAL: Immediately load the model and environment
-        self.load_model(self.model_path)
-
     def load_model(self, model_path: str):
         """
         Loads a model on the remote runner (POST /load_model).

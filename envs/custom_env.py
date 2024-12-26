@@ -1,9 +1,9 @@
 # custom_simulator.py
-from gymnasium import Env as Simulator
+from gymnasium import Env
 from gymnasium import spaces
 import numpy as np
 
-class CustomSimulator(Simulator):
+class CustomEnv(Env):
     """
     A minimal custom environment that can be used as an env_type 
     in the EnvGateway, mirroring the structure of UnityEnv and GymEnv.
@@ -38,7 +38,7 @@ class CustomSimulator(Simulator):
         :param kwargs: Extra configuration parameters to pass to the constructor.
         :return: An instance of CustomEnv.
         """
-        return CustomSimulator(env_id=env_id, **kwargs)
+        return CustomEnv(env_id=env_id, **kwargs)
 
     @staticmethod
     def make_vec(env_id, num_envs, **kwargs):
@@ -53,7 +53,7 @@ class CustomSimulator(Simulator):
         :param kwargs: Extra configuration parameters.
         :return: A list (or a wrapper) of multiple CustomEnv instances.
         """
-        envs = [CustomSimulator(env_id=env_id, **kwargs) for _ in range(num_envs)]
+        envs = [CustomEnv(env_id=env_id, **kwargs) for _ in range(num_envs)]
         return envs
 
     def reset(self, seed=None, options=None):
@@ -103,10 +103,10 @@ class CustomSimulator(Simulator):
         pass
 
     @classmethod
-    def register(cls, env_id, entry_point):
+    def register(cls, id, entry_point):
         """
         If you’d like to integrate a registry mechanism, 
         similar to `gym.register`, you can implement it here.
         """
         # You can add logic to handle your own registration if needed.
-        print(f"Registering custom environment: {env_id} at {entry_point}")
+        print(f"Registering custom environment: {id} at {entry_point}")
