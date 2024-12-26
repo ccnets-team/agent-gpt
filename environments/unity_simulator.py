@@ -1,9 +1,10 @@
 import numpy as np
-from gymnasium import Env, spaces
+from gymnasium import Env as Simulator
+from gymnasium import spaces
 from mlagents_envs.environment import UnityEnvironment, ActionTuple
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-class UnityEnv(Env):
+class UnitySimulator(Simulator):
     # Class-level attribute to track instance count
     _instance_count = 0    
     _file_path = None
@@ -21,12 +22,12 @@ class UnityEnv(Env):
         :param time_scale: Time scale for the Unity environment.
         """
         super().__init__()
-        self.seed = UnityEnv._instance_count
-        UnityEnv._instance_count += num_envs
+        self.seed = UnitySimulator._instance_count
+        UnitySimulator._instance_count += num_envs
         
         use_graphics = kwargs.get("use_graphics", False)
         time_scale = kwargs.get("time_scale", 4)
-        UnityEnv._file_path = UnityEnv._file_path or "../unity_environments/" + self.env_id + "/"
+        UnitySimulator._file_path = "../unity_environments/" + env_id + "/"
         
         self.env_id = env_id
         
@@ -40,7 +41,7 @@ class UnityEnv(Env):
             # Create multiple environments without graphics for performance
             self.envs = [
                 self.create_unity_env(
-                    UnityEnv._file_path,
+                    UnitySimulator._file_path,
                     self.channel,
                     no_graphics=True,
                     seed=self.seed + i,
@@ -49,7 +50,7 @@ class UnityEnv(Env):
             ]
         else:
             self.env = self.create_unity_env(
-                UnityEnv._file_path,
+                UnitySimulator._file_path,
                 self.channel,
                 no_graphics=self.no_graphics,
                 seed=self.seed + 100,
@@ -69,8 +70,8 @@ class UnityEnv(Env):
 
     @classmethod
     def register(cls, env_id, file_path):
-        UnityEnv._file_path = file_path
-        UnityEnv._id = env_id
+        UnitySimulator._file_path = file_path
+        UnitySimulator._id = env_id
         print(f"Registering environment: {env_id} with file path: {file_path}")
     
     def __exit__(self, exc_type, exc_value, traceback):
@@ -244,11 +245,11 @@ class UnityEnv(Env):
 
     @staticmethod
     def make(env_id, **kwargs):
-        return UnityEnv(env_id=env_id, is_vectorized=False, **kwargs)
+        return UnitySimulator(env_id=env_id, is_vectorized=False, **kwargs)
 
     @staticmethod
     def make_vec(env_id, num_envs, **kwargs):
-        return UnityEnv(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
+        return UnitySimulator(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
             
     def reset(self, **kwargs):
         """

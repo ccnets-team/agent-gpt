@@ -1,8 +1,9 @@
 import gymnasium as gym
-from gymnasium import Env, spaces
+from gymnasium import Env as Simulator
+from gymnasium import spaces
 from gymnasium.envs import registration
 
-class GymEnv:
+class GymSimulator:
     def __init__(self, env, **kwargs):
         """Initialize the backend."""
         self.env = env

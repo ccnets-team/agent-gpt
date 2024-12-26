@@ -1,8 +1,9 @@
-# custom_env.py
-from gymnasium import Env, spaces
+# custom_simulator.py
+from gymnasium import Env as Simulator
+from gymnasium import spaces
 import numpy as np
 
-class CustomEnv(Env):
+class CustomSimulator(Simulator):
     """
     A minimal custom environment that can be used as an env_type 
     in the EnvGateway, mirroring the structure of UnityEnv and GymEnv.
@@ -37,7 +38,7 @@ class CustomEnv(Env):
         :param kwargs: Extra configuration parameters to pass to the constructor.
         :return: An instance of CustomEnv.
         """
-        return CustomEnv(env_id=env_id, **kwargs)
+        return CustomSimulator(env_id=env_id, **kwargs)
 
     @staticmethod
     def make_vec(env_id, num_envs, **kwargs):
@@ -52,7 +53,7 @@ class CustomEnv(Env):
         :param kwargs: Extra configuration parameters.
         :return: A list (or a wrapper) of multiple CustomEnv instances.
         """
-        envs = [CustomEnv(env_id=env_id, **kwargs) for _ in range(num_envs)]
+        envs = [CustomSimulator(env_id=env_id, **kwargs) for _ in range(num_envs)]
         return envs
 
     def reset(self, seed=None, options=None):
