@@ -11,8 +11,9 @@ class SageMakerConfig:
     instance_type: str = "ml.g4dn.xlarge"
     instance_count: int = 1
     max_run: int = 3600               # Max training time in seconds
-    image_uri: str = "one-click-server-test:latest"
+    api_uri: str = "agentgpt.ccnets.org:latest"
     output_path: Optional[str] = "s3://your-bucket/output/"
+    model_path: Optional[str] = "s3://your-bucket/gpt_decision_model/"
 
     def to_dict(self) -> dict:
         """
@@ -21,7 +22,7 @@ class SageMakerConfig:
         return dict(self)
     
 @dataclass
-class OneClickHyperparameters:
+class Hyperparameters:
     """
     A single, consolidated dataclass holding hyperparameters and configurations
     for your RL system (environment, training, optimization, etc.).
@@ -109,7 +110,7 @@ class OneClickHyperparameters:
     # --------------------
     gamma_init: float = 0.99
     lambda_init: float = 0.95
-    gpt_seq_len: int = 16
+    max_gpt_seq_len: int = 16
 
     # --------------------
     # 5) Optimization

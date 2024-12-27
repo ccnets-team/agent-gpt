@@ -1,10 +1,9 @@
-# remote_trainer.py
+# env_host.py
 from flask import Flask, request, jsonify
 import numpy as np
 import logging
 from utils.data_converters import convert_ndarrays_to_nested_lists, convert_nested_lists_to_ndarrays
 from utils.gym_space import serialize_space
-from threading import Thread
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200
@@ -12,7 +11,7 @@ HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
 
 class EnvHost:
-    def __init__(self, env_simulator, port):
+    def __init__(self, env_simulator):
         self.env_simulator = env_simulator
         self.environments = {}
         

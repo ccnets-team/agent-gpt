@@ -1,37 +1,35 @@
 
-import logging
-from remote.agent_host import RemoteAgentHost
-from remote.one_click_params import SageMakerConfig
+from remote.agent_manager import AgentManager
+from remote.agent_gpt_config import SageMakerConfig
 from sagemaker import Model
 
-class AgentGPT(RemoteAgentHost):
-    def __init__(self,
-                 model_path: str,
-                 api_url: str = "http://agentgpt.ccnets.org"):
+class AgentGPT(AgentManager):
+    def __init__(self, sagemaker_config: SageMakerConfig):
         """
         :param model_path: Where your model is stored (e.g. s3://...).
         :param api_url: The base URL of the remote service (EnvRemoteRunner).
         :param default_env_id: Default environment ID to use.
         """
-        super().__init__(model_path, api_url)
-        
+        model_path: str = sagemaker_config.output_path
+        api_url: str = sagemaker_config.api_uri
+
+        super().__init__(api_url, model_path)
+
         self.model_path = model_path
         self.api_url = api_url
 
-        logging.basicConfig(level=logging.INFO)
-
-    def run(self, sage_config: SageMakerConfig):
-        inference_model = Model(
+        self.inference_model = Model(
             image_uri = self.api_url,
             model_data=self.model_path,
-            role=sage_config.role_arn,
+            role=sagemaker_config.role_arn,
         )
-        predictor = inference_model.deploy(
-            initial_instance_count=sage_config.instance_count,
-            instance_type=sage_config.instance_type
+        
+        self.predictor = self.inference_model.deploy(
+            initial_instance_count=sagemaker_config.instance_count,
+            instance_type=sagemaker_config.instance_type
         )
         
         # OPTIONAL: Immediately load the model and environment
         self.load_model(self.model_path)
         
-        return predictor
+        pass
