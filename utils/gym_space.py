@@ -44,53 +44,54 @@ def compute_space_dimension(observation_space):
     else:
         raise ValueError(f"Unsupported observation space type: {type(observation_space)}")
 
-def serialize_space(
-    space: gym.spaces.Space,
-    type_key: str = "space_type",  # e.g. observation_space_type or action_space_type
-    value_key: str = "space_value" # e.g. observation_space_value or action_space_value
-) -> Dict[str, Any]:
-    """
-    Serialize a gym space's sample data into a dictionary suitable for JSON storage.
-    
-    - type_key: Key under which the space's class name will be stored.
-    - value_key: Key under which the space's JSON-serialized data will be stored.
-    """
-    # 1) Extract the space class name, e.g. "Box", "Discrete", etc.
-    space_type_str = type(space).__name__
+def space_to_dict(space: gym.spaces.Space):
+    """Recursively serialize a Gym space into a Python dict."""
+    if isinstance(space, gym.spaces.Box):
+        return {
+            "type": "Box",
+            "low": space.low.tolist(),   # convert np.ndarray -> list
+            "high": space.high.tolist(),
+            "shape": space.shape,
+            "dtype": str(space.dtype)
+        }
+    elif isinstance(space, gym.spaces.Discrete):
+        return {
+            "type": "Discrete",
+            "n": space.n
+        }
+    elif isinstance(space, gym.spaces.Dict):
+        return {
+            "type": "Dict",
+            "spaces": {
+                k: space_to_dict(v) for k, v in space.spaces.items()
+            }
+        }
+    elif isinstance(space, gym.spaces.Tuple):
+        return {
+            "type": "Tuple",
+            "spaces": [space_to_dict(s) for s in space.spaces]
+        }
+    else:
+        raise NotImplementedError(f"Cannot serialize space type: {type(space)}")
 
-    # 2) Get the JSON-friendly data from to_jsonable.
-    #    Note: 'space.to_jsonable' typically expects a *list of samples*,
-    #    so if you only have a single sample, wrap it in a list before calling this
-    #    or ensure you've already passed a list of samples to 'space'.
-    space_value = space.to_jsonable()
-
-    # 3) Return a dict containing both the type and the value
-    return {
-        type_key: space_type_str,
-        value_key: space_value
-    }
-    
-def deserialize_space(
-    data: dict, 
-    type_key: str = "space_type", # observation_space_type or action_space_type
-    value_key: str = "space_value" # observation_space_value or action_space_value
-):
-    # 1) Extract the space class name
-    space_type_str = data.get(type_key)
-    if space_type_str is None:
-        raise ValueError(f"No '{type_key}' found in data.")
-
-    # 2) Dynamically get the gym.spaces class
-    space_class: gym.spaces.OneOf = getattr(gym.spaces, space_type_str, None)
-    if space_class is None:
-        raise ValueError(f"Unsupported space class: {space_type_str}")
-
-    # 3) Extract the JSON-serialized samples
-    space_value = data.get(value_key)
-    if space_value is None:
-        raise ValueError(f"No '{value_key}' found in data.")
-
-    # 4) Convert from JSONable -> original sample(s)
-    deserialized_space = space_class.from_jsonable(space_value)
-
-    return deserialized_space
+def space_from_dict(data: dict) -> gym.spaces.Space:
+    """Recursively deserialize a Python dict to a Gym space."""
+    space_type = data["type"]
+    if space_type == "Box":
+        low = np.array(data["low"], dtype=float)
+        high = np.array(data["high"], dtype=float)
+        shape = tuple(data["shape"])
+        dtype = data.get("dtype", "float32")
+        return gym.spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
+    elif space_type == "Discrete":
+        return gym.spaces.Discrete(data["n"])
+    elif space_type == "Dict":
+        sub_dict = {
+            k: space_from_dict(v) for k, v in data["spaces"].items()
+        }
+        return gym.spaces.Dict(sub_dict)
+    elif space_type == "Tuple":
+        sub_spaces = [space_from_dict(s) for s in data["spaces"]]
+        return gym.spaces.Tuple(tuple(sub_spaces))
+    else:
+        raise NotImplementedError(f"Cannot deserialize space type: {space_type}")

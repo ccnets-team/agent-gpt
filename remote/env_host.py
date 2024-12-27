@@ -3,7 +3,7 @@ from flask import Flask, request, jsonify
 import numpy as np
 import logging
 from utils.data_converters import convert_ndarrays_to_nested_lists, convert_nested_lists_to_ndarrays
-from utils.gym_space import serialize_space
+from utils.gym_space import space_to_dict
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200
@@ -109,7 +109,7 @@ class EnvHost:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), HTTP_BAD_REQUEST
 
         action_space = self.environments[env_key]["env"].action_space
-        action_space_serial = serialize_space(action_space)
+        action_space_serial = space_to_dict(action_space)
 
         return jsonify(action_space_serial)
 
@@ -119,7 +119,7 @@ class EnvHost:
             return jsonify({"error": "Environment not initialized. Please call /make first."}), HTTP_BAD_REQUEST
 
         observation_space = self.environments[env_key]["env"].observation_space
-        observation_space_serial = serialize_space(observation_space)
+        observation_space_serial = space_to_dict(observation_space)
 
         return jsonify(observation_space_serial)
         
