@@ -15,10 +15,12 @@ class EnvHost:
     def __init__(self, env_simulator, port):
         self.env_simulator = env_simulator
         self.environments = {}
-        logging.basicConfig(level=logging.INFO)
+        
         self.app = Flask(__name__)
-        self.server_thread = Thread(target=lambda: self.app.run(port=port))
         self._define_routes()
+
+        # self.server_thread = Thread(target=lambda: self.app.run(port=port))
+        # self.server_thread.start()
             
     def _define_routes(self):  
         self.app.add_url_rule("/make", "make", self.make, methods=["POST"])
