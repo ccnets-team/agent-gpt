@@ -1,5 +1,9 @@
 from dataclasses import dataclass
 from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional
+import importlib
+import os
 
 @dataclass
 class SageMakerConfig:
@@ -8,45 +12,58 @@ class SageMakerConfig:
     """
 
     role_arn: Optional[str] = None  # e.g. "arn:aws:iam::123456789012:role/SageMakerRole"
-    instance_type: str = "ml.g4dn.xlarge"
-    instance_count: int = 1
-    max_run: int = 3600               # Max training time in seconds
-    api_uri: str = "agentgpt.ccnets.org"
-    model_dir: Optional[str] = "s3://your-bucket/output/"
+    instance_type: str = None
+    instance_count: int = None
+    max_run: int = None               # Max training time in seconds
+    api_uri: str = None
+    region: Optional[str] = None
+    model_dir: Optional[str] = None
 
-    def __post_init__(self):
-        """
-        After the dataclass is initialized, check if boto3 is installed.
-        If yes, automatically call set_role_arn_from_sts().
-        """
-        import importlib
+    def __init__(
+        self,
+        role_arn: Optional[str] = None,
+        instance_type: str = "ml.g4dn.xlarge",
+        instance_count: int = 1,
+        max_run: int = 3600,
+        api_uri: str = "agentgpt.ccnets.org",
+        region: Optional[str] = "us-east-1",
+        model_dir: Optional[str] = "s3://your-bucket/output/"
+    ):
+        # Manually assign fields
+        self.role_arn = role_arn or self.get_role_arn()
+        self.instance_type = instance_type
+        self.instance_count = instance_count
+        self.max_run = max_run
+        self.api_uri = api_uri
+        self.model_dir = model_dir
+        self.region = region
 
-        if importlib.util.find_spec("boto3") is not None:
-            self.set_role_arn_from_sts()
-        else:
-            print("boto3 is not installed. Skipping role ARN initialization.")
-
-    def set_role_arn_from_sts(self):
+    def get_role_arn(self):
         """
         Retrieve the current caller identity from AWS STS and set
         this dataclass's role_arn to the returned ARN.
         Also prints out the account ID, user ID, and ARN for reference.
         """
-        import boto3
-        sts = boto3.client("sts")
-        response = sts.get_caller_identity()
-        self.role_arn = response["Arn"]
-
-        print("Account:", response["Account"])
-        print("UserId:", response["UserId"])
-        print("ARN:", response["Arn"])
+        role_arn = os.environ.get("SAGEMAKER_EXECUTION_ROLE_ARN")
+        if role_arn:
+            self.role_arn = role_arn
+            print(f"Role ARN: {role_arn}")
+            return role_arn
+        return None
 
     def to_dict(self) -> dict:
         """
         Returns a dictionary of all SageMaker configuration fields.
         """
-        return dict(self)
-    
+        return dict(
+            role_arn=self.role_arn,
+            instance_type=self.instance_type,
+            instance_count=self.instance_count,
+            max_run=self.max_run,
+            api_uri=self.api_uri,
+            model_dir=self.model_dir,
+        )
+
 @dataclass
 class Hyperparameters:
     """

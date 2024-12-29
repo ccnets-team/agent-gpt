@@ -26,7 +26,7 @@ class GPTTrainer(EnvHost):
         self.port = port
         
         self.estimator = None
-        self.public_url = None
+        self.local_url = None
         self.server_thread = None
 
         if self.use_ngrok:
@@ -46,11 +46,11 @@ class GPTTrainer(EnvHost):
         
         from pyngrok import ngrok  # Import inside method so it's only used if we want ngrok
 
-        def run_server():
-            # 1) Create the tunnel
-            self.public_url = ngrok.connect(self.port, "http").public_url
-            print(f"[GPTTrainer] ngrok tunnel public URL: {self.public_url}")
+        # 1) Create the tunnel
+        self.local_url = ngrok.connect(self.port, "http").public_url
+        print(f"[GPTTrainer] ngrok tunnel public URL: {self.local_url}")
 
+        def run_server():
             # 2) Run Flask
             self.app.run(host=self.host, port=self.port)
 
@@ -61,29 +61,30 @@ class GPTTrainer(EnvHost):
         """Start Flask without ngrok, for local or LAN access only."""
         def run_server():
             print(f"[GPTTrainer] Running Flask on http://{self.host}:{self.port} (no tunnel)")
+            self.local_url = f"http://{self.host}:{self.port}"
             self.app.run(host=self.host, port=self.port)
 
         self.server_thread = Thread(target=run_server, daemon=True)
         self.server_thread.start()
 
-    def train(self, sage_config: SageMakerConfig, hyperparameters: Hyperparameters):
+    def train(self, sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters):
         """Launch a SageMaker training job for a one-click robotics environment."""
+        hyperparameters.env_url = self.local_url
         
-        self._validate_sagemaker(sage_config)
+        self._validate_sagemaker(sagemaker_config)
         self._validate_oneclick(hyperparameters)
 
         # Default values from SageMakerConfig + one-click hyperparameters
         hyperparameters = hyperparameters.to_dict()
         
-        sage_config.set_role_arn_from_sts()
-        
         self.estimator = Estimator(
-            role=sage_config.role_arn,
-            instance_type=sage_config.instance_type,
-            instance_count=sage_config.instance_count,
-            output_path=sage_config.model_dir,
-            image_uri=sage_config.api_uri,
-            max_run=sage_config.max_run,
+            role=sagemaker_config.role_arn,
+            instance_type=sagemaker_config.instance_type,
+            instance_count=sagemaker_config.instance_count,
+            output_path=sagemaker_config.model_dir,
+            image_uri=sagemaker_config.api_uri,
+            max_run=sagemaker_config.max_run,
+            region=sagemaker_config.region,
             hyperparameters=hyperparameters
         )
         
@@ -111,6 +112,7 @@ class GPTTrainer(EnvHost):
     def _validate_sagemaker(self, sagemaker_config: SageMakerConfig):
         """Validate the SageMaker training job configuration."""
         if not sagemaker_config.role_arn or not re.match(r"^arn:aws:iam::\d{12}:role/[\w+=,.@-]+", sagemaker_config.role_arn):
+            print("Role ARN:", sagemaker_config.role_arn)
             raise ValueError("Must provide a valid AWS IAM Role ARN.")
 
     def _validate_oneclick(self, params: Hyperparameters):
