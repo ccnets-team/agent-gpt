@@ -11,9 +11,35 @@ class SageMakerConfig:
     instance_type: str = "ml.g4dn.xlarge"
     instance_count: int = 1
     max_run: int = 3600               # Max training time in seconds
-    api_uri: str = "agentgpt.ccnets.org:latest"
-    output_path: Optional[str] = "s3://your-bucket/output/"
-    model_path: Optional[str] = "s3://your-bucket/gpt_decision_model/"
+    api_uri: str = "agentgpt.ccnets.org"
+    model_dir: Optional[str] = "s3://your-bucket/output/"
+
+    def __post_init__(self):
+        """
+        After the dataclass is initialized, check if boto3 is installed.
+        If yes, automatically call set_role_arn_from_sts().
+        """
+        import importlib
+
+        if importlib.util.find_spec("boto3") is not None:
+            self.set_role_arn_from_sts()
+        else:
+            print("boto3 is not installed. Skipping role ARN initialization.")
+
+    def set_role_arn_from_sts(self):
+        """
+        Retrieve the current caller identity from AWS STS and set
+        this dataclass's role_arn to the returned ARN.
+        Also prints out the account ID, user ID, and ARN for reference.
+        """
+        import boto3
+        sts = boto3.client("sts")
+        response = sts.get_caller_identity()
+        self.role_arn = response["Arn"]
+
+        print("Account:", response["Account"])
+        print("UserId:", response["UserId"])
+        print("ARN:", response["Arn"])
 
     def to_dict(self) -> dict:
         """
@@ -102,8 +128,8 @@ class Hyperparameters:
     num_agents: int = 128
     batch_size: int = 128
     train_interval: int = 1
-    max_steps: int = 1_000_000
-    buffer_size: int = 1_000_000
+    max_steps: int = 500_000
+    buffer_size: int = 500_000
 
     # --------------------
     # 4) Algorithm
@@ -117,7 +143,7 @@ class Hyperparameters:
     # --------------------
     lr_init: float = 1e-4
     lr_end: float = 1e-6
-    lr_scheduler: str = "exponential"
+    lr_scheduler: str = "linear"
     lr_cycle_steps: int = 20_000
     tau: float = 0.01
     max_grad_norm: float = 1.0

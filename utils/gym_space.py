@@ -2,28 +2,6 @@
 
 import numpy as np
 import gymnasium as gym
-from typing import Any, Dict
-
-def flatten_observations(data, num_agents):
-    """
-    Flatten the observation data structure into (num_agents, feature_dim).
-    
-    This function handles nested (dict, tuple, list) structures by concatenating their parts.
-    For single arrays or scalars, it ensures the shape is (num_agents, -1).
-    """
-    if isinstance(data, (dict, tuple, list)):
-        arrays = []
-        for obs in data:
-            if isinstance(obs, (dict, tuple, list)):
-                arr = flatten_observations(obs, num_agents)
-            else:
-                arr = np.array(obs, dtype=np.float32).reshape(num_agents, -1)
-            arrays.append(arr)
-        return np.concatenate(arrays, axis=-1)
-    else:
-        # Handle scalar or simple array directly
-        arr = np.array(data, dtype=np.float32)
-        return arr.reshape(num_agents, -1)    
 
 def compute_space_dimension(observation_space):
     if isinstance(observation_space, gym.spaces.Box):

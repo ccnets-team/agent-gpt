@@ -1,4 +1,5 @@
-# agent_gpt.py
+# agent_manager.py
+
 import logging
 import requests
 import numpy as np
@@ -10,9 +11,10 @@ from utils.data_converters import (
 
 HTTP_OK = 200
 
+
 class AgentManager:
     """
-    Client-side class for interacting with a remote 'EnvRemoteRunner' service.
+    Client-side class for interacting with a remote 'AgentRegistry' (GPT server).
     Responsible for sending HTTP requests that perform model loading,
     agent registration, action selection, etc.
     """
@@ -37,9 +39,10 @@ class AgentManager:
         Returns the decoded JSON response.
         """
         payload = payload or {}
-        resp = requests.post(f"{self.api_url}/{endpoint}", json=payload)
+        url = f"{self.api_url}/{endpoint}"
+        resp = requests.post(url, json=payload)
         if resp.status_code != HTTP_OK:
-            raise RuntimeError(f"POST /{endpoint} failed: {resp.text}")
+            raise RuntimeError(f"POST {url} failed: {resp.text}")
 
         data = resp.json()
         logging.info(f"[POST /{endpoint}] response: {data}")
@@ -51,9 +54,10 @@ class AgentManager:
         Throws a RuntimeError if the response status is not HTTP_OK.
         Returns the decoded JSON response.
         """
-        resp = requests.get(f"{self.api_url}/{endpoint}")
+        url = f"{self.api_url}/{endpoint}"
+        resp = requests.get(url)
         if resp.status_code != HTTP_OK:
-            raise RuntimeError(f"GET /{endpoint} failed: {resp.text}")
+            raise RuntimeError(f"GET {url} failed: {resp.text}")
 
         data = resp.json()
         logging.info(f"[GET /{endpoint}] response: {data}")
@@ -73,7 +77,7 @@ class AgentManager:
     # -------------------------------------------------------------------------
     def control_performance(self, performance: float):
         """
-        Sets a global performance level on the remote runner (POST /control_performance).
+        Sets a global performance (control) value on the remote server (POST /control_performance).
         """
         self._post("control_performance", {"performance": performance})
 
@@ -91,21 +95,28 @@ class AgentManager:
     # -------------------------------------------------------------------------
     def select_action(self, agent_id: int, observation):
         """
-        Convenience method for single agent + single observation.
+        Convenience method: single agent, single observation.
+        Internally calls select_actions() with a list of length 1.
         """
         actions = self.select_actions([agent_id], [observation])
-        return actions[0] if actions is not None else None
+        return actions[0] if actions is not None and len(actions) > 0 else None
 
     def select_actions(self, agent_ids: list, observations: list):
         """
         Requests actions for multiple agents (POST /select_action).
+        The 'AgentRegistry' expects JSON with:
+          {
+            "agent_ids": [...],
+            "observations": [...]
+          }
         """
         obs_converted = convert_ndarrays_to_nested_lists(observations)
         data = self._post("select_action", {
-            "agent_id": agent_ids,
-            "observation": obs_converted
+            "agent_ids": agent_ids,
+            "observations": obs_converted
         })
-        # Convert action data back to np.ndarray
+
+        # Convert action data back to numpy array
         action_data = data.get("action")
         if action_data is not None:
             action_data = convert_nested_lists_to_ndarrays(action_data, dtype=np.float32)
@@ -123,10 +134,10 @@ class AgentManager:
 
     def get_max_seq_len(self) -> int:
         """
-        Retrieves the GPT sequence length (GET /get_max_seq_len).
+        Retrieves the GPT max sequence length (GET /get_max_seq_len).
         """
         data = self._get("get_max_seq_len")
-        return data.get("seq_len", 0)    
+        return data.get("seq_len", 0)
 
     def set_input_seq_len(self, seq_len: int) -> bool:
         """
@@ -176,6 +187,7 @@ class AgentManager:
         """
         return self._get("status")
 
+    # (Optional) If your server still exposes these, you can keep them:
     def performance_status(self):
         """
         Retrieves the overall performance status (GET /performance_status).
@@ -190,7 +202,6 @@ class AgentManager:
 
     def agent_activity_status(self):
         """
-        Retrieves the activity status of agents (GET /agent_activity_status).
+        Retrieves agent activity status (GET /agent_activity_status).
         """
         return self._get("agent_activity_status")
-
