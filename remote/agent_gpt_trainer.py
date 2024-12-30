@@ -1,19 +1,19 @@
 # remote_agent_trainer.py
 from sagemaker.estimator import Estimator
 import re
-from .agent_gpt_config import Hyperparameters, SageMakerConfig
+from .gpt_trainer_config import Hyperparameters, SageMakerConfig
 from .env_host import EnvHost
 from threading import Thread
 import importlib
 
-class GPTTrainer(EnvHost):
+class AgentGPTTrainer(EnvHost):
     """
     A class that extends RemoteTrainer to add SageMaker training functionality.
     It spins up a Flask server for environment management and can launch
     SageMaker training jobs.
     """
 
-    def __init__(self, env_simulator, use_ngrok=False, host='0.0.0.0', port=8080):
+    def __init__(self, env_simulator, **kwargs):
         """
         :param env_simulator: Your environment simulator class or instance.
         :param use_ngrok: If True, attempt to tunnel with pyngrok. If pyngrok is not found, fallback or raise error.
@@ -21,9 +21,9 @@ class GPTTrainer(EnvHost):
         :param port: The port for Flask to listen on. Default 5000.
         """
         super().__init__(env_simulator)
-        self.use_ngrok = use_ngrok
-        self.host = host
-        self.port = port
+        self.host = kwargs.get('host', '0.0.0.0')
+        self.port = kwargs.get('port', 8080)
+        self.use_ngrok = kwargs.get('use_ngrok', False)
         
         self.estimator = None
         self.local_url = None
@@ -67,7 +67,7 @@ class GPTTrainer(EnvHost):
         self.server_thread = Thread(target=run_server, daemon=True)
         self.server_thread.start()
 
-    def train(self, sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters):
+    def sagemaker_train(self, sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters):
         """Launch a SageMaker training job for a one-click robotics environment."""
         hyperparameters.env_url = self.local_url
         hyperparameters.model_dir = sagemaker_config.model_dir
@@ -122,10 +122,3 @@ class GPTTrainer(EnvHost):
             raise ValueError("Must provide an environment ID.")
         if params.env_url is None:
             raise ValueError("Must provide an environment URL.")
-    
-    @staticmethod
-    def sagemaker_train(cls, env_simulator, port = 5000, sage_config: SageMakerConfig= None, hyperparameters: Hyperparameters= None):
-        """Launch a SageMaker training job for a one-click robotics environment."""
-        
-        trainer: GPTTrainer = cls(env_simulator, port)
-        trainer.train(sage_config, hyperparameters)
