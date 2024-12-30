@@ -13,7 +13,7 @@ class GPTTrainer(EnvHost):
     SageMaker training jobs.
     """
 
-    def __init__(self, env_simulator, use_ngrok=False, host='0.0.0.0', port=5000):
+    def __init__(self, env_simulator, use_ngrok=False, host='0.0.0.0', port=8080):
         """
         :param env_simulator: Your environment simulator class or instance.
         :param use_ngrok: If True, attempt to tunnel with pyngrok. If pyngrok is not found, fallback or raise error.
@@ -70,6 +70,7 @@ class GPTTrainer(EnvHost):
     def train(self, sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters):
         """Launch a SageMaker training job for a one-click robotics environment."""
         hyperparameters.env_url = self.local_url
+        hyperparameters.model_dir = sagemaker_config.model_dir
         
         self._validate_sagemaker(sagemaker_config)
         self._validate_oneclick(hyperparameters)

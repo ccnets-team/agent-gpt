@@ -126,6 +126,7 @@ class Hyperparameters:
     # --------------------
     env_id: Optional[str] = None
     env_url: Optional[str] = None
+    model_dir: Optional[str] = None
     use_tensorboard: bool = True
     use_wandb: bool = False
     use_cloudwatch: bool = True
@@ -153,7 +154,7 @@ class Hyperparameters:
     # --------------------
     gamma_init: float = 0.99
     lambda_init: float = 0.95
-    max_gpt_seq_len: int = 16
+    gpt_seq_len: int = 16
 
     # --------------------
     # 5) Optimization
