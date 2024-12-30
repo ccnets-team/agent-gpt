@@ -3,25 +3,6 @@
 import numpy as np
 import gymnasium as gym
 
-def compute_space_dimension(observation_space):
-    if isinstance(observation_space, gym.spaces.Box):
-        return int(observation_space.shape[-1])
-
-    elif isinstance(observation_space, gym.spaces.Discrete):
-        return observation_space.n
-    
-    elif isinstance(observation_space, gym.spaces.MultiDiscrete):
-        return sum(observation_space.nvec)
-
-    elif isinstance(observation_space, gym.spaces.Tuple):
-        return sum(compute_space_dimension(subspace) for subspace in observation_space.spaces)
-
-    elif isinstance(observation_space, gym.spaces.Dict):
-        # Use .spaces attribute to get the underlying dictionary of subspaces
-        return sum(compute_space_dimension(subspace) for subspace in observation_space.spaces.values())
-    else:
-        raise ValueError(f"Unsupported observation space type: {type(observation_space)}")
-
 def space_to_dict(space: gym.spaces.Space):
     """Recursively serialize a Gym space into a Python dict."""
     if isinstance(space, gym.spaces.Box):

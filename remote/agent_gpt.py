@@ -13,33 +13,35 @@ class AgentGPT:
         """
         self.model_dir: str = sagemaker_config.model_dir
         self.api_url: str = sagemaker_config.api_uri
+        self.role_arn: str = sagemaker_config.role_arn
+        self.predictor = None
     
-        self.inference_model = Model(
-            image_uri = self.api_url,
-            model_data=self.model_dir,
-            role=sagemaker_config.role_arn,
-        )
-        
-        self.predictor = self.inference_model.deploy(
-            initial_instance_count=sagemaker_config.instance_count,
-            instance_type=sagemaker_config.instance_type
-        )
-
-    @staticmethod
+    @classmethod
     def run(cls, sagemaker_config: SageMakerConfig, **kwargs):
         
         agent_gpt: AgentGPT = cls(sagemaker_config)
         
+        inference_model = Model(
+            image_uri = agent_gpt.api_url,
+            model_data=agent_gpt.model_dir,
+            role=agent_gpt.role_arn,
+        )
+        
+        agent_gpt.predictor = inference_model.deploy(
+            initial_instance_count=sagemaker_config.instance_count,
+            instance_type=sagemaker_config.instance_type
+        )
+        
         return AgentGPTPredictor(agent_gpt.predictor)
 
-    @staticmethod
+    @classmethod
     def train(cls, sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters, env_simulator, **kwargs):
         """Launch a SageMaker training job for a one-click robotics environment."""
-        if env_simulator is 'unity':
+        if env_simulator == 'unity':
             from envs.unity_env import UnityEnv        # Interface for Unity environments
             env_simulator_cls = UnityEnv
-        elif env_simulator is 'gym':
+        elif env_simulator == 'gym':
             from envs.gym_env import GymEnv            # Interface for Gym environments
             env_simulator_cls = GymEnv
-        trainer: AgentGPTTrainer = cls(env_simulator_cls, kwargs)
+        trainer: AgentGPTTrainer = AgentGPTTrainer(env_simulator_cls, **kwargs)
         trainer.sagemaker_train(sagemaker_config, hyperparameters)

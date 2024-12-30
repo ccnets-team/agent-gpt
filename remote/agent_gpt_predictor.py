@@ -48,7 +48,7 @@ class AgentGPTPredictor:
     # -------------------------------------------------------------------------
     # Example user-friendly methods
     # -------------------------------------------------------------------------
-    def select_actions(self, agent_ids: list, observations: list, term_ids=None, control_values=None):
+    def select_action(self, agent_ids: list, observations: list, term_ids=None, control_values=None):
         """
         As in your existing client code, but calls the SageMaker endpoint
         instead of local or HTTP to a custom server.
