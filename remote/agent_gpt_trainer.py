@@ -1,4 +1,4 @@
-# remote_agent_trainer.py
+# agent_gpt_trainer.py
 from sagemaker.estimator import Estimator
 import re
 from .gpt_trainer_config import Hyperparameters, SageMakerConfig
@@ -12,70 +12,73 @@ class AgentGPTTrainer(EnvHost):
     It spins up a Flask server for environment management and can launch
     SageMaker training jobs.
     """
-
-    def __init__(self, env_simulator, **kwargs):
+    def __init__(self, env_simulator, env_id, **kwargs):
         """
         :param env_simulator: Your environment simulator class or instance.
-        :param use_ngrok: If True, attempt to tunnel with pyngrok. If pyngrok is not found, fallback or raise error.
+        :param use_ngrok: If True, attempt to tunnel with pyngrok. 
+                          If pyngrok is not found, fallback or raise error.
+        :param use_ssh: If True, attempt to create an SSH reverse tunnel to my-remote-server.
         :param host: The host/IP to run Flask on. Default 0.0.0.0 for all interfaces.
-        :param port: The port for Flask to listen on. Default 5000.
+        :param port: The local port for Flask to listen on. Default 5000.
         """
         super().__init__(env_simulator)
         self.host = kwargs.get('host', '0.0.0.0')
-        self.port = kwargs.get('port', 8080)
-        self.use_ngrok = kwargs.get('use_ngrok', False)
-        
+        self.port = kwargs.get('port', 5000)
+        self.use_pinggy_tunnel = kwargs.get('use_pinggy_tunnel', False)
+        self.use_localtunnel = kwargs.get('use_local_tunnel', False)
+        self.use_ngrok_tunnel = kwargs.get('use_ngrok_tunnel', False)
+        self.env_id = env_id
         self.estimator = None
-        self.local_url = None
+        self.public_url = None
         self.server_thread = None
-
-        if self.use_ngrok:
-            self._start_ngrok_and_flask()
+        if self.use_pinggy_tunnel:
+            from remote.pinggy_tunnel import PinggyTunnel
+            pinggy_tunnel = PinggyTunnel(self.port)
+            self.public_url = pinggy_tunnel.open_tunnel()
+        if self.use_localtunnel:
+            from remote.localtunnel import LocalTunnelApp
+            local_tunnel_app = LocalTunnelApp(self.port)
+            self.public_url = local_tunnel_app.open_localtunnel()
+        elif self.use_ngrok_tunnel:
+            self.public_url = self.open_ngrok()
         else:
-            self._start_flask_only()
-
-    def _start_ngrok_and_flask(self):
+            self.public_url = f"http://{self.host}:{self.port}"
+        print(f"[AgentGPTTrainer] Environment URL: {self.public_url}")
+        self.server_thread = Thread(target=self.run_server, daemon=True)
+        self.server_thread.start()
+        
+    def run_server(self):
+        # 2) Run Flask
+        self.app.run(host=self.host, port=self.port)
+        
+    def open_ngrok(self):
         """
         Attempt to import pyngrok. If successful, create a tunnel and start Flask.
         If pyngrok is not installed, raise an ImportError or fallback to local.
         """
-        # Check if pyngrok is available
         pyngrok_spec = importlib.util.find_spec("pyngrok")
         if pyngrok_spec is None:
-            raise ImportError("pyngrok is not installed. Please run `pip install pyngrok` or set `use_ngrok=False`.")
-        
-        from pyngrok import ngrok  # Import inside method so it's only used if we want ngrok
+            raise ImportError(
+                "pyngrok is not installed. Please run `pip install pyngrok` "
+                "or set `use_ngrok=False`."
+            )
+
+        from pyngrok import ngrok
 
         # 1) Create the tunnel
-        self.local_url = ngrok.connect(self.port, "http").public_url
-        print(f"[GPTTrainer] ngrok tunnel public URL: {self.local_url}")
-
-        def run_server():
-            # 2) Run Flask
-            self.app.run(host=self.host, port=self.port)
-
-        self.server_thread = Thread(target=run_server, daemon=True)
-        self.server_thread.start()
-
-    def _start_flask_only(self):
-        """Start Flask without ngrok, for local or LAN access only."""
-        def run_server():
-            print(f"[GPTTrainer] Running Flask on http://{self.host}:{self.port} (no tunnel)")
-            self.local_url = f"http://{self.host}:{self.port}"
-            self.app.run(host=self.host, port=self.port)
-
-        self.server_thread = Thread(target=run_server, daemon=True)
-        self.server_thread.start()
+        public_url = ngrok.connect(self.port, "http").public_url
+        print(f"[GPTTrainer] ngrok tunnel public URL: {public_url}")
+        return public_url
 
     def sagemaker_train(self, sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters):
         """Launch a SageMaker training job for a one-click robotics environment."""
-        hyperparameters.env_url = self.local_url
+        # The environment endpoint is whichever self.local_url we established
+        hyperparameters.env_url = self.public_url
         hyperparameters.model_dir = sagemaker_config.model_dir
         
         self._validate_sagemaker(sagemaker_config)
         self._validate_oneclick(hyperparameters)
 
-        # Default values from SageMakerConfig + one-click hyperparameters
         hyperparameters = hyperparameters.to_dict()
         
         self.estimator = Estimator(
@@ -83,32 +86,13 @@ class AgentGPTTrainer(EnvHost):
             instance_type=sagemaker_config.instance_type,
             instance_count=sagemaker_config.instance_count,
             output_path=sagemaker_config.model_dir,
-            image_uri=sagemaker_config.api_uri,
+            image_uri=sagemaker_config.trainer_uri,
             max_run=sagemaker_config.max_run,
             region=sagemaker_config.region,
             hyperparameters=hyperparameters
         )
         
         self.estimator.fit()
-        pass
-    
-    # def close(self):
-    #     """
-    #     Close the server and free resources.
-    #     - If training is ongoing (rare in synchronous .fit() usage), you could stop it here.
-    #     - Join the Flask server thread to end the application.
-    #     - Call the parent class's close() to clean up environment(s).
-    #     """
-
-    #     # If you have an ongoing training job, you could forcibly stop it here:
-    #     # if self.estimator is not None:
-    #     #     try:
-    #     #         self.estimator.stop_training_job()
-    #     #     except Exception as e:
-    #     #         print(f"Unable to stop ongoing training job: {e}")
-
-    #     super().close()
-    #     self.server_thread.join()
 
     def _validate_sagemaker(self, sagemaker_config: SageMakerConfig):
         """Validate the SageMaker training job configuration."""

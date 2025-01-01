@@ -9,12 +9,12 @@ class SageMakerConfig:
     """
     SageMaker-specific configuration.
     """
-
     role_arn: Optional[str] = None  # e.g. "arn:aws:iam::123456789012:role/SageMakerRole"
     instance_type: str = None
     instance_count: int = None
     max_run: int = None               # Max training time in seconds
-    api_uri: str = None
+    trainer_uri: str = None
+    server_uri: str = None
     region: Optional[str] = None
     model_dir: Optional[str] = None
 
@@ -24,7 +24,8 @@ class SageMakerConfig:
         instance_type: str = "ml.g4dn.xlarge",
         instance_count: int = 1,
         max_run: int = 3600,
-        api_uri: str = "agentgpt.ccnets.org",
+        trainer_uri: str = "agentgpt-trainer.ccnets.org",
+        server_uri: str = "agentgpt.ccnets.org",
         region: Optional[str] = "us-east-1",
         model_dir: Optional[str] = "s3://your-bucket/output/"
     ):
@@ -33,7 +34,8 @@ class SageMakerConfig:
         self.instance_type = instance_type
         self.instance_count = instance_count
         self.max_run = max_run
-        self.api_uri = api_uri
+        self.trainer_uri = trainer_uri
+        self.server_uri = server_uri
         self.model_dir = model_dir
         self.region = region
 
@@ -59,7 +61,7 @@ class SageMakerConfig:
             instance_type=self.instance_type,
             instance_count=self.instance_count,
             max_run=self.max_run,
-            api_uri=self.api_uri,
+            image_uri=self.image_uri,
             model_dir=self.model_dir,
         )
 
@@ -127,15 +129,15 @@ class Hyperparameters:
     env_url: Optional[str] = None
     model_dir: Optional[str] = None
     use_tensorboard: bool = True
-    use_wandb: bool = False
+    # use_wandb: bool = False
     use_cloudwatch: bool = True
 
     # --------------------
     # 2) Session
     # --------------------
-    device: str = "cuda"
+    # device: str = "cuda"
     use_print: bool = True
-    resume_train: bool = False
+    # resume_train: bool = False
     use_graphics: bool = False
     max_test_episodes: int = 100
 

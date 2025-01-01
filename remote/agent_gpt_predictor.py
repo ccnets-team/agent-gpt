@@ -1,5 +1,8 @@
+# agnet_gpt_predictor.py
 import json
 import numpy as np
+from sagemaker import Model
+from remote.gpt_trainer_config import SageMakerConfig
 
 from utils.data_converters import (
     convert_ndarrays_to_nested_lists,
@@ -13,13 +16,39 @@ class AgentGPTPredictor:
     but under the hood calls the single SageMaker endpoint 
     with a JSON payload specifying an 'action' and 'args'.
     """
+    def __init__(self, sagemaker_config: SageMakerConfig, **kwargs):
+        self.model_dir: str = sagemaker_config.model_dir
+        self.image_uri: str = sagemaker_config.server_uri
+        self.role_arn: str = sagemaker_config.role_arn
+        self.instance_count: int = sagemaker_config.instance_count
+        self.instance_type: str = sagemaker_config.instance_type
+        self.model_dir: str = sagemaker_config.model_dir
+        self.max_run: str = sagemaker_config.max_run
+        self.region: str = sagemaker_config.region
 
-    def __init__(self, predictor):
+    def sagemaker_run(self):
         """
-        :param predictor: The sagemaker RealTimePredictor or Predictor object
-                          from `self.inference_model.deploy(...)`.
+        Creates a SageMaker real-time inference endpoint using
+        pre-trained model artifacts (self.model_dir) and the specified container (self.image_uri).
         """
-        self._predictor = predictor
+        # 1. Create a SageMaker Model object pointing to your custom image
+        model = Model(
+            image_uri=self.image_uri,
+            source_dir=self.model_dir,
+            role=self.role_arn
+        )
+        print("Created SageMaker Model:", model)
+
+        # 2. Deploy to a real-time endpoint
+        self._predictor = model.deploy(
+            initial_instance_count=self.instance_count,
+            instance_type=self.instance_type, 
+            endpoint_name="my-endpoint-name"
+        )
+        print("Deployed model to endpoint:", self._predictor)
+
+        # Return self.predictor or endpoint name if you wish
+        return self._predictor
     
     # -------------------------------------------------------------------------
     # Internal request helper
@@ -48,7 +77,7 @@ class AgentGPTPredictor:
     # -------------------------------------------------------------------------
     # Example user-friendly methods
     # -------------------------------------------------------------------------
-    def select_action(self, agent_ids: list, observations: list, term_ids=None, control_values=None):
+    def select_action(self, observations: list, agent_ids: list, term_ids=None):
         """
         As in your existing client code, but calls the SageMaker endpoint
         instead of local or HTTP to a custom server.
@@ -62,8 +91,6 @@ class AgentGPTPredictor:
         }
         if term_ids is not None:
             args["term_ids"] = term_ids
-        if control_values is not None:
-            args["control_values"] = control_values
         
         response = self._invoke("select_action", args)
         # Expect a structure like {"result": {"action": ...}} or {"action": ...}
@@ -105,6 +132,3 @@ class AgentGPTPredictor:
         """
         response = self._invoke("status", {})
         return response.get("result", None)
-
-    # ... You can replicate more methods like set_global_control_value, etc.
-
