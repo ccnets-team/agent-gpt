@@ -1,5 +1,5 @@
 # env_host.py
-from flask import Flask, request, jsonify
+from flask import request, jsonify
 import numpy as np
 import logging
 from utils.data_converters import convert_ndarrays_to_nested_lists, convert_nested_lists_to_ndarrays
@@ -11,11 +11,10 @@ HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
 
 class EnvHost:
-    def __init__(self, env_simulator):
+    def __init__(self, app, env_simulator):
         self.env_simulator = env_simulator
         self.environments = {}
-        
-        self.app = Flask(__name__)
+        self.app = app 
         self._define_routes()
             
     def _define_routes(self):  
@@ -28,7 +27,10 @@ class EnvHost:
         self.app.add_url_rule("/close", "close", self.close, methods=["POST"])
         
     def make(self):
-        env_id = request.json.get("env_id", "Humanoid-v4")  # Default to "Humanoid-v4" if not provided
+        env_id = request.json.get("env_id", "Humanoid-v5")  # Default to "Humanoid-v4" if not provided
+        if env_id is None and env_id.endswith("-aws"):
+            env_id = env_id.rfind("-aws")
+        
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
         if self.env_simulator is None or not hasattr(self.env_simulator, "make"):
@@ -43,7 +45,10 @@ class EnvHost:
         return jsonify({"message": f"Environment {env_id} created.", "env_key": env_key})
 
     def make_vec(self):
-        env_id = request.json.get("env_id", "Humanoid-v4")  # Default to "Humanoid-v4" if not provided
+        env_id = request.json.get("env_id", "Humanoid-v5")  # Default to "Humanoid-v4" if not provided
+        if env_id is None and env_id.endswith("-aws"):
+            env_id = env_id.rfind("-aws")
+                    
         num_envs = request.json.get("num_envs", 1)  # Optional parameter for vectorized environments
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
