@@ -19,10 +19,9 @@ class AgentGPTTrainer(EnvHost):
     It spins up a Flask server for environment management and can launch
     SageMaker training jobs.
     """
-    def __init__(self, env_simulator, env_id, **kwargs):
+    def __init__(self, env_simulator, env_id, env_url, **kwargs):
         flask_app = Flask(__name__)
-        super().__init__(flask_app, env_simulator, remove_env_tag = None)
-        # super().__init__(flask_app, env_simulator, remove_env_tag = "-remote.ccnets.org")
+        super().__init__(flask_app, env_simulator, remove_env_tag = "-remote.ccnets.org")
         
         self.host = kwargs.get('host', '0.0.0.0')
         self.port = kwargs.get('port', 5000)
@@ -34,16 +33,18 @@ class AgentGPTTrainer(EnvHost):
         self.server_thread = None
         self.tunnel = None
         
-        # Store any user-provided config
-        self.kwargs = kwargs
-        if self.use_localtunnel:
-            self.tunnel = LocalTunnelApp(self.port)
-            self.public_url = self.tunnel.start_localtunnel()
-        elif self.use_ngrok:
-            self.public_url = self.open_ngrok()
+        if env_url is not None:
+            self.public_url = env_url
         else:
-            # Just use local host + port
-            self.public_url = f"http://{self.host}:{self.port}"
+            # Store any user-provided config
+            if self.use_localtunnel:
+                self.tunnel = LocalTunnelApp(self.port)
+                self.public_url, self.lt_process = self.tunnel.start_localtunnel()
+            elif self.use_ngrok:
+                self.public_url = self.open_ngrok()
+            else:
+                # Just use local host + port
+                self.public_url = f"http://{self.host}:{self.port}"
 
         print(f"[AgentGPTTrainer] Environment URL: {self.public_url}")
 
@@ -86,18 +87,18 @@ class AgentGPTTrainer(EnvHost):
 
         hyperparameters = hyperparameters.to_dict()
 
-        self.estimator = Estimator(
-            role=sagemaker_config.role_arn,
-            instance_type=sagemaker_config.instance_type,
-            instance_count=sagemaker_config.instance_count,
-            output_path=sagemaker_config.model_dir,
-            image_uri=sagemaker_config.trainer_uri,
-            max_run=sagemaker_config.max_run,
-            region=sagemaker_config.region,
-            hyperparameters=hyperparameters
-        )
+        # self.estimator = Estimator(
+        #     role=sagemaker_config.role_arn,
+        #     instance_type=sagemaker_config.instance_type,
+        #     instance_count=sagemaker_config.instance_count,
+        #     output_path=sagemaker_config.model_dir,
+        #     image_uri=sagemaker_config.trainer_uri,
+        #     max_run=sagemaker_config.max_run,
+        #     region=sagemaker_config.region,
+        #     hyperparameters=hyperparameters
+        # )
 
-        self.estimator.fit()
+        # self.estimator.fit()
 
     def _validate_sagemaker(self, sagemaker_config: SageMakerConfig):
         """Validate the SageMaker training job configuration."""
