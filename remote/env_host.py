@@ -11,10 +11,13 @@ HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
 
 class EnvHost:
-    def __init__(self, app, env_simulator):
+    def __init__(self, app, env_simulator, remove_env_tag):
         self.env_simulator = env_simulator
         self.environments = {}
         self.app = app 
+        self.len_remove_env_tag = len(remove_env_tag) if remove_env_tag is not None else 0
+        self.remove_env_tag = remove_env_tag
+
         self._define_routes()
             
     def _define_routes(self):  
@@ -28,8 +31,8 @@ class EnvHost:
         
     def make(self):
         env_id = request.json.get("env_id", "Humanoid-v5")  # Default to "Humanoid-v4" if not provided
-        if env_id is None and env_id.endswith("-aws"):
-            env_id = env_id.rfind("-aws")
+        if env_id is not None and self.remove_env_tag is not None and env_id.endswith(self.remove_env_tag):
+            env_id = env_id[:-self.len_remove_env_tag] 
         
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        
 
@@ -46,8 +49,8 @@ class EnvHost:
 
     def make_vec(self):
         env_id = request.json.get("env_id", "Humanoid-v5")  # Default to "Humanoid-v4" if not provided
-        if env_id is None and env_id.endswith("-aws"):
-            env_id = env_id.rfind("-aws")
+        if env_id is not None and self.remove_env_tag is not None and env_id.endswith(self.remove_env_tag):
+            env_id = env_id[:-self.len_remove_env_tag]
                     
         num_envs = request.json.get("num_envs", 1)  # Optional parameter for vectorized environments
         env_key = request.json.get("env_key", None)  # Generate a unique key if not provided        

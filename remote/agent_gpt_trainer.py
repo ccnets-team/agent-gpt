@@ -21,7 +21,8 @@ class AgentGPTTrainer(EnvHost):
     """
     def __init__(self, env_simulator, env_id, **kwargs):
         flask_app = Flask(__name__)
-        super().__init__(flask_app, env_simulator)
+        super().__init__(flask_app, env_simulator, remove_env_tag = None)
+        # super().__init__(flask_app, env_simulator, remove_env_tag = "-remote.ccnets.org")
         
         self.host = kwargs.get('host', '0.0.0.0')
         self.port = kwargs.get('port', 5000)
@@ -31,12 +32,13 @@ class AgentGPTTrainer(EnvHost):
         self.estimator = None
         self.public_url = None
         self.server_thread = None
-
+        self.tunnel = None
+        
         # Store any user-provided config
         self.kwargs = kwargs
         if self.use_localtunnel:
-            tunnel = LocalTunnelApp(self.port)
-            self.public_url = tunnel.start_localtunnel()
+            self.tunnel = LocalTunnelApp(self.port)
+            self.public_url = self.tunnel.start_localtunnel()
         elif self.use_ngrok:
             self.public_url = self.open_ngrok()
         else:
@@ -78,8 +80,9 @@ class AgentGPTTrainer(EnvHost):
 
         self._validate_sagemaker(sagemaker_config)
         self._validate_oneclick(hyperparameters)
-
-        hyperparameters.env_id += "-aws"  # Append a suffix for clarity
+        
+        if self.remove_env_tag is not None:
+            hyperparameters.env_id += self.remove_env_tag # Append a suffix for clarity
 
         hyperparameters = hyperparameters.to_dict()
 

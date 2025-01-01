@@ -40,7 +40,6 @@ class LocalTunnelApp:
             match = url_pattern.search(line)
             if match:
                 tunnel_url = match.group(1)
-                print(f"[LocalTunnelFlaskApp] LocalTunnel URL: {tunnel_url}")
                 self.lt_process = process
                 return tunnel_url
 
