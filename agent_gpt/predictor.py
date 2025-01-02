@@ -2,7 +2,7 @@
 import json
 import numpy as np
 from sagemaker import Model
-from remote.gpt_trainer_config import SageMakerConfig
+from agent_gpt.sagemaker_config import SageMakerConfig
 
 from utils.data_converters import (
     convert_ndarrays_to_nested_lists,
@@ -34,7 +34,8 @@ class AgentGPTPredictor:
         # 1. Create a SageMaker Model object pointing to your custom image
         model = Model(
             image_uri=self.image_uri,
-            source_dir=self.model_dir,
+            
+            model_data=self.model_dir + "model.tar.gz",
             role=self.role_arn
         )
         print("Created SageMaker Model:", model)
@@ -47,8 +48,6 @@ class AgentGPTPredictor:
         )
         print("Deployed model to endpoint:", self._predictor)
 
-        # Return self.predictor or endpoint name if you wish
-        return self._predictor
     
     # -------------------------------------------------------------------------
     # Internal request helper
