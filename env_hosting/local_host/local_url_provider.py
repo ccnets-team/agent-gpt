@@ -1,10 +1,11 @@
 # local_url_provider.py
-from enum import Enum
 from urllib.parse import urlparse
 
 from env_hosting.local_host.ngrok_tunnel import NgrokTunnel
 from env_hosting.local_host.localtunnel import LocalTunnel
 from env_hosting.local_host.aws_ec2_tunnel import AWSEC2Tunnel
+
+from enum import Enum 
 
 class TunnelType(Enum):
     NGROK = "ngrok"
@@ -14,7 +15,7 @@ class TunnelType(Enum):
 
     def __str__(self):
         return self.value
-
+    
 class LocalURLProvider:
     """
     LocalURLProvider is responsible for returning a 'public_url'
@@ -27,7 +28,6 @@ class LocalURLProvider:
 
     def __init__(
         self,
-        env_url: str = None,
         port: int = 5000,
         host: str = "127.0.0.1",
         tunnel_type: str = "none",
@@ -51,19 +51,6 @@ class LocalURLProvider:
             self.tunnel_type = TunnelType(tunnel_type)
         except ValueError:
             raise ValueError(f"Unknown tunnel_type: {tunnel_type}")
-
-        # If user gave us an env_url, we assume no new tunnel
-        if env_url:
-            if self.tunnel_type != TunnelType.NONE:
-                raise ValueError(
-                    "Cannot specify both 'env_url' and a tunnel_type. "
-                    "Either provide an existing URL or pick a tunnel, not both."
-                )
-            self.public_url = env_url
-            self._parse_env_url(env_url)
-        else:
-            # By default, we have no public URL yet, so user must call create_url()
-            pass
 
     def _parse_env_url(self, env_url: str):
         """

@@ -1,5 +1,6 @@
 import boto3
-from agent_gpt.sagemaker_config import EC2Config
+from config.aws_config import EC2Config
+from botocore.exceptions import ClientError
  
 class LaunchEnvironment:
     def __init__(self, ec2_config: EC2Config):

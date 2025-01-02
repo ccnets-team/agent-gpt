@@ -68,6 +68,7 @@ class Hyperparameters:
     use_tensorboard: bool = True
     # use_wandb: bool = False
     use_cloudwatch: bool = True
+    env_tag = "-remote"
 
     # --------------------
     # 2) Session

@@ -3,7 +3,7 @@ import time
 import boto3
 import subprocess
 from botocore.exceptions import ClientError
-from env_hosting.config.ec2_config import EC2Config
+from config.aws_config import EC2Config
 
 class AWSEC2Tunnel:
     """
