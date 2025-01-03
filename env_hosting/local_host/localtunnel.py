@@ -4,7 +4,7 @@ import shutil
 import time
 
 class LocalTunnel:
-    def __init__(self, port, host, tunnel_config=None):
+    def __init__(self, host, port, tunnel_config=None):
         self.host = host
         self.port = port
         self.lt_process = None

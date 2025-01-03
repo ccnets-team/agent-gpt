@@ -3,7 +3,7 @@ import importlib.util
 from pyngrok import ngrok
 
 class NgrokTunnel:
-    def __init__(self, port, host, tunnel_config=None):
+    def __init__(self, host, port, tunnel_config=None):
         self.port = port
         
     def open_tunnel(self):

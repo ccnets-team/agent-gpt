@@ -94,7 +94,27 @@ class Hyperparameters:
     gamma_init: float = 0.99
     lambda_init: float = 0.95
     gpt_seq_len: int = 16
+    noise_config = {
+        "noise_type": "gaussian", # "none", "epsilon_greedy", "gaussian", "ornstein_uhlenbeck", "parameter_noise"
 
+        # EpsilonGreedy
+        "initial_epsilon": 1.0,
+        "final_epsilon": 0.05,
+
+        # GaussianNoise
+        "initial_sigma": 0.1,
+        "final_sigma": 0.005,
+
+        # OrnsteinUhlenbeckNoise
+        "mu": 0.0,
+        "theta": 0.15,
+        "ou_sigma": 0.2,  # renamed to clarify
+
+        # ParameterNoise
+        "initial_stddev": 0.1,
+        "final_stddev": 0.005,
+    }
+    
     # --------------------
     # 5) Optimization
     # --------------------

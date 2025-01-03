@@ -11,7 +11,7 @@ class AWSEC2Tunnel:
     Assumes AWS credentials are configured locally (i.e., via 'aws configure').
     """
     def __init__(self, 
-                 port, host,
+                 host, port, 
                  ec2_config: EC2Config, instance_tag="AgentGPTHost"):
         """
         :param ec2_config:    A dataclass object containing region, key_name, etc.
@@ -205,7 +205,6 @@ class AWSEC2Tunnel:
             print(f"[INFO] Environment is (or will be) hosted on EC2 at: {public_url}")
 
         return public_url
-
 
 def main():
     """

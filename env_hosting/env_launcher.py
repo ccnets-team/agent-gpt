@@ -1,6 +1,4 @@
 # env_hosting/env_host.py
-from dataclasses import dataclass
-from typing import Optional
 from config.aws_config import EC2Config
 from env_hosting.env_api import EnvAPI
 import uvicorn
@@ -18,7 +16,6 @@ class EnvLauncher(EnvAPI):
         super().__init__(env_simulator_cls, env_tag = "-remote.ccnets.org")
         
     def run_server(self):
-        # Run Flask on self.host:self.port
         uvicorn.run(self.app, host=self.host, port=self.port)
     
     def host_on_cloud(self, ec2_config: EC2Config):
@@ -26,12 +23,12 @@ class EnvLauncher(EnvAPI):
         some_url = None
         return some_url
     
-    def host_on_local(self, tunnel_config, host: str = "127.0.0.1", port: int = 8000):
+    def host_on_local(self, tunnel_type, host: str = "127.0.0.1", port: int = 8000):
         """Run locally and create a tunnel (Ngrok, LocalTunnel), return the public URL."""
         self.host = host or self.host
         self.port = port or self.port
-
-        self.local_url_provider = LocalURLProvider(tunnel_config)
+        
+        self.local_url_provider = LocalURLProvider(tunnel_type, self.host, self.port)
         tunnel_url = self.local_url_provider.get_url()
         self.server_thread = Thread(target=self.run_server, daemon=True)
         self.server_thread.start()

@@ -8,7 +8,6 @@ class CustomEnv(Env):
     A minimal custom environment that can be used as an env_type 
     in the EnvGateway, mirroring the structure of UnityEnv and GymEnv.
     """
-
     def __init__(self, env_id="CustomEnv-v0", **kwargs):
         """
         Initialize your custom environment here.

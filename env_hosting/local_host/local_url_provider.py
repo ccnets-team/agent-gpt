@@ -28,9 +28,9 @@ class LocalURLProvider:
 
     def __init__(
         self,
-        port: int = 5000,
-        host: str = "127.0.0.1",
         tunnel_type: str = "none",
+        host: str = "127.0.0.1",
+        port: int = 5000,
         tunnel_config = None
     ):
         """
@@ -76,11 +76,11 @@ class LocalURLProvider:
             return self.public_url
 
         if self.tunnel_type == TunnelType.LOCAL_TUNNEL:
-            self.tunnel = LocalTunnel(self.port, self.host, self.tunnel_config)
+            self.tunnel = LocalTunnel(self.host, self.port, self.tunnel_config)
         elif self.tunnel_type == TunnelType.NGROK:
-            self.tunnel = NgrokTunnel(self.port, self.host, self.tunnel_config)
+            self.tunnel = NgrokTunnel(self.host, self.port, self.tunnel_config)
         elif self.tunnel_type == TunnelType.AWS_EC2:
-            self.tunnel = AWSEC2Tunnel(self.port, self.host, self.tunnel_config)
+            self.tunnel = AWSEC2Tunnel(self.host, self.port, self.tunnel_config)
         elif self.tunnel_type == TunnelType.NONE:
             # No tunnel, just local
             self.public_url = f"http://{self.host}:{self.port}"
