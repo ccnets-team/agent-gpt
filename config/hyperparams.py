@@ -1,4 +1,4 @@
-# agent_gpt/hyperparams.py
+# conifg/hyperparams.py
 from dataclasses import dataclass
 from typing import Optional
 
@@ -15,15 +15,12 @@ class Hyperparameters:
     --------
     1) Client / Env
         - env_id
-        - env_url
+        - env_endpoint
         - use_tensorboard
-        - use_wandb
         - use_cloudwatch
 
     2) Session
-        - device
         - use_print
-        - resume_train
         - use_graphics
         - max_test_episodes
 
@@ -37,7 +34,8 @@ class Hyperparameters:
     4) Algorithm
         - gamma_init
         - lambda_init
-        - gpt_seq_len
+        - max_input_states
+        - exploration
 
     5) Optimization
         - lr_init
@@ -63,17 +61,14 @@ class Hyperparameters:
     # 1) Client / Env
     # --------------------
     env_id: Optional[str] = None
-    env_url: Optional[str] = None
-    model_dir: Optional[str] = None
+    env_endpoint: Optional[str] = None
     use_tensorboard: bool = True
-    # use_wandb: bool = False
     use_cloudwatch: bool = True
-    env_tag = "-remote"
+    # use_wandb: bool = False
 
     # --------------------
     # 2) Session
     # --------------------
-    # device: str = "cuda"
     use_print: bool = True
     # resume_train: bool = False
     use_graphics: bool = False
@@ -82,8 +77,8 @@ class Hyperparameters:
     # --------------------
     # 3) Training
     # --------------------
-    num_agents: int = 128
-    batch_size: int = 128
+    num_agents: int = 64
+    batch_size: int = 64
     train_interval: int = 1
     max_steps: int = 500_000
     buffer_size: int = 500_000
@@ -93,26 +88,27 @@ class Hyperparameters:
     # --------------------
     gamma_init: float = 0.99
     lambda_init: float = 0.95
-    gpt_seq_len: int = 16
-    noise_config = {
-        "noise_type": "gaussian", # "none", "epsilon_greedy", "gaussian", "ornstein_uhlenbeck", "parameter_noise"
+    max_input_states: int = 16
+    exploration = {
+        "type": "gaussian_noise", # "none", "epsilon_greedy", "gaussian_noise", "ornstein_uhlenbeck", "parameter_noise"
 
         # EpsilonGreedy
         "initial_epsilon": 1.0,
-        "final_epsilon": 0.05,
+        "final_epsilon": 0.01,
 
         # GaussianNoise
         "initial_sigma": 0.1,
-        "final_sigma": 0.005,
+        "final_sigma": 0.001,
 
         # OrnsteinUhlenbeckNoise
         "mu": 0.0,
         "theta": 0.15,
-        "ou_sigma": 0.2,  # renamed to clarify
+        "ou_sigma": 0.2, 
+        "dt": 1e-2,
 
         # ParameterNoise
-        "initial_stddev": 0.1,
-        "final_stddev": 0.005,
+        "initial_stddev": 0.05,
+        "final_stddev": 0.0005,
     }
     
     # --------------------
@@ -130,12 +126,13 @@ class Hyperparameters:
     # --------------------
     num_layers: int = 5
     d_model: int = 256
-    dropout: float = 0.05
+    dropout: float = 0.1
     num_heads: int = 8
 
     # --------------------
     # Methods
     # --------------------
+    
     def set_config(self, **kwargs):
         """
         Dynamically update fields in this dataclass.
@@ -145,8 +142,8 @@ class Hyperparameters:
             if hasattr(self, k):
                 setattr(self, k, v)
             else:
-                print(f"Warning: No attribute '{k}' in OneClickHyperparameters")
-
+                print(f"Warning: No attribute '{k}' in Hyperparameters")
+                
     def to_dict(self) -> dict:
         """
         Returns a dictionary of all fields (useful for logging, JSON export, etc.).
