@@ -1,9 +1,9 @@
-# ngrok.py
+# env_hosting/local_host/ngrok_tunnel.py
 import importlib.util
 from pyngrok import ngrok
 
 class NgrokTunnel:
-    def __init__(self, host, port, tunnel_config=None):
+    def __init__(self, host="localhost", port=8000):
         self.port = port
         
     def open_tunnel(self):
@@ -21,3 +21,16 @@ class NgrokTunnel:
         public_url = ngrok.connect(self.port, "http").public_url
         print(f"[GPTTrainer] ngrok tunnel public URL: {public_url}")
         return public_url
+    
+# ------------------------------------------------------------------------------
+# Example usage:
+if __name__ == "__main__":
+    tunnel = NgrokTunnel(host="localhost", port=8000)
+    public_url = tunnel.open_tunnel()
+    if public_url:
+        print(f"Public URL: {public_url}")
+    else:
+        print("Failed to create ngrok tunnel.")
+# ------------------------------------------------------------------------------
+    
+    

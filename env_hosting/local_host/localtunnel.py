@@ -1,18 +1,28 @@
+# env_hosting/local_host/localtunnel.py
 import re
 import subprocess
 import shutil
 import time
 
 class LocalTunnel:
-    def __init__(self, host, port, tunnel_config=None):
+    def __init__(self, host="localhost", port=8000):
+        """
+        :param host: Where your local server is listening (e.g., localhost, 0.0.0.0)
+        :param port: The port your local server is on
+        """
         self.host = host
         self.port = port
         self.lt_process = None
+        self.assigned_url = None
 
     def __del__(self):
         self.stop_localtunnel()
 
     def open_tunnel(self):
+        """
+        Opens a LocalTunnel process that forwards traffic from a public URL to host:port.
+        Returns the discovered localtunnel URL (e.g., https://*****.loca.lt).
+        """
         lt_path = shutil.which("lt")
         if lt_path is None:
             raise FileNotFoundError(
@@ -27,52 +37,69 @@ class LocalTunnel:
             "--print-requests"
         ]
 
-        print(f"[LocalTunnelApp DEBUG] Command to run: {cmd}")
+        print(f"[LocalTunnelApp] Starting LocalTunnel with command: {' '.join(cmd)}")
 
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            universal_newlines=True,
-            bufsize=-1
+            stderr=subprocess.PIPE,
+            text=True,   # <--- automatically decode to string
+            bufsize=1    # line-buffered for near real-time reading
         )
 
-        # Wait a bit so LocalTunnel can start
-        time.sleep(3)
-
         self.lt_process = process
-        assigned_url = None
+        start_time = time.time()
 
-        try:
-            # You reset assigned_url = None again here, which is harmless but redundant.
-            assigned_url = None  
-            
-            while True:
-                line = process.stdout.readline()
-                if not line:
-                    # The process might have ended or closed stdout
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                # Process may have ended or closed stdout
+                break
+
+            line_stripped = line.strip()
+            if line_stripped:
+                print(f"[LocalTunnel OUTPUT] {line_stripped}")
+
+                match = re.search(r"(https:\/\/.*\.loca\.lt)", line_stripped)
+                if match:
+                    self.assigned_url = match.group(1)
+                    print(f"[LocalTunnelApp] Assigned URL: {self.assigned_url}")
                     break
 
-                line_stripped = line.strip()
+            # Optional: add a timeout to avoid waiting forever
+            if (time.time() - start_time) > 30:
+                print("[LocalTunnelApp] Timed out waiting for LocalTunnel URL.")
+                break
 
-                # If we haven't found the URL yet, look for it
-                if not assigned_url:
-                    match = re.search(r"(https:\/\/.*\.loca\.lt)", line_stripped)
-                    if match:
-                        assigned_url = match.group(1)
-                        break
-
-        except KeyboardInterrupt:
-            print("[LocalTunnelApp] KeyboardInterrupt. Stopping tunnel...")
-            process.kill()
-
-        return assigned_url
+        return self.assigned_url
 
     def stop_localtunnel(self):
+        """
+        Gracefully stop the LocalTunnel process.
+        """
         if self.lt_process and self.lt_process.poll() is None:
-            print(f"[LocalTunnelApp] Stopping Localtunnel (pid={self.lt_process.pid})...")
+            print(f"[LocalTunnelApp] Stopping LocalTunnel (PID={self.lt_process.pid})...")
             self.lt_process.terminate()
-            self.lt_process.wait(timeout=5)
+            try:
+                self.lt_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                print("[LocalTunnelApp] Force-killing LocalTunnel process.")
+                self.lt_process.kill()
             self.lt_process = None
-            print("[LocalTunnelApp] LocalTunnel terminated.")
+            print("[LocalTunnelApp] LocalTunnel stopped.")
+
+# ------------------------------------------------------------------------------
+# Example usage:
+if __name__ == "__main__":
+    tunnel = LocalTunnel(host="localhost", port=8000)
+    public_url = tunnel.open_tunnel()
+    if public_url:
+        print(f"[Main] LocalTunnel URL is: {public_url}")
+    else:
+        print("[Main] No LocalTunnel URL found (or process timed out).")
+
+    try:
+        # Keep the tunnel open until user stops the script or calls stop_localtunnel().
+        input("Press ENTER to stop the tunnel...\n")
+    finally:
+        tunnel.stop_localtunnel()
