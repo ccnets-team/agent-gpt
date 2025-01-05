@@ -1,3 +1,4 @@
+# env_hosting/env_api.py
 import logging
 import numpy as np
 from typing import Optional, Any
@@ -23,15 +24,12 @@ HTTP_INTERNAL_SERVER_ERROR = 500
 # EnvAPI class with FastAPI integration
 # ------------------------------------------------
 class EnvAPI:
-    def __init__(self, env_simulator, env_tag: Optional[str] = None):
+    def __init__(self, env_simulator):
         """
         env_simulator: an object that must have .make(...) and .make_vec(...)
-        env_tag: optional string that we strip from the end of env_id
         """
         self.env_simulator = env_simulator
         self.environments = {}
-        self.len_env_tag = len(env_tag) if env_tag else 0
-        self.env_tag = env_tag
 
         # Create a FastAPI instance
         self.app = FastAPI()
@@ -71,17 +69,14 @@ class EnvAPI:
             return self.observation_space(env_key)
 
         @self.app.post("/close")
-        def close_endpoint(body: CloseRequest):
-            return self.close(env_key=body.env_key)
-# replace_nans_infs
+        def close_endpoint(env_key: str):
+            return self.close(env_key)
 
     # ------------------------------------------------
     # The methods each endpoint calls
     # ------------------------------------------------
-    def make(self, env_id: str, env_key: Optional[str]):
+    def make(self, env_id: str, env_key: str):
         """Equivalent to your /make endpoint."""
-        if self.env_tag and env_id.endswith(self.env_tag):
-            env_id = env_id[:-self.len_env_tag]
 
         if not self.env_simulator or not hasattr(self.env_simulator, "make"):
             raise HTTPException(
@@ -101,10 +96,8 @@ class EnvAPI:
             "env_key": env_key
         }
 
-    def make_vec(self, env_id: str, env_key: Optional[str], num_envs: int):
+    def make_vec(self, env_id: str, env_key: str, num_envs: int):
         """Equivalent to your /make_vec endpoint."""
-        if self.env_tag and env_id.endswith(self.env_tag):
-            env_id = env_id[:-self.len_env_tag]
 
         if not self.env_simulator or not hasattr(self.env_simulator, "make_vec"):
             raise HTTPException(
@@ -185,7 +178,7 @@ class EnvAPI:
         observation_space = space_to_dict(observation_space)
         return replace_nans_infs(observation_space)
 
-    def close(self, env_key: Optional[str]):
+    def close(self, env_key: str):
         """Equivalent to your /close endpoint."""
         if not env_key:
             # close all
@@ -209,13 +202,13 @@ class EnvAPI:
 # Pydantic request models
 # ------------------------------------------------
 class MakeRequest(BaseModel):
-    env_id: str = None  # Default
-    env_key: Optional[str] = None
+    env_id: str
+    env_key: str
 
 class MakeVecRequest(BaseModel):
-    env_id: str = None
+    env_id: str
+    env_key: str
     num_envs: int = 1
-    env_key: Optional[str] = None
 
 class ResetRequest(BaseModel):
     env_key: str
@@ -225,6 +218,3 @@ class ResetRequest(BaseModel):
 class StepRequest(BaseModel):
     env_key: str
     action: Any  # We'll convert it to np.ndarray
-
-class CloseRequest(BaseModel):
-    env_key: Optional[str] = None
