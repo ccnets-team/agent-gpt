@@ -11,7 +11,7 @@ from sagemaker.predictor import Predictor
 
 from config.aws_config import SageMakerConfig
 from config.hyperparams import Hyperparameters
-from agent_gpt_api import AgentGPTAPI
+from gpt_api import GPTAPI
 
 class AgentGPT:
     def __init__(self):
@@ -57,7 +57,7 @@ class AgentGPT:
         if user_endpoint_name:
             endpoint_name = user_endpoint_name
         else:
-            endpoint_name = f"agent-gpt-model-{int(time.time())}"
+            endpoint_name = f"agent-gpt-{int(time.time())}"
             
         print("Using endpoint name:", endpoint_name)
 
@@ -100,7 +100,7 @@ class AgentGPT:
                 )    
 
         # Initialize your API or parent class
-        return AgentGPTAPI(predictor)
+        return GPTAPI(predictor)
 
 def _validate_sagemaker(sagemaker_config: SageMakerConfig):
     """

@@ -1,3 +1,4 @@
+# env_wrapper/gym_env.py
 import gymnasium as gym
 from gymnasium.envs import registration
 
@@ -42,7 +43,7 @@ class GymEnv:
         # Additional logic to register the environment
         print(f"Registering environment: {id} with API URL: {entry_point}")
 
-        # Register environment with dynamic module path and class name, and pass env_url via kwargs
+        # Register environment with dynamic module path and class name, and pass env_endpoint via kwargs
         registration.register(
             id=id,
             entry_point=f"{module_path}:{class_name}",

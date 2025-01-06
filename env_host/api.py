@@ -1,10 +1,10 @@
 # env_hosting/env_api.py
 import logging
 import numpy as np
-from typing import Optional, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from utils.data_converters import replace_nans_infs
+import uvicorn
+from typing import Optional, Any
 
 # ------------------------------------------------
 # Utility imports
@@ -12,6 +12,7 @@ from utils.data_converters import replace_nans_infs
 from utils.data_converters import (
     convert_ndarrays_to_nested_lists,
     convert_nested_lists_to_ndarrays,
+    replace_nans_infs,
 )
 from utils.gym_space import space_to_dict
 
@@ -24,12 +25,14 @@ HTTP_INTERNAL_SERVER_ERROR = 500
 # EnvAPI class with FastAPI integration
 # ------------------------------------------------
 class EnvAPI:
-    def __init__(self, env_simulator):
+    def __init__(self, env_simulator, host: str = "0.0.0.0", port: int = 80):
         """
         env_simulator: an object that must have .make(...) and .make_vec(...)
         """
         self.env_simulator = env_simulator
         self.environments = {}
+        self.host = host
+        self.port = port
 
         # Create a FastAPI instance
         self.app = FastAPI()
@@ -37,6 +40,10 @@ class EnvAPI:
         # Define all routes
         self._define_endpoints()
 
+    def run_server(self):
+        """Run the FastAPI/Starlette application via uvicorn."""
+        uvicorn.run(self.app, host=self.host, port=self.port)
+        
     def _define_endpoints(self):
         """Attach all routes/endpoints to self.app."""
 

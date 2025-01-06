@@ -8,14 +8,12 @@ from utils.data_converters import (
 )
 
 ###############################################################################
-# AgentGPTAPI: a base class that handles interaction with a SageMaker endpoint
+# GPTAPI: a base class that handles interaction with a SageMaker endpoint
 ###############################################################################
 
-from utils.data_converters import convert_nested_lists_to_ndarrays, convert_ndarrays_to_nested_lists
-
-class AgentGPTAPI:
+class GPTAPI:
     """
-    AgentGPTAPI is responsible for sending actions, resets, or configuration 
+    GPTAPI is responsible for sending actions, resets, or configuration 
     changes to the SageMaker inference endpoint, and parsing the JSON response.
     """
     def __init__(self, predictor):

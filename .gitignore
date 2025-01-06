@@ -1,12 +1,10 @@
 # Ignore the saved directory
 saved/
 wandb/
-local/
 
 # Ignore Python cache directories
 __pycache__/
 *.pyc
 
-*.onnx
-
-all_code.txt
+*.txt
+*.json
