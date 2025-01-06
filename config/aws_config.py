@@ -15,6 +15,7 @@ class EC2Config:
     key_name: Optional[str] = None
     subnet_id: Optional[str] = None
     security_group_id: Optional[str] = None
+    instance_name: Optional[str] = None
 
 @dataclass
 class SageMakerConfig:

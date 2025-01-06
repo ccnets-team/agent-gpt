@@ -1,4 +1,6 @@
-numpy
-gymnasium
-flask
-
+# requirements.txt
+numpy==1.22.4
+fastapi
+uvicorn
+pydantic
+gymnasium==1.0.0

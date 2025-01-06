@@ -44,7 +44,8 @@ class EnvLauncher:
         return local_env_launcher
     
     @staticmethod
-    def launch_on_cloud(env_simulator, ec2_config: EC2Config) -> CloudEnvLauncher:
+    def launch_on_cloud(env_simulator, env_id, env_file_path, docker_image_name, docker_file_path,
+                        ecr_registry, ec2_config: EC2Config) -> CloudEnvLauncher:
         """
         A static method returning a `CloudEnvLauncher` instance with default config,
         so users can do:
@@ -52,4 +53,4 @@ class EnvLauncher:
             launcher = CloudEnvLauncher.host_on_cloud()
             # Then call methods like generate_docker_file(), build_docker_image(), etc.
         """
-        return CloudEnvLauncher(env_simulator, ec2_config=ec2_config)
+        return CloudEnvLauncher(env_simulator, env_id, env_file_path, docker_image_name, docker_file_path, ecr_registry, ec2_config)
