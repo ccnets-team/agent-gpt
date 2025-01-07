@@ -13,20 +13,20 @@ class EnvLauncher:
         pass
 
     @staticmethod
-    def launch_on_local_with_url(env_simulator, tunnel_name: str=None, host: str = "0.0.0.0", port: int = 8000) -> str:
+    def launch_on_local_with_url(env_simulator:str, tunnel_name: str=None, host: str = "0.0.0.0", port: int = 8000) -> str:
         """
         Runs the server locally and creates a tunnel (e.g., Ngrok, LocalTunnel).
         Returns the public URL for accessing this environment remotely.
         """
         local_env_launcher = LocalEnvLauncher(env_simulator, tunnel_name, host, port)
-        tunnel_url = local_env_launcher.get_public_url()
+        tunnel_url = local_env_launcher.run_tunnel(tunnel_name)
         print(f"[AgentGPTTrainer] Environment URL: {tunnel_url}")
         
         local_env_launcher.run_thread_server()
         return local_env_launcher
 
     @staticmethod
-    def launch_on_local_with_ip(env_simulator, ip_address: str = None, host: str = "0.0.0.0", port: int = 8000) -> str:
+    def launch_on_local_with_ip(env_simulator:str, ip_address: str = None, host: str = "0.0.0.0", port: int = 8000) -> str:
         """
         Runs the server locally, using the provided ip_address (parsing for IP/port if present).
         Returns the environment endpoint used.
@@ -44,7 +44,7 @@ class EnvLauncher:
         return local_env_launcher
     
     @staticmethod
-    def launch_on_cloud(env_simulator, env_id, env_file_path, docker_image_name, docker_file_path,
+    def launch_on_cloud(env_simulator:str, env_id, env_file_path, image_name, 
                         ecr_registry, ec2_config: EC2Config) -> CloudEnvLauncher:
         """
         A static method returning a `CloudEnvLauncher` instance with default config,
@@ -53,4 +53,4 @@ class EnvLauncher:
             launcher = CloudEnvLauncher.host_on_cloud()
             # Then call methods like generate_docker_file(), build_docker_image(), etc.
         """
-        return CloudEnvLauncher(env_simulator, env_id, env_file_path, docker_image_name, docker_file_path, ecr_registry, ec2_config)
+        return CloudEnvLauncher(env_simulator, env_id, env_file_path, image_name, ecr_registry, ec2_config)

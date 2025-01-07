@@ -7,8 +7,23 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 class UnityEnv(Env):
     # Class-level attribute to track instance count
     _instance_count = 0    
-    _file_path = None
-    _id = None
+    env_import_path = None
+    id = None
+
+    @classmethod
+    def register(cls, id, entry_point):
+        UnityEnv.env_import_path = entry_point
+        UnityEnv.id = id
+        print(f"Registering environment: {id} with file path: {entry_point}")
+
+    @staticmethod
+    def make(env_id, **kwargs):
+        return UnityEnv(env_id=env_id, is_vectorized=False, **kwargs)
+
+    @staticmethod
+    def make_vec(env_id, num_envs, **kwargs):
+        return UnityEnv(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
+        
     def __init__(self, env_id, num_envs=1, is_vectorized=False, **kwargs):
         """
         Initialize a Unity environment.
@@ -27,8 +42,12 @@ class UnityEnv(Env):
         
         use_graphics = kwargs.get("use_graphics", False)
         time_scale = kwargs.get("time_scale", 4)
-        UnityEnv._file_path = "../unity_environments/" + env_id + "/"
-        
+        if UnityEnv.env_import_path is None:
+            UnityEnv.env_import_path = "../unity_environments/" + env_id + "/"
+        else:
+            if env_id != UnityEnv.id:
+                raise ValueError(f"Environment ID mismatch: {env_id} != {UnityEnv.id}")
+            
         self.env_id = env_id
         
         self.num_envs = num_envs
@@ -41,8 +60,7 @@ class UnityEnv(Env):
             # Create multiple environments without graphics for performance
             self.envs = [
                 self.create_unity_env(
-                    UnityEnv._file_path,
-                    self.channel,
+                    channel=self.channel,
                     no_graphics=True,
                     seed=self.seed + i,
                     worker_id=self.seed + i
@@ -50,8 +68,7 @@ class UnityEnv(Env):
             ]
         else:
             self.env = self.create_unity_env(
-                UnityEnv._file_path,
-                self.channel,
+                channel=self.channel,
                 no_graphics=self.no_graphics,
                 seed=self.seed + 100,
                 worker_id=self.seed + 100
@@ -67,22 +84,12 @@ class UnityEnv(Env):
         self._initialize_env_info()
         self._define_observation_space()
         self._define_action_space()
-
-    @classmethod
-    def register(cls, id, file_path):
-        UnityEnv._file_path = file_path
-        UnityEnv._id = id
-        print(f"Registering environment: {id} with file path: {file_path}")
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.envs:
-            self.close()
-
+        
     @staticmethod
-    def create_unity_env(file_name, channel, no_graphics, seed, worker_id):
+    def create_unity_env(channel, no_graphics, seed, worker_id):
         base_port = UnityEnvironment.BASE_ENVIRONMENT_PORT
         env = UnityEnvironment(
-            file_name=file_name,
+            file_name=UnityEnv.env_import_path,
             base_port=base_port,
             no_graphics=no_graphics,
             seed=seed,
@@ -90,6 +97,10 @@ class UnityEnv(Env):
             worker_id=worker_id,
         )        
         return env
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.envs:
+            self.close()
 
     def _initialize_env_info(self):
         total_agents = 0
@@ -243,13 +254,6 @@ class UnityEnv(Env):
 
         return observations, rewards, terminated, truncated, final_observations    
 
-    @staticmethod
-    def make(env_id, **kwargs):
-        return UnityEnv(env_id=env_id, is_vectorized=False, **kwargs)
-
-    @staticmethod
-    def make_vec(env_id, num_envs, **kwargs):
-        return UnityEnv(env_id=env_id, num_envs=num_envs, is_vectorized=True, **kwargs)
             
     def reset(self, **kwargs):
         """

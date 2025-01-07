@@ -1,13 +1,13 @@
 # env_hosting/cloud_host/cloud_launcher.py
 from config.aws_config import EC2Config
-from env_host.cloud.dockerfile_generation import generate_dockerfile_impl
-from env_host.cloud.docker_image import (
+from env_host.cloud.dockerfile_generator import generate_dockerfile_impl
+from env_host.cloud.docker_env_builder import (
     detect_docker_cmd,
     build_docker_image_impl,
     tag_docker_image_impl,
     push_docker_image_impl
 )
-from env_host.cloud.ec2_instance import (
+from env_host.cloud.ec2_env_launcher import (
     generate_user_data_script_impl,
     launch_ec2_instance_impl,
     get_env_endpoint_impl
@@ -15,7 +15,6 @@ from env_host.cloud.ec2_instance import (
 import boto3
 import logging
 from typing import Optional
-
 
 class CloudEnvLauncher:
     """
@@ -28,11 +27,10 @@ class CloudEnvLauncher:
 
     def __init__(
         self,
-        env_simulator,
+        env_simulator: str,
         env_id: str,
         env_file_path: str,
-        docker_image_name: str,
-        dockerfile_path: str,
+        global_image_name: str,
         ecr_registry: str,
         ec2_config: EC2Config
     ):
@@ -42,8 +40,7 @@ class CloudEnvLauncher:
         :param env_simulator: An object representing the RL environment simulator.
         :param env_id: A unique ID or name for the environment.
         :param env_file_path: The path to the local environment file.
-        :param docker_image_name: Base name for the Docker image.
-        :param dockerfile_path: Local path to the Dockerfile.
+        :param global_image_name: global name for the Docker/ECR image.
         :param ec2_config: An EC2Config object containing AWS EC2 configuration.
         :param ecr_registry: The ECR registry URI, e.g., "123456789012.dkr.ecr.us-east-1.amazonaws.com".
         """
@@ -51,20 +48,21 @@ class CloudEnvLauncher:
         self.region_name: str = ec2_config.region_name
         self.env_simulator = env_simulator
         self.env_id: str = env_id
-        self.docker_image_name: str = docker_image_name.lower()
-        self.dockerfile_path: str = dockerfile_path
+        self.global_image_name: str = global_image_name.lower()
         self.ecr_registry: str = ecr_registry
         self.env_file_path: str = env_file_path
 
         self.os_name, self.docker_cmd = detect_docker_cmd()
         self.ec2_client = boto3.client("ec2", region_name=self.region_name)
 
+        self.dockerfile_path = "./Dockerfile"
+        
         self.instance_id: Optional[str] = None
         self.remote_image_uri: Optional[str] = None
 
         self.logger = logging.getLogger(__name__)
 
-    def launch_remote_env(self, ensure_ecr_repo: bool = True) -> str:
+    def launch_remote_env(self, ensure_ecr_login: bool = True, ensure_ecr_repo: bool = True) -> str:
         """
         High-level method that orchestrates Docker/ECR/EC2 flow:
 
@@ -78,11 +76,12 @@ class CloudEnvLauncher:
         :return: The endpoint of the launched environment.
         """
         self.generate_dockerfile(env_file_path=self.env_file_path, dockerfile_path=self.dockerfile_path)
-        self.build_docker_image(docker_image_name=self.docker_image_name, dockerfile_path=self.dockerfile_path)
-        self.tag_docker_image(ecr_registry=self.ecr_registry, local_image_name=self.docker_image_name)
+        self.build_docker_image(docker_image_name=self.global_image_name, dockerfile_path=self.dockerfile_path)
+        self.tag_docker_image(ecr_registry=self.ecr_registry, local_image_name=self.global_image_name)
         self.push_docker_image(
             ecr_registry=self.ecr_registry,
-            local_image_name=self.docker_image_name,
+            local_image_name=self.global_image_name,
+            ensure_ecr_login=ensure_ecr_login,
             ensure_ecr_repo=ensure_ecr_repo
         )
         self.launch_ec2_instance()
@@ -101,11 +100,12 @@ class CloudEnvLauncher:
         :param dockerfile_path: The output path for the Dockerfile. Defaults to "./Dockerfile".
         :return: The path to the generated Dockerfile.
         """
+        env_file_path = env_file_path or self.env_file_path
         dockerfile_path = dockerfile_path or self.dockerfile_path
         return generate_dockerfile_impl(
             self.env_simulator,
             self.env_id,
-            env_file_path,
+            local_import_path = env_file_path,
             dockerfile_path=dockerfile_path
         )
 
@@ -122,7 +122,7 @@ class CloudEnvLauncher:
         :raises Exception: Raises an exception if the Docker build command fails.
         """
         dockerfile_path = dockerfile_path or self.dockerfile_path
-        docker_image_name = docker_image_name or self.docker_image_name
+        docker_image_name = docker_image_name or self.global_image_name
         docker_image_name = docker_image_name.lower()
 
         self.logger.info(f"Building Docker image '{docker_image_name}' from '{dockerfile_path}'...")
@@ -148,8 +148,8 @@ class CloudEnvLauncher:
         :param remote_image_name: The remote Docker image name. If None, uses self.docker_image_name.
         """
         ecr_registry = ecr_registry or self.ecr_registry
-        local_image_name = (local_image_name or self.docker_image_name).lower()
-        remote_image_name = (remote_image_name or self.docker_image_name).lower()
+        local_image_name = (local_image_name or self.global_image_name).lower()
+        remote_image_name = (remote_image_name or self.global_image_name).lower()
 
         self.logger.info(f"Tagging local image '{local_image_name}' for registry '{ecr_registry}'...")
         tag_docker_image_impl(self.docker_cmd, local_image_name, remote_image_name)
@@ -173,8 +173,8 @@ class CloudEnvLauncher:
         :return: The URI of the pushed Docker image in ECR.
         """
         ecr_registry = ecr_registry or self.ecr_registry
-        local_image_name = (local_image_name or self.docker_image_name).lower()
-        remote_image_name = (remote_image_name or self.docker_image_name).lower()
+        local_image_name = (local_image_name or self.global_image_name).lower()
+        remote_image_name = (remote_image_name or self.global_image_name).lower()
 
         self.logger.info(f"Pushing image '{local_image_name}' to ECR registry '{ecr_registry}'...")
         self.remote_image_uri = push_docker_image_impl(
@@ -200,18 +200,18 @@ class CloudEnvLauncher:
         user_data = generate_user_data_script_impl(remote_image_uri)
 
         self.logger.info(f"Launching EC2 instance in region '{self.region_name}' with image '{remote_image_uri}'...")
-        self.instance_id = launch_ec2_instance_impl(self.ec2_client, self.ec2_config, user_data)
+        self.instance_id = launch_ec2_instance_impl(self.ec2_config, self.ec2_client, user_data)
         self.logger.info(f"EC2 instance launched with ID: {self.instance_id}")
         return self.instance_id
 
-    def get_env_endpoint(self) -> str:
+    def get_env_endpoint(self, instance_id) -> str:
         """
         Retrieves the environment endpoint (public DNS or IP) from the launched EC2 instance.
 
         :return: The endpoint (public DNS or IP) of the environment.
         """
-        if not self.instance_id:
-            raise ValueError("No instance_id found. Did you call launch_ec2_instance()?")
+        if instance_id:
+          self.instance_id = instance_id
         endpoint = get_env_endpoint_impl(self.instance_id, self.region_name)
         self.logger.info(f"Retrieved endpoint for instance '{self.instance_id}': {endpoint}")
         return endpoint

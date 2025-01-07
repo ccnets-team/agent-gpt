@@ -29,7 +29,7 @@ class LocalEnvLauncher(EnvAPI):
         self.server_thread.start()
         return self.server_thread
 
-    def start_tunnel(self, tunnel_name: str):
+    def run_tunnel(self, tunnel_name: str):
         """Start the tunnel."""
         self.tunnel_manager = TunnelManager(tunnel_name, self.host, self.port)
         self.public_url = self.tunnel_manager.get_public_url()  

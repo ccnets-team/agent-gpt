@@ -59,8 +59,7 @@ def _wait_for_running(instance_id: str, region_name: str) -> None:
     instance.reload()
     print(f"[EC2EnvLauncher] Instance {instance_id} is now in state: {instance.state['Name']}")
 
-
-def launch_ec2_instance_impl(ec2_client, ec2_config: EC2Config, user_data: Optional[str] = None) -> str:
+def launch_ec2_instance_impl(ec2_config: EC2Config, ec2_client, user_data: Optional[str] = None) -> str:
     """
     Launches an EC2 instance using the specified EC2Config, optionally 
     injecting a user_data script to run automatically at startup.
@@ -96,13 +95,19 @@ def launch_ec2_instance_impl(ec2_client, ec2_config: EC2Config, user_data: Optio
     instance_id = response["Instances"][0]["InstanceId"]
     print(f"[EC2EnvLauncher] Launched EC2 instance: {instance_id}")
 
-    # Name the instance (optional)
+    # Assign the 'Name' tag right after launch
     ec2_client.create_tags(
         Resources=[instance_id],
         Tags=[{"Key": "Name", "Value": ec2_config.instance_name}]
     )
 
-    # Wait until it's running
+    # Now describe again
+    response = ec2_client.describe_instances(InstanceIds=[instance_id])
+    tags = response["Reservations"][0]["Instances"][0].get("Tags", [])
+    instance_name = next((tag["Value"] for tag in tags if tag["Key"] == "Name"), None)
+    print(f"[EC2EnvLauncher] Confirmed instance name: {instance_name}")
+
+    # Wait for running
     _wait_for_running(instance_id, ec2_config.region_name)
     return instance_id
 

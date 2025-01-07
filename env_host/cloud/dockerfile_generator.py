@@ -64,7 +64,6 @@ def get_additional_libs(env_simulator: str, env_id: str):
     else:
         raise ValueError(f"Unknown simulator '{env_simulator}'")
 
-
 def write_code_copy_instructions(f, additional_files: dict):
     """
     Writes Docker COPY instructions for each full_path -> basename in `include_dict`.
@@ -80,11 +79,12 @@ def write_code_copy_instructions(f, additional_files: dict):
         if dir_part:
             f.write(f"RUN mkdir -p /app/{dir_part}\n")
         f.write(f"COPY {full_path} /app/{full_path}\n\n")
-    
 
+# env_import_path or env_entry_point    
 def generate_dockerfile_impl(env_simulator: str,
                         env_id: str,
-                        env_file_path: str,
+                        local_import_path: str,
+                        entry_point: str = None, # e.g., "env_host.wrappers.unity_env:UnityEnv"
                         host: str = "0.0.0.0",
                         port: int = 80,
                         dockerfile_path: str = "./Dockerfile") -> str:
@@ -97,8 +97,17 @@ def generate_dockerfile_impl(env_simulator: str,
     ... into the container, ignoring other files.
     """
     print(f"[generate_dockerfile] Creating Dockerfile at: {dockerfile_path}")
-    print(f" - Environment file path to copy: {env_file_path}")
+    print(f" - Environment file path to copy: {local_import_path}")
     print(f" - Simulator: {env_simulator}")
+    
+    cloud_import_path = "/app/env_files"
+    
+    cloud_entry_point = None
+    if entry_point:
+        class_name = entry_point.split(":")[-1]
+        cloud_entry_point = f"{cloud_import_path}:{class_name}"
+    else:
+        cloud_entry_point = cloud_import_path
 
     additional_files = get_additional_files(env_simulator)
     additional_libs = get_additional_libs(env_simulator, env_id)
@@ -110,12 +119,12 @@ def generate_dockerfile_impl(env_simulator: str,
 
         # Copy only specific files (serve.py, api.py, gym_env/unity_env)
         write_code_copy_instructions(f, additional_files)
-
+        
         # Copy environment files/folder (Unity build or local env data)
-        if env_file_path is not None:
+        if local_import_path is not None:
             f.write("# Copy environment files\n")
-            f.write("RUN mkdir -p /app/env_files\n")
-            f.write(f"COPY {env_file_path} /app/env_files/\n\n")
+            f.write(f"RUN mkdir -p {cloud_import_path}\n")
+            f.write(f"COPY {local_import_path} {cloud_import_path}/\n\n")
         else:
             f.write("# No environment files to copy (env_file_path=None)\n")
             
@@ -131,7 +140,7 @@ def generate_dockerfile_impl(env_simulator: str,
 
         # Final CMD: run serve.py with the correct simulator argument
         # We know serve.py is at "env_host/serve.py"
-        f.write(f'CMD ["python", "{additional_files["serve.py"]}", "{env_simulator}", "{host}", "{port}"]\n')
+        f.write(f'CMD ["python", "{additional_files["serve.py"]}", "{env_simulator}", "{env_id}", "{cloud_entry_point}", "{host}", "{port}"]\n')
 
     print("[generate_dockerfile] Done.")
     return dockerfile_path

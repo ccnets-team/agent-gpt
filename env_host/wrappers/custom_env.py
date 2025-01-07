@@ -1,111 +1,139 @@
-# custom_simulator.py
-from gymnasium import Env
-from gymnasium import spaces
-import numpy as np
+import gymnasium as gym
+from gymnasium.envs import registration
 
-class CustomEnv(Env):
+class CustomEnv(gym.Env):
     """
-    A minimal custom environment that can be used as an env_type 
-    in the EnvGateway, mirroring the structure of UnityEnv and GymEnv.
+    A custom environment class that wraps around a Gymnasium environment.
+    Replace or modify each method as needed to adapt to your specific simulator
+    or custom environment logic.
     """
-    def __init__(self, env_id="CustomEnv-v0", **kwargs):
+
+    def __init__(self, env, **kwargs):
         """
-        Initialize your custom environment here.
-        :param env_id: A string identifier for the environment.
-        :param kwargs: Any extra configuration parameters for the environment.
+        Initialize the backend with a provided environment object.
+
+        For your own custom environment:
+        --------------------------------
+        - You might directly initialize your environment's state here
+          (instead of wrapping around `env`).
+        - For example, if you have a custom simulator class, store it in
+          `self.sim = MyCustomSimulator(...)` instead of `self.env`.
+        - Make sure to define `self.observation_space` and `self.action_space`
+          in a way that aligns with your environment's spaces.
         """
-        super().__init__()
-
-        # Example: define a simple observation & action space
-        self.observation_space = spaces.Box(low=-10.0, high=10.0, shape=(3,), dtype=np.float32)
-        self.action_space = spaces.Discrete(5)  # e.g., 5 possible discrete actions
-
-        # Store environment ID and kwargs if needed
-        self.env_id = env_id
-        self.config = kwargs
-
-        # Internal state
-        self.state = None
-        self.episode_length = 0
-        self.max_episode_length = self.config.get("max_episode_length", 50)
-
+        self.env = env
+        # Store these so the "observation_space()" and "action_space()" methods
+        # can return them below. For a fully custom environment, define them
+        # explicitly (e.g., Box, Discrete, MultiDiscrete, etc.).
+        self.observation_space_ = self.env.observation_space
+        self.action_space_ = self.env.action_space
+        
     @staticmethod
     def make(env_id, **kwargs):
         """
-        Create a single instance of the custom environment.
-        :param env_id: A string identifier for the environment.
-        :param kwargs: Extra configuration parameters to pass to the constructor.
-        :return: An instance of CustomEnv.
+        Create a single environment from a given ID (usually a Gymnasium-registered ID).
+
+        For your own custom environment:
+        --------------------------------
+        - This method could create and return an instance of your
+          environment class. For instance:
+            return MyCustomSimulator(**kwargs)
+        - Or if you're using a non-standard way to instantiate the env,
+          just replace this logic with your custom creation process.
         """
-        return CustomEnv(env_id=env_id, **kwargs)
+        return gym.make(env_id, **kwargs)
 
     @staticmethod
     def make_vec(env_id, num_envs, **kwargs):
         """
-        Create a vectorized environment. 
-        For a custom solution, you could implement or wrap 
-        multiple CustomEnv instances in parallel. 
-        Below is a simplistic placeholder example.
+        Create a vectorized environment, allowing multiple env copies to run in parallel.
 
-        :param env_id: String identifier.
-        :param num_envs: Number of parallel environments.
-        :param kwargs: Extra configuration parameters.
-        :return: A list (or a wrapper) of multiple CustomEnv instances.
+        For your own custom environment:
+        --------------------------------
+        - If you support vectorized environments (like SubprocVectorEnv or AsyncVectorEnv),
+          replace this call with logic that instantiates and returns a vector of custom envs.
+        - If you don't need vectorized envs, you can remove or leave this unimplemented.
         """
-        envs = [CustomEnv(env_id=env_id, **kwargs) for _ in range(num_envs)]
-        return envs
+        return gym.make_vec(env_id, num_envs=num_envs, **kwargs)
 
-    def reset(self, seed=None, options=None):
+    def reset(self, **kwargs):
         """
-        Reset the environment and return the initial observation.
-        :param seed: An optional random seed.
-        :param options: Additional reset options.
-        :return: observation, info
+        Reset the environment to its initial state.
+
+        For your own custom environment:
+        --------------------------------
+        - Implement the logic to reset any internal state
+          (positions, velocities, random seeds, etc.).
+        - Return the initial observation and any optional info dict.
         """
-        super().reset(seed=seed)
-
-        # Example state initialization
-        self.state = np.zeros(shape=(3,), dtype=np.float32)  # could be random or fixed
-        self.episode_length = 0
-
-        # `info` dictionary can hold debugging or other info
-        info = {}
-        return self.state, info
+        return self.env.reset(**kwargs)
 
     def step(self, action):
         """
-        Take a step in the environment using the given action.
-        :param action: The chosen action.
-        :return: observation, reward, terminated, truncated, info
+        Take one step in the environment given an action.
+
+        For your own custom environment:
+        --------------------------------
+        - Implement your simulator's step logic:
+          1) Apply the action.
+          2) Advance the simulation.
+          3) Return (observation, reward, done, info).
         """
-        self.episode_length += 1
-
-        # Example transition logic:
-        #   - Update state
-        #   - Calculate reward
-        #   - Check if terminated or truncated
-        self.state += np.random.normal(0, 1.0, size=(3,))  # random walk
-        reward = float(np.random.rand())  # random reward for demonstration
-
-        # A simple terminal condition
-        terminated = bool(self.episode_length >= self.max_episode_length)
-        truncated = False  # set True if you have a non-episode-based cutoff
-
-        info = {}
-        return self.state, reward, terminated, truncated, info
+        return self.env.step(action)
 
     def close(self):
         """
-        Close the environment.
-        """
-        # Perform any cleanup here
-        pass
+        Clean up and close the environment (e.g., stop rendering, shut down engines).
 
+        For your own custom environment:
+        --------------------------------
+        - Add any cleanup logic, file I/O, or final logging needed
+          when the environment is closed.
+        """
+        self.env.close()
+
+    def observation_space(self):
+        """
+        Return the observation space object.
+
+        For your own custom environment:
+        --------------------------------
+        - If you're not simply wrapping an existing Gym env, define
+          self.observation_space_ as an instance of gym.spaces (Box, Discrete, etc.)
+          in your constructor or setup method.
+        """
+        return self.observation_space_
+    
+    def action_space(self):
+        """
+        Return the action space object.
+
+        For your own custom environment:
+        --------------------------------
+        - Same idea as observation_space(). Make sure it accurately matches
+          the types of actions your environment expects.
+        """
+        return self.action_space_
+    
     @classmethod
     def register(cls, id, entry_point):
         """
-        If you’d like to integrate a registry mechanism, 
-        similar to `gym.register`, you can implement it here.
+        Register a new environment under Gymnasium's registry system.
+
+        For your own custom environment:
+        --------------------------------
+        - You can use this to dynamically register new env IDs,
+          possibly pointing to a different entry point (class or function).
+        - Adjust the printed message or remove it entirely as needed.
         """
-        # You can add logic to handle your own registration if needed.
-        print(f"Registering custom environment: {id} at {entry_point}")
+        if id is None or entry_point is None:
+            return  # Skip if both are None
+        
+        print(f"Registering environment: {id} with API URL: {entry_point}")
+
+        registration.register(
+            id=id,
+            entry_point=entry_point,
+            # You can pass additional kwargs here, which your env's constructor uses.
+            kwargs={"entry_point": entry_point, "id": id}
+        )
