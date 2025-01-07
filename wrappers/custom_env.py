@@ -79,7 +79,12 @@ class CustomEnv(gym.Env):
           2) Advance the simulation.
           3) Return (observation, reward, done, info).
         """
-        return self.env.step(action)
+        observations, rewards, dones, infos = self.env.step(action)
+        infos = {}
+        final_observations = []
+        infos['final_observation'] = final_observations        
+        
+        return observations, rewards, dones, infos
 
     def close(self):
         """

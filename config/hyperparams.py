@@ -59,7 +59,7 @@ class Hyperparameters:
 
     # --------------------
     # 1) Client / Env
-    # --------------------
+    # --------------------    
     env_id: Optional[str] = None
     env_endpoint: Optional[str] = None
     use_tensorboard: bool = True
@@ -124,6 +124,7 @@ class Hyperparameters:
     # --------------------
     # 6) Network
     # --------------------
+    gpt_type: str = "gpt2",   # gpt2, gpt_neo, gpt_j, gpt_neox, gpt_bigcode, codegen, bloom
     num_layers: int = 5
     d_model: int = 256
     dropout: float = 0.1

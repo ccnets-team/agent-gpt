@@ -1,12 +1,84 @@
-# Ignore the saved directory
-saved/
-wandb/
+# -----------------------------------------------------------------------------
+# 1) Ignore the entire Unity build folder (and all contents):
+# -----------------------------------------------------------------------------
+MonoBleedingEdge/
+*.info
+Resources/
+globalgamemanagers
+*.resS
+level0
 
-# Ignore Python cache directories
+# -----------------------------------------------------------------------------
+# 2) Python cache and virtual environments:
+# -----------------------------------------------------------------------------
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
+# If using a virtual environment named venv/ or .venv/, ignore it:
+venv/
+.venv/
+env/
+.venv/
+
+# -----------------------------------------------------------------------------
+# 3) OS & Editor / IDE files:
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp  # Vim swap files
+*.swo  # Vim swap files
+
+# -----------------------------------------------------------------------------
+# 4) Common binary/build artifacts:
+# -----------------------------------------------------------------------------
+*.exe
+*.dll
+*.pdb
+*.so
+*.dylib
+*.mdb
+*.log
+*.meta
+*.csproj
+*.sln
+*.user
+*.suo
+*.zip
+*.rar
+*.7z
+*.gz
+*.tar
+*.jar
+*.war
+*.ear
+
+# -----------------------------------------------------------------------------
+# 5) Optional text/binary formats:
+# -----------------------------------------------------------------------------
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.svg
+*.ico
+
+# -----------------------------------------------------------------------------
+# 6) If you genuinely want to ignore .txt / .json / etc.:
+# -----------------------------------------------------------------------------
 *.txt
 *.json
+*.config
+*.html
+*.map
+*.assets
+*.xml
 
-*Dockerfile
+# -----------------------------------------------------------------------------
+# 7) Dockerfile (if you don’t want it in Git):
+# -----------------------------------------------------------------------------
+Dockerfile

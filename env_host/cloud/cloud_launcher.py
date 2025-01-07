@@ -54,8 +54,6 @@ class CloudEnvLauncher:
 
         self.os_name, self.docker_cmd = detect_docker_cmd()
         self.ec2_client = boto3.client("ec2", region_name=self.region_name)
-
-        self.dockerfile_path = "./Dockerfile"
         
         self.instance_id: Optional[str] = None
         self.remote_image_uri: Optional[str] = None
@@ -75,8 +73,8 @@ class CloudEnvLauncher:
         :param ensure_ecr_repo: Whether to ensure the ECR repository is created if it doesn't exist.
         :return: The endpoint of the launched environment.
         """
-        self.generate_dockerfile(env_file_path=self.env_file_path, dockerfile_path=self.dockerfile_path)
-        self.build_docker_image(docker_image_name=self.global_image_name, dockerfile_path=self.dockerfile_path)
+        dockerfile_path = self.generate_dockerfile(env_file_path=self.env_file_path)
+        self.build_docker_image(docker_image_name=self.global_image_name, dockerfile_path=dockerfile_path)
         self.tag_docker_image(ecr_registry=self.ecr_registry, local_image_name=self.global_image_name)
         self.push_docker_image(
             ecr_registry=self.ecr_registry,
@@ -91,7 +89,7 @@ class CloudEnvLauncher:
     def generate_dockerfile(
         self, 
         env_file_path: Optional[str] = None, 
-        dockerfile_path: str = "./Dockerfile"
+        copy_env_file_if_outside: bool = False
     ) -> str:
         """
         Generates a Dockerfile from the specified environment file.
@@ -101,12 +99,11 @@ class CloudEnvLauncher:
         :return: The path to the generated Dockerfile.
         """
         env_file_path = env_file_path or self.env_file_path
-        dockerfile_path = dockerfile_path or self.dockerfile_path
         return generate_dockerfile_impl(
             self.env_simulator,
             self.env_id,
-            local_import_path = env_file_path,
-            dockerfile_path=dockerfile_path
+            env_file_path = env_file_path,
+            copy_env_file_if_outside = copy_env_file_if_outside
         )
 
     def build_docker_image(
@@ -121,7 +118,6 @@ class CloudEnvLauncher:
         :param dockerfile_path: The path to the Dockerfile. Defaults to "./Dockerfile".
         :raises Exception: Raises an exception if the Docker build command fails.
         """
-        dockerfile_path = dockerfile_path or self.dockerfile_path
         docker_image_name = docker_image_name or self.global_image_name
         docker_image_name = docker_image_name.lower()
 
