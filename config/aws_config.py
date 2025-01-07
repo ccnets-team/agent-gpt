@@ -67,7 +67,6 @@ class SageMakerConfig:
     SageMaker-specific configuration.
     """
     role_arn: Optional[str] = None  # e.g. "arn:aws:iam::123456789012:role/SageMakerRole"
-    # instance_type: str = "ml.g4dn.xlarge"
     image_uri: str = "agentgpt.ccnets.org"
     output_path: Optional[str] = "s3://your-bucket/output/"
     model_data: Optional[str] = "s3://your-bucket/model.tar.gz"
