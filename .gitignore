@@ -68,9 +68,8 @@ Thumbs.db
 *.ico
 
 # -----------------------------------------------------------------------------
-# 6) If you genuinely want to ignore .txt / .json / etc.:
+# 6) If you genuinely want to ignore  .json / etc.:
 # -----------------------------------------------------------------------------
-*.txt
 *.json
 *.config
 *.html
