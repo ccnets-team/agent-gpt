@@ -20,7 +20,8 @@
    - [4.3 Server Connection Setup](#43-server-connection-setup)
    - [4.4 Server Connection Workflow](#44-server-connection-workflow)
    - [4.5 Example Code for Connection](#45-example-code-for-connection)
-   - [4.6 Error Handling and Debugging](#46-error-handling-and-debugging)
+   - [4.6 Environment Launch Options](#46-environment-launch-options)
+   - [4.7 Error Handling and Debugging](#47-error-handling-and-debugging)
 5. [Examples](#examples)
 6. [Frequently Asked Questions](#frequently-asked-questions)
 7. [Support](#support)
@@ -46,7 +47,7 @@ Our platform is designed with flexibility and robustness in mind, enabling seaml
 - **Flexible API for Advanced Users:** Provides an easy-to-use API for basic operations while offering advanced customization options for experienced developers.
 - **Cost-Optimized Cloud Integration:** Minimizes AWS costs while maximizing performance, with flexible pay-per-use pricing models for expense control.
 
-For more informations about our **1-Click Robot Training Cloud Services** here : 
+For more detailed informations : 
 https://www.linkedin.com/posts/ccnets_1-click-robotics-activity-7231567120537464832-k-o_?utm_source=share&utm_medium=member_desktop
 
 ### Performance Highlights
@@ -59,11 +60,10 @@ Our algorithm demonstrates state-of-the-art performance, setting new benchmarks 
 For more details and a demonstration of our GPT-2-powered agent's benchmark score, check out our latest update on LinkedIn: https://www.linkedin.com/posts/ccnets_gpt-2-agent-benchmark-score-with-1-click-activity-7257653827506429952-Ojet?utm_source=share&utm_medium=member_desktop
 
 ### How Does It Work:
-1. **Prepare Your Environment** : Design or Customize your game using Unity ML-Agents, or other platform. However, ensure that it adheres to the Gymnasium API Standards (`/reset()` and `/step()`) 
-2. **Upload and Connect** : Upload your game to the system via API 
-3. **Train Your Agent** : Start training your agent with minimal setup. 
-4. **Monitor Progress** : Track training performance in real-time 
-5. **Deploy Your Agent** : Once trained, download your agent and deploy it into your game. 
+1. **Prepare Your Environment (local or cloud)** : Design or Customize your game using Unity ML-Agents, or other platform. However, ensure that it adheres to the Gymnasium API Standards (`/reset()` and `/step()`) 
+2. **Train the AgentGPT Model** : Start training the AgentGPT model on the cloud with minimal setup. 
+3. **Monitor Progress** : Track training performance in real-time 
+4. **Deploy Your Agent** : Once trained, download your agent and deploy it into your game. 
 
 ---
 
@@ -257,7 +257,37 @@ response = requests.post(f"{BASE_URL}/step", headers=headers, json={"action": ac
 print("Step Result:", response.json())
 ```
 ---
-### 4.6 Error Handling and Debugging 
+### 4.6 Environment Launch Options 
+
+```python
+
+class EnvironmentLauncher:
+   """
+   Environment Launcher : Methods to launch the AgentGPT environment in various modes.
+   """ 
+   @staticmethod
+   def launch_on_local_with_ip():
+      """
+      Host your environment on your local machine, Using the environment IP address as the endpoint (Public IP and Port). The firewall and port will be temporartily opened to allow communication during the operation, and securely closed afterward to maintain network security. Note : Ngrok is used for secure tunneling in this mode.
+      """
+      pass
+
+   @staticmethod
+   def launch_on_local_with_url():
+      """
+      Runs the algorithm locally while exposing it to external systems. The environment endpoint is a temporary public URL (e.g., 'https://'), which allows external systems to communicate with the local instance.
+      """
+      pass
+
+   @staticmethod
+   def launch_on_cloud():
+      """
+      Deploys the algorithm in an AWS environment, providing a globally accessible endpoint via a public URL or API Gateway. This setup ensures scalability, high availability, and seamless integration with AWS services like S3, ECR, and EC2
+      """
+      pass
+```
+---
+### 4.7 Error Handling and Debugging 
 
 **Common Errors** 
 - **401 Unauthorized:**  Ensure your API key is valid and included in the `/Authorization` header.
