@@ -65,6 +65,8 @@ For more details and a demonstration of our GPT-2-powered agent's benchmark scor
 3. **Monitor Progress** : Track training performance in real-time 
 4. **Deploy Your Agent** : Once trained, download your agent and deploy it into your game. 
 
+![How AgentGPT Works](https://i.imgur.com/mnA9Uid.png)
+
 ---
 
 ## 2. Environment Requirements
@@ -286,6 +288,8 @@ class EnvironmentLauncher:
       """
       pass
 ```
+![Environment Launching Steps](https://i.imgur.com/Dgid1rF.png)
+
 ---
 ### 4.7 Error Handling and Debugging 
 
