@@ -1,31 +1,29 @@
-# data_converters.py
+# utils/data_converters.py
 import numpy as np
 
-def replace_nans_infs(obj):
-    """
-    Recursively converts NaN/Inf floats in a nested structure
-    (lists, tuples, dicts) into strings: "NaN", "Infinity", "-Infinity".
-    """
-    if isinstance(obj, list):
-        return [replace_nans_infs(v) for v in obj]
-    elif isinstance(obj, tuple):
-        return tuple(replace_nans_infs(v) for v in obj)
-    elif isinstance(obj, dict):
-        return {k: replace_nans_infs(v) for k, v in obj.items()}
+"""
+This module provides utility functions for converting nested data structures
+between Python lists and NumPy arrays, as well as handling NaN/Inf values.
 
-    # Check if it's a float or np.floating
-    elif isinstance(obj, (float, np.floating)):
-        if np.isnan(obj):
-            return "NaN"
-        elif np.isposinf(obj):
-            return "Infinity"
-        elif np.isneginf(obj):
-            return "-Infinity"
-        else:
-            return float(obj)  # Return as a normal float if it's finite
+Because HTTP and JSON serialization often require basic Python types (lists,
+dicts, floats), you may need to transform nested NumPy arrays or special float
+values (NaN, Inf) into more standard representations. Conversely, when receiving
+JSON data, you might want to restore it back into NumPy arrays for faster
+numeric processing.
 
-    # For everything else, return as is
-    return obj
+Functions:
+  1) convert_nested_lists_to_ndarrays(data, dtype):
+       Recursively converts lists (and nested dicts/tuples) to NumPy arrays,
+       preserving the structure and replacing None with a placeholder if needed.
+
+  2) convert_ndarrays_to_nested_lists(data):
+       Recursively converts NumPy arrays back to lists (and preserves 
+       dict/tuple structure), ensuring a JSON-friendly format.
+
+  3) replace_nans_infs(obj):
+       Recursively scans for NaN or ±Inf float values and replaces them
+       with the strings "NaN", "Infinity", or "-Infinity".
+"""
 
 def convert_nested_lists_to_ndarrays(data, dtype):
     """
@@ -72,3 +70,29 @@ def convert_ndarrays_to_nested_lists(data):
         return {key: convert_ndarrays_to_nested_lists(value) for key, value in data.items()}
     else:
         return data
+
+def replace_nans_infs(obj):
+    """
+    Recursively converts NaN/Inf floats in a nested structure
+    (lists, tuples, dicts) into strings: "NaN", "Infinity", "-Infinity".
+    """
+    if isinstance(obj, list):
+        return [replace_nans_infs(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(replace_nans_infs(v) for v in obj)
+    elif isinstance(obj, dict):
+        return {k: replace_nans_infs(v) for k, v in obj.items()}
+
+    # Check if it's a float or np.floating
+    elif isinstance(obj, (float, np.floating)):
+        if np.isnan(obj):
+            return "NaN"
+        elif np.isposinf(obj):
+            return "Infinity"
+        elif np.isneginf(obj):
+            return "-Infinity"
+        else:
+            return float(obj)  # Return as a normal float if it's finite
+
+    # For everything else, return as is
+    return obj

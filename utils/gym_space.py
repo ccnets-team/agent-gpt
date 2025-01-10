@@ -1,6 +1,20 @@
-# gym_space.py
+# utils/gym_space.py
 import numpy as np
 import gymnasium as gym
+
+"""
+This module defines two reversible functions for converting Gymnasium spaces to
+and from Python dictionaries. Gym spaces often contain NumPy arrays (e.g., Box
+bounds), which aren’t directly JSON-friendly for HTTP communication with remote
+trainers. By serializing these arrays into lists, we can send them over the wire
+and then reconstruct the exact space object at the destination.
+
+Functions:
+  - space_to_dict(space): Recursively serialize a Gym space into a Python dict,
+                          converting NumPy arrays into lists.
+  - space_from_dict(data): Recursively deserialize that dict back into the
+                          original Gym space, restoring the NumPy arrays.
+"""
 
 def space_to_dict(space: gym.spaces.Space):
     """Recursively serialize a Gym space into a Python dict."""
