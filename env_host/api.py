@@ -1,4 +1,4 @@
-# env_hosting/env_api.py
+# env_host/env_api.py
 import numpy as np
 import logging
 from fastapi import FastAPI, HTTPException
@@ -25,6 +25,16 @@ HTTP_INTERNAL_SERVER_ERROR = 500
 # EnvAPI class with FastAPI integration
 # ------------------------------------------------
 class EnvAPI:
+    """
+    EnvAPI is a minimal FastAPI service bridging an RL environment (e.g., Gym, Unity)
+    with external trainers. It serves two primary roles:
+
+      1) Receives inbound requests (e.g., /step, /reset) and delegates them
+         to an underlying environment wrapper (your env simulator).
+      2) Extends the basic Gymnasium protocol with improved security and remote
+         communication methods for flexible, safer usage—whether hosted locally
+         or in the cloud.
+    """    
     def __init__(self, env_simulator, host: str = "0.0.0.0", port: int = 80):
         """
         env_simulator: an object that must have .make(...) and .make_vec(...)
