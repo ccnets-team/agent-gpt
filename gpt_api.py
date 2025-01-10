@@ -187,7 +187,7 @@ class GPTAPI:
         """
         response = self._invoke("get_agent_ids", {})
         agent_ids = response.get("agent_ids", [])
-        return convert_nested_lists_to_ndarrays(agent_ids, dtype=str)
+        return convert_nested_lists_to_ndarrays(agent_ids, dtype=object)
 
     # -------------------------------------------------------------------------
     # GPT Input Sequence Length (num_input_states)
