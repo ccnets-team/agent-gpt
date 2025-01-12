@@ -1,6 +1,5 @@
 # env_launcher.py
 
-from urllib.parse import urlparse
 from config.aws_config import EC2Config
 from env_host.local.local_launcher import LocalEnvLauncher
 from env_host.cloud.cloud_launcher import CloudEnvLauncher
@@ -23,7 +22,7 @@ class EnvLauncher:
         print(f"[AgentGPTTrainer] Environment URL: {tunnel_url}")
         
         local_env_launcher.run_thread_server()
-        return tunnel_url
+        return local_env_launcher
 
     @staticmethod
     def launch_on_local_with_ip(env_simulator:str, ip_address: str = None, host: str = "0.0.0.0", port: int = 8000) -> str:
@@ -32,14 +31,10 @@ class EnvLauncher:
         Returns the environment endpoint used.
         """
             
-        parsed = urlparse(ip_address)
-        if parsed.hostname and parsed.port:
-            port = parsed.port
-
-        print(f"[AgentGPTTrainer] Environment Endpoint: {ip_address}")
+        print(f"[AgentGPTTrainer] Environment Endpoint: {ip_address}:{port}")
         local_env_launcher = LocalEnvLauncher(env_simulator, host, port)
         local_env_launcher.run_thread_server()
-        return ip_address
+        return local_env_launcher
     
     @staticmethod
     def launch_on_cloud(env_simulator:str, env_id, env_file_path, global_image_name, 

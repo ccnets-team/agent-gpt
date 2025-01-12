@@ -49,7 +49,12 @@ class EnvAPI:
 
         # Define all routes
         self._define_endpoints()
-
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        for env_key in self.environments:
+            self.environments[env_key].close()
+            del self.environments[env_key]
+    
     def run_server(self):
         """Run the FastAPI/Starlette application via uvicorn."""
         uvicorn.run(self.app, host=self.host, port=self.port)
@@ -59,13 +64,16 @@ class EnvAPI:
 
         @self.app.post("/make")
         def make_endpoint(body: MakeRequest):
-            return self.make(env_id=body.env_id, env_key=body.env_key)
+            return self.make(env_key=body.env_key, 
+                             env_id=body.env_id, 
+                             render_mode=body.render_mode
+                             )
 
         @self.app.post("/make_vec")
         def make_vec_endpoint(body: MakeVecRequest):
             return self.make_vec(
-                env_id=body.env_id,
                 env_key=body.env_key,
+                env_id=body.env_id,
                 num_envs=body.num_envs
             )
 
@@ -86,13 +94,13 @@ class EnvAPI:
             return self.observation_space(env_key)
 
         @self.app.post("/close")
-        def close_endpoint(env_key: str):
-            return self.close(env_key)
+        def close_endpoint(body: CloseRequest):
+            return self.close(env_key=body.env_key)
 
     # ------------------------------------------------
     # The methods each endpoint calls
     # ------------------------------------------------
-    def make(self, env_id: str, env_key: str):
+    def make(self, env_key: str, env_id: str, render_mode: Optional[str] = None):
         """Equivalent to your /make endpoint."""
 
         if not self.env_simulator or not hasattr(self.env_simulator, "make"):
@@ -102,18 +110,15 @@ class EnvAPI:
             )
 
         # Create environment
-        env_instance = self.env_simulator.make(env_id)
-        self.environments[env_key] = {
-            "env": env_instance,
-            "is_vectorized": False,
-        }
+        env_instance = self.env_simulator.make(env_id, render_mode=render_mode) 
+        self.environments[env_key] = env_instance
         logging.info(f"Environment {env_id} created with key {env_key}.")
         return {
             "message": f"Environment {env_id} created.",
             "env_key": env_key
         }
 
-    def make_vec(self, env_id: str, env_key: str, num_envs: int):
+    def make_vec(self, env_key: str, env_id: str, num_envs: int):
         """Equivalent to your /make_vec endpoint."""
 
         if not self.env_simulator or not hasattr(self.env_simulator, "make_vec"):
@@ -123,10 +128,7 @@ class EnvAPI:
             )
 
         env_instance = self.env_simulator.make_vec(env_id, num_envs=num_envs)
-        self.environments[env_key] = {
-            "env": env_instance,
-            "is_vectorized": True,
-        }
+        self.environments[env_key] = env_instance
         logging.info(f"Vectorized env {env_id} with {num_envs} instances, key {env_key}.")
         return {
             "message": f"Environment {env_id} created with {num_envs} instance(s).",
@@ -140,7 +142,7 @@ class EnvAPI:
                 status_code=HTTP_BAD_REQUEST,
                 detail="Environment not initialized. Please call /make first."
             )
-        env = self.environments[env_key]["env"]
+        env = self.environments[env_key]
         observation, info = env.reset(seed=seed, options=options)
         # Convert to nested lists
         observation, info = (
@@ -155,7 +157,7 @@ class EnvAPI:
                 status_code=HTTP_BAD_REQUEST,
                 detail="Environment not initialized. Please call /make first."
             )
-        env = self.environments[env_key]["env"]
+        env = self.environments[env_key]
         # Convert Python lists to np.ndarray
         action = convert_nested_lists_to_ndarrays(action_data, dtype=np.float32)
         
@@ -180,7 +182,7 @@ class EnvAPI:
                 status_code=HTTP_BAD_REQUEST,
                 detail="Environment not initialized. Please call /make first."
             )
-        action_space = self.environments[env_key]["env"].action_space
+        action_space = self.environments[env_key].action_space
         action_space = space_to_dict(action_space)
         return replace_nans_infs(action_space)
 
@@ -191,41 +193,34 @@ class EnvAPI:
                 status_code=HTTP_BAD_REQUEST,
                 detail="Environment not initialized. Please call /make first."
             )
-        observation_space = self.environments[env_key]["env"].observation_space
+        observation_space = self.environments[env_key].observation_space
         observation_space = space_to_dict(observation_space)
         return replace_nans_infs(observation_space)
 
     def close(self, env_key: str):
         """Equivalent to your /close endpoint."""
-        if not env_key:
-            # close all
-            for key in list(self.environments.keys()):
-                self.environments[key]["env"].close()
-                del self.environments[key]
-            return {"message": "All environments closed."}
-
-        if env_key in self.environments:
-            self.environments[env_key]["env"].close()
-            del self.environments[env_key]
-            logging.info(f"Environment with key {env_key} closed.")
-            return {"message": f"Environment {env_key} closed successfully."}
-        
-        raise HTTPException(
-            status_code=HTTP_BAD_REQUEST,
-            detail="No environment with this key to close."
-        )
-
+        if env_key not in self.environments:
+            raise HTTPException(
+                status_code=HTTP_BAD_REQUEST,
+                detail="Environment not initialized. Please call /make first."
+            )
+        self.environments[env_key].close()
+        del self.environments[env_key]
+        logging.info(f"Environment with key {env_key} closed.")
+        return {"message": f"Environment {env_key} closed successfully."}
+    
 # ------------------------------------------------
 # Pydantic request models
 # ------------------------------------------------
 class MakeRequest(BaseModel):
-    env_id: str
     env_key: str
+    env_id: str
+    render_mode: Optional[str] = None
 
 class MakeVecRequest(BaseModel):
-    env_id: str
     env_key: str
-    num_envs: int = 1
+    env_id: str
+    num_envs: int
 
 class ResetRequest(BaseModel):
     env_key: str
@@ -235,3 +230,6 @@ class ResetRequest(BaseModel):
 class StepRequest(BaseModel):
     env_key: str
     action: Any  # We'll convert it to np.ndarray
+    
+class CloseRequest(BaseModel):
+    env_key: str

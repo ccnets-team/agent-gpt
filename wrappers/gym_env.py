@@ -1,27 +1,56 @@
 # env_wrapper/gym_env.py
 import gymnasium as gym
+from gymnasium.envs import registration
 
-GymEnv = gym.Env
+class GymEnv:
+    def __init__(self, env, **kwargs):
+        """Initialize the backend."""
+        self.env = env
+        
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+            
+    @staticmethod
+    def make(env_id, **kwargs):
+        """Create a single environment."""
+        return gym.make(env_id, **kwargs)
 
-def get_gymnasium_envs(categories=None):
-    """
-    Retrieves environment IDs grouped by specified categories 
-    based on entry points in the Gymnasium registry.
-    
-    Returns:
-        list of str: All environment IDs in the specified categories.
-    """
-    from gymnasium import envs
-    categories = categories or ["classic_control", "box2d", "toy_text", "mujoco", "phys2d", "tabular"]
-    envs_by_category = {category: [] for category in categories}
-    
-    for env_spec in envs.registry.values():
-        if isinstance(env_spec.entry_point, str):
-            for category in categories:
-                if category in env_spec.entry_point:
-                    envs_by_category[category].append(env_spec.id)
-                    break
+    @staticmethod
+    def make_vec(env_id, num_envs, **kwargs):
+        """Create a vectorized environment."""
+        return gym.make_vec(env_id, num_envs = num_envs, **kwargs)
 
-    # Flatten all categories into a single list
-    all_registered_envs = [env_id for env_list in envs_by_category.values() for env_id in env_list]
-    return all_registered_envs
+    def reset(self, **kwargs):
+        """Reset the environment."""
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        """Take a step in the environment."""
+        return self.env.step(action)
+
+    def close(self):
+        """Close the environment."""
+        if self.env:
+            self.env.close()
+            self.env = None
+        
+    @classmethod
+    def register(cls, id, entry_point):
+        
+        # Dynamically retrieve module and class name
+        module_path = cls.__module__    
+        class_name = cls.__name__
+        
+        # Handle `None` for env_id naturally
+        if id is None:
+            id = f"{class_name}"  # Use a default name if env_id is None
+
+        # Additional logic to register the environment
+        print(f"Registering environment: {id} with API URL: {entry_point}")
+
+        # Register environment with dynamic module path and class name, and pass env_endpoint via kwargs
+        registration.register(
+            id=id,
+            entry_point=f"{module_path}:{class_name}",
+            kwargs={"entry_point": entry_point, "id": id}  # Add env_id to kwargs
+        )

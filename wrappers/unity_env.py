@@ -46,7 +46,7 @@ class UnityEnv(Env):
             UnityEnv.env_import_path = "../unity_environments/" + env_id + "/"
         else:
             if env_id != UnityEnv.id:
-                raise ValueError(f"Environment ID mismatch: {env_id} != {UnityEnv.id}")
+                print(f"Environment ID mismatch: {env_id} != {UnityEnv.id}")
             
         self.env_id = env_id
         
@@ -97,10 +97,6 @@ class UnityEnv(Env):
             worker_id=worker_id,
         )        
         return env
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.envs:
-            self.close()
 
     def _initialize_env_info(self):
         total_agents = 0
@@ -384,3 +380,7 @@ class UnityEnv(Env):
             env.close()
             
         self.envs = []
+        
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.envs:
+            self.close()
