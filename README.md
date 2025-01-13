@@ -1,9 +1,9 @@
-# AgentGPT Benchmarks
+# AgentGPT: One-Click Cloud-Based Distributed RL
 
 **Repository:** [ccnets-team/agent-gpt](https://github.com/ccnets-team/agent-gpt.git)  
 **W&B Benchmarks:** [Weights & Biases Dashboard](https://wandb.ai/junhopark/agentgpt)
 
-This README explains how AgentGPT orchestrates RL training on AWS SageMaker, hosts environments in the cloud or locally and provides multi-agent GPT-based endpoints.
+This README explains how AgentGPT orchestrates RL training on AWS SageMaker, hosts environments in the cloud or locally, and provides multi-agent GPT-based endpoints.
 
 ---
 
@@ -11,10 +11,11 @@ This README explains how AgentGPT orchestrates RL training on AWS SageMaker, hos
 AgentGPT is a **one-click, cloud-based distributed RL** platform built for multi-agent environments running in **parallel**. With minimal setup, it can automatically package and host your environment (assigning it a URL or IP) or launch a training job on AWS SageMaker. A **GPT model** is then served in real time, supporting **multiple local or cloud simulators** connected to a single AgentGPT trainer in the cloud—scaling effortlessly from small proofs-of-concept to large-scale, asynchronous RL deployments.
 
 **Key Features**:
-- **Cloud Environment Hosting**: Automatic Docker packaging & SageMaker job submission.  
-- **Parallel Environment Hosting**: Multiple environment endpoints (each at its own URL or IP) can run concurrently, whether on local machines or AWS EC2/ECR.  
-- **Real-Time Inference**: GPT-based endpoints served via SageMaker.  
-- **Distributed RL Agent Support**: Each environment endpoint feeds observations to—and receives actions from—a central policy, enabling fully distributed, scalable training.  
+- **Local Environment Hosting**: Easily run and test your environments on a local machine. Optionally expose it via tunnels (like ngrok or localtunnel) or your local IP for external access and collaborative debugging.
+- **Cloud Environment Hosting**: Automatic Docker packaging & SageMaker job submission, letting you offload your environment to AWS.
+- **Parallel Environment Hosting**: Multiple environment endpoints (each at its own URL or IP) can run concurrently—on local machines or AWS EC2/ECR—to accelerate training.
+- **Real-Time Inference**: GPT-based endpoints served via SageMaker, enabling near-instant policy queries.
+- **Distributed RL Agent Training**: Each environment endpoint seamlessly interacts with a central policy server, allowing truly scalable training across dozens (or hundreds) of simulators.
 
 ---
 
@@ -43,20 +44,21 @@ AgentGPT is a **one-click, cloud-based distributed RL** platform built for multi
 Orchestrates cloud-based training and inference:
 - **`train_on_cloud(sagemaker_config, hyperparameters)`**  
   - Validates configs, instantiates a `sagemaker.Estimator`, and launches a training job.  
-  - Returns the Estimator for job tracking.
 
 - **`run_on_cloud(sagemaker_config, user_endpoint_name=None)`**  
   - Deploys or reuses a SageMaker real-time inference endpoint.  
-  - Returns a `GPTAPI` client for multi-agent policy calls.
 
 ### 3.2 `GPTAPI` (in `gpt_api.py`)
 A high-level interface to the SageMaker endpoint:
+
 - **`select_action(agent_ids, observations, terminated_agent_ids=None)`**  
-  - Returns a NumPy array of actions for each agent.  
-- **`sample_observation`** / **`sample_action`**  
-  - Grabs random samples from the environment’s distributions.  
+  Returns a NumPy array of actions for each agent.
+
+- **`set_num_input_states`** / **`get_num_input_states`**  
+  Adjusts or retrieves the **input sequence length** for the GPT-based model. In other words, it controls how many past timesteps (context) the model sees when making action decisions.
+
 - **`set_control_value`** / **`get_control_value`**  
-  - Adjusts or retrieves an agent’s performance scaling factor (`[0.0, 1.0]`).
+  Adjusts or retrieves an agent’s performance scaling factor (`[0.0, 1.0]`), effectively empowering or limiting an agent’s abilities.
 
 ### 3.3 Configuration Objects
 
