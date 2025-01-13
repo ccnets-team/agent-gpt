@@ -209,5 +209,5 @@ def _validate_hyperparams(params: Hyperparameters):
     """
     if params.env_id is None:
         raise ValueError("Must provide an environment ID.")
-    if params.env_endpoint is None:
+    if params.env_hosts is None:
         raise ValueError("Must provide an environment URL.")
