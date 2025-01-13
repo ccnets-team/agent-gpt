@@ -9,8 +9,8 @@ class EnvHost:
     (whether it's local or remote).
     """
     host_id: Optional[str] = None  # e.g., "local", "remote", "aws", "azure", etc.
-    env_endpoint: str                  # e.g., "http://localhost:8000" or "http://ec2-xxx.compute.amazonaws.com"
-    num_agents: int = 64
+    env_endpoint: str = ''                  # e.g., "http://localhost:8000" or "http://ec2-xxx.compute.amazonaws.com"
+    num_agents: int = 128
 
 @dataclass
 class Exploration:
@@ -88,10 +88,10 @@ class Hyperparameters:
     max_test_episodes: int = 100
 
     # 3) Training
-    batch_size: int = 64
-    train_interval: int = 1
-    max_steps: int = 500_000
-    buffer_size: int = 500_000
+    batch_size: int = 128
+    replay_ratio: float = 16
+    max_steps: int = 20_000_000
+    buffer_size: int = 1_000_000
 
     # 4) Algorithm
     gamma_init: float = 0.99
@@ -103,7 +103,6 @@ class Hyperparameters:
     lr_init: float = 1e-4
     lr_end: float = 1e-6
     lr_scheduler: str = "exponential"  # "linear", "exponential",
-    lr_cycle_steps: int = 20_000
     tau: float = 0.01
     max_grad_norm: float = 1.0
 
@@ -111,7 +110,7 @@ class Hyperparameters:
     gpt_type: str = "gpt2"  
     num_layers: int = 5
     d_model: int = 256
-    dropout: float = 0.1
+    dropout: float = 0.15
     num_heads: int = 8
     
     # -----------------------
