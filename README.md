@@ -5,20 +5,22 @@
 
 This README explains how AgentGPT orchestrates RL training on AWS SageMaker, hosts environments in the cloud or locally, and provides multi-agent GPT-based endpoints.
 
+![How AgentGPT Works](https://i.imgur.com/mnA9Uid.png)
 ---
 
 ## 1. Overview
 AgentGPT is a **one-click, cloud-based distributed RL** platform built for multi-agent environments running in **parallel**. With minimal setup, it can automatically package and host your environment (assigning it a URL or IP) or launch a training job on AWS SageMaker. A **GPT model** is then served in real time, supporting **multiple local or cloud simulators** connected to a single AgentGPT trainer in the cloud—scaling effortlessly from small proofs-of-concept to large-scale, asynchronous RL deployments.
 
+> **Note for Large Enterprises**  
+> You can **keep your actual environment simulations on local machines** (on-premise, behind the firewall, etc.) to maintain security and control data flow. Rather than running hundreds of cloud-hosted environments, you send environment states from your local servers to a **single lightweight trainer** in AWS. This architecture **drastically reduces hosting costs** and provides peace of mind for sensitive data.
+
 **Key Features**:
-- **Local Environment Hosting**: Easily run and test your environments on a local machine. Optionally expose it via tunnels (like ngrok or localtunnel) or your local IP for external access and collaborative debugging.
-- **Cloud Environment Hosting**: Automatic Docker packaging & SageMaker job submission, letting you offload your environment to AWS.
-- **Parallel Environment Hosting**: Multiple environment endpoints (each at its own URL or IP) can run concurrently—on local machines or AWS EC2/ECR—to accelerate training.
-- **Real-Time Inference**: GPT-based endpoints served via SageMaker, enabling near-instant policy queries.
-- **Distributed RL Agent Training**: Each environment endpoint seamlessly interacts with a central policy server, allowing truly scalable training across dozens (or hundreds) of simulators.
+- **Cloud Environment Hosting**: Automatic Docker packaging & SageMaker job submission.  
+- **Parallel Environment Hosting**: Multiple environment endpoints (each at its own URL or IP) can run concurrently, whether on local machines or AWS EC2/ECR.  
+- **Real-Time Inference**: GPT-based endpoints served via SageMaker.  
+- **Distributed RL Agent Support**: Each environment endpoint feeds observations to—and receives actions from—a central policy, enabling fully distributed, scalable training.  
 
 ---
-
 ## 2. Architecture
 
 1. **Environment Hosting**  
@@ -112,31 +114,42 @@ A high-level interface to the SageMaker endpoint:
    estimator = AgentGPT.train_on_cloud(sagemaker_cfg, hyperparams)
    print("Training job:", estimator.latest_training_job.name)
 
-![How AgentGPT Works](https://i.imgur.com/mnA9Uid.png)
-
 ---
 
 ## Key Features
-- **One-Click Training Process**  
-  Upload your environment and let AgentGPT handle everything—from setup to job submission—so you can focus on designing better RL tasks.
-- **Single-Line Code**  
-  Launch large-scale distributed training with almost no boilerplate, dramatically reducing the complexity of your workflow.
-- **Flexible Spaces**  
-  Fully supports discrete, continuous, and hybrid action/observation spaces, enabling a wide range of RL tasks.
-- **Easy Unity ML-Agents Integration**  
-  Automatically detects and configures Unity ML-Agents, sparing you from manual environment tinkering.
-- **Automatic Parameter Tuning**  
-  Dynamically adjusts hyperparameters like learning rates and exploration strategies for optimized performance.
-- **Gymnasium-Compliant**  
-  Adheres to Gymnasium v1.0 (and older) standards, ensuring easy integration and interoperability.
-- **Autoreset and Error Handling**  
-  Seamlessly resets environments after episodes, minimizing downtime and protecting against crashes.
-- **Robust Multi-Agent**  
-  Ensures consistent indexing for agents’ observations, actions, and rewards—even in large-scale, asynchronous settings.
-- **Advanced API**  
-  Offers a straightforward interface for newcomers, plus advanced hooks for experienced developers.
-- **Cost Efficiency**  
-  Employs AWS cost-optimizations and flexible pay-as-you-go pricing, making large-scale RL feasible without runaway expenses.
+
+### One-Click Training Process
+Upload your environment and let AgentGPT handle everything—from setup to job submission—so you can focus on designing better RL tasks.
+
+### Single-Line Code
+Launch large-scale distributed training with almost no boilerplate, dramatically reducing the complexity of your workflow.
+
+### Flexible Spaces
+Fully supports discrete, continuous, and multiple hybrid action/observation spaces, enabling a wide range of RL tasks.
+
+### Easy Unity ML-Agents Integration
+Automatically detects and configures Unity ML-Agents, sparing you from manual environment tinkering.
+
+### Custom Gym Environment Registration
+Easily incorporate your custom environment IDs into Gym’s registry. By following Gymnasium’s `register()` conventions, AgentGPT can dynamically launch your environments for distributed training.
+
+### Gymnasium-Compliant
+Adheres to Gymnasium v1.0 (and older) standards, ensuring easy integration and interoperability.
+
+### Automatic RL Parameter Tuning
+Dynamically adjusts or learns RL hyperparameters—like gamma, lambda, and reward scaling—for optimized performance.
+
+### Robust Multi-Agent
+Ensures consistent indexing for agents’ observations, actions, and rewards—even in large-scale, **asynchronous multi-environment** settings.
+
+### Remote Environment Control and Error Handling
+Remotely manage environments during training, minimizing downtime and protecting against crashes—even when running on separate machines or cloud instances.
+
+### Advanced GPT API
+Manages a GPT-based model—similar to ChatGPT’s query processing—that **dispatches real-time action instructions** from the cloud to your agents. Offers a clean, high-level interface for beginners, alongside advanced hooks for seasoned developers requiring deeper customization.
+
+### Cost Efficiency
+Whether you’re a small startup or a large enterprise, you can run hundreds of local environments (for data security or compliance) linked to a single cloud-based trainer. This approach drastically cuts costs, since you won’t pay for hundreds of cloud instances. AWS cost-optimizations and pay-as-you-go pricing further ensure that large-scale RL remains feasible—even on a tight budget.
 
 ---
 
