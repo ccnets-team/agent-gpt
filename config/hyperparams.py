@@ -89,7 +89,7 @@ class Hyperparameters:
 
     # 3) Training
     batch_size: int = 128
-    replay_ratio: float = 16
+    replay_ratio: float = 1.0
     max_steps: int = 20_000_000
     buffer_size: int = 1_000_000
 
