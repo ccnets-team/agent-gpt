@@ -1,7 +1,11 @@
 
 # env_host/cloud/ec2_instance.py
-import boto3
-from botocore.exceptions import ClientError
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+except ImportError:
+    boto3 = None
+    ClientError = None
 from config.aws_config import EC2Config
 from typing import Optional
 

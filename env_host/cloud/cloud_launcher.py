@@ -12,7 +12,10 @@ from env_host.cloud.ec2_env_launcher import (
     launch_ec2_instance_impl,
     get_env_endpoint_impl
 )
-import boto3
+try:
+    import boto3
+except ImportError:
+    boto3 = None
 import logging
 from typing import Optional
 

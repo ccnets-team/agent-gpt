@@ -30,8 +30,7 @@ class EnvLauncher:
         Runs the server locally, using the provided ip_address (parsing for IP/port if present).
         Returns the environment endpoint used.
         """
-            
-        print(f"[AgentGPTTrainer] Environment Endpoint: {ip_address}:{port}")
+        print(f"[AgentGPTTrainer] Environment Endpoint: http://{ip_address}:{port}")
         local_env_launcher = LocalEnvLauncher(env_simulator, host, port)
         local_env_launcher.run_thread_server()
         return local_env_launcher

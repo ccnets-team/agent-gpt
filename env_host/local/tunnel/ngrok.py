@@ -1,12 +1,12 @@
 # env_hosting/local_host/ngrok_tunnel.py
 import importlib.util
-from pyngrok import ngrok
 
 class NgrokTunnel:
     def __init__(self, host="localhost", port=8000):
         self.port = port
         
     def open_tunnel(self):
+        from pyngrok import ngrok
         """
         Attempt to import pyngrok. If successful, create a tunnel.
         If pyngrok is not installed, raise an ImportError.
