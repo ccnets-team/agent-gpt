@@ -1,4 +1,55 @@
-# config/hyperparams.py
+"""
+AgentGPT Trainer Hyperparameters
+
+We train a contextual (transformer-based) model for action prediction 
+using CCNets-based GPT architecture.
+
+CCNets: https://www.linkedin.com/company/ccnets/
+Invertible-reasoning policy and reverse dynamics for causal reinforcement learning:
+https://patents.google.com/patent/WO2023167576A2/en 
+
+The parameters below are standard RL settings plus additional GPT/transformer fields.
+
+Quick-Reference for Key Fields:
+-------------------------------------------------------------------
+env_id               : (str)    The name or identifier of your environment 
+                                (e.g. 'CartPole-v1', 'Walker-v2', or custom).
+
+env_hosts            : (dict)   A dictionary of EnvHost objects (keyed by
+                                strings like 'local', 'remote-aws', etc.) 
+                                that define parallel environment endpoints. 
+                                Each EnvHost contains an endpoint (URL/IP) 
+                                and a number of agents to run there. This
+                                mechanism allows distributed or local/cloud-hosted 
+                                environments (at different URLs) to send
+                                experiences to a single trainer.
+
+replay_ratio         : (float)  Ratio of training iterations to environment steps.
+                                For example, 1.0 => one training iteration 
+                                per environment step. It is a target to control “backpressure” 
+                                when using slow or remote envs.
+                                
+gamma_init, lambda_init :       Common RL discount factor (gamma) and lambda 
+                                used in advantage estimation. Here, both gamma 
+                                and lambda are treated as adjustable (learnable) 
+                                parameters to help with advantage normalization. 
+                                Typically near 1.0 for longer-horizon tasks.
+
+max_input_states     : (int)    Sequence length / context window size for GPT-based 
+                                model. Larger values let the model see more context 
+                                per inference step, but can increase memory costs.
+                                
+tau                  : (float)  “Soft update” factor for target networks.
+                                For example, 0.01 => slow, more stable updates.
+
+max_grad_norm        : (float)  Gradient clipping threshold. 
+                                Lower => more stable training.
+
+gpt_type             : (str)    GPT variant (e.g., "gpt2", "gpt-neo", etc.) from
+                                the Hugging Face Transformers library.
+-------------------------------------------------------------------
+"""
+
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -72,10 +123,7 @@ class Exploration:
         
 @dataclass
 class Hyperparameters:
-    """
-    A single, consolidated dataclass holding hyperparameters and configurations
-    for your RL system (environment, training, optimization, etc.).
-    """
+
     # 1) Client / Env
     env_id: Optional[str] = None
     env_hosts: dict[str, EnvHost] = field(default_factory=dict)
