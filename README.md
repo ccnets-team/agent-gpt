@@ -5,7 +5,7 @@
 
 This README explains how AgentGPT orchestrates RL training on AWS SageMaker, hosts environments in the cloud or locally, and provides multi-agent GPT-based endpoints.
 
-![How AgentGPT Works](https://i.imgur.com/mnA9Uid.png)
+![How AgentGPT Works](https://imgur.com/r4hGxqO.png)
 ---
 
 ## 1. Overview
@@ -79,6 +79,8 @@ A high-level interface to the SageMaker endpoint:
 - **Cloud** (`env_host/cloud/`):  
   - `CloudEnvLauncher` automates Dockerfile generation, ECR pushes, and EC2 launches, so your environment is accessible publicly.
 
+     ![Environment Launching Steps](https://imgur.com/awvPxyx.png)
+
 ---
 
 ## 4. Usage Flow
@@ -96,7 +98,7 @@ A high-level interface to the SageMaker endpoint:
          model_data="s3://your-bucket/model.tar.gz"
      )
      ```
-
+     
 3. **Set Hyperparameters**  
    - Example:
      ```python
