@@ -1,9 +1,9 @@
 # env_host/env_api.py
 import numpy as np
 import logging
-from fastapi import FastAPI, HTTPException
+import msgpack
 import uvicorn
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request, Response
 from typing import Optional, Any
 
 # ------------------------------------------------
@@ -57,117 +57,198 @@ class EnvAPI:
     
     def run_server(self):
         """Run the FastAPI/Starlette application via uvicorn."""
-        uvicorn.run(self.app, host=self.host, port=self.port,  
+        uvicorn.run(self.app, host=self.host, port=self.port, 
                     log_level="warning") # Only show warnings and errors
         
     def _define_endpoints(self):
         """Attach all routes/endpoints to self.app."""
 
         @self.app.post("/make")
-        def make_endpoint(body: MakeRequest):
-            return self.make(env_key=body.env_key, 
-                             env_id=body.env_id, 
-                             render_mode=body.render_mode
-                             )
+        async def make_endpoint(request: Request) -> Response:
+            """
+            Equivalent to /make, but receives and returns msgpack.
+            Expects:
+              {
+                "env_key": str,
+                "env_id": str,
+                "render_mode": Optional[str]
+              }
+            """
+            raw_body = await request.body()
+            try:
+                body_data = msgpack.unpackb(raw_body, raw=False)
+                env_key = body_data["env_key"]
+                env_id = body_data["env_id"]
+                render_mode = body_data.get("render_mode", None)
+            except Exception as e:
+                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+
+            response_dict = self.make(env_key=env_key, env_id=env_id, render_mode=render_mode)
+            packed = msgpack.packb(response_dict, use_bin_type=True)
+            return Response(content=packed, media_type="application/x-msgpack")
 
         @self.app.post("/make_vec")
-        def make_vec_endpoint(body: MakeVecRequest):
-            return self.make_vec(
-                env_key=body.env_key,
-                env_id=body.env_id,
-                num_envs=body.num_envs
-            )
+        async def make_vec_endpoint(request: Request) -> Response:
+            """
+            Equivalent to /make_vec, but msgpack-based.
+            Expects:
+              {
+                "env_key": str,
+                "env_id": str,
+                "num_envs": int
+              }
+            """
+            raw_body = await request.body()
+            try:
+                body_data = msgpack.unpackb(raw_body, raw=False)
+                env_key = body_data["env_key"]
+                env_id = body_data["env_id"]
+                num_envs = int(body_data["num_envs"])
+            except Exception as e:
+                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+
+            response_dict = self.make_vec(env_key=env_key, env_id=env_id, num_envs=num_envs)
+            packed = msgpack.packb(response_dict, use_bin_type=True)
+            return Response(content=packed, media_type="application/x-msgpack")
 
         @self.app.post("/reset")
-        def reset_endpoint(body: ResetRequest):
-            return self.reset(env_key=body.env_key, seed=body.seed, options=body.options)
+        async def reset_endpoint(request: Request) -> Response:
+            """
+            Equivalent to /reset, but msgpack-based.
+            Expects:
+              {
+                "env_key": str,
+                "seed": Optional[int],
+                "options": Optional[Any]
+              }
+            """
+            raw_body = await request.body()
+            try:
+                body_data = msgpack.unpackb(raw_body, raw=False)
+                env_key = body_data["env_key"]
+                seed = body_data.get("seed", None)
+                options = body_data.get("options", None)
+            except Exception as e:
+                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+
+            response_dict = self.reset(env_key=env_key, seed=seed, options=options)
+            packed = msgpack.packb(response_dict, use_bin_type=True)
+            return Response(content=packed, media_type="application/x-msgpack")
 
         @self.app.post("/step")
-        def step_endpoint(body: StepRequest):
-            return self.step(env_key=body.env_key, action_data=body.action)
+        async def step_endpoint(request: Request) -> Response:
+            """
+            Equivalent to /step, but msgpack-based.
+            Expects:
+              {
+                "env_key": bytes or str,
+                "action": ...
+              }
+            """
+            raw_body = await request.body()
+            try:
+                body_data = msgpack.unpackb(raw_body, raw=False)
+                env_key = body_data["env_key"]
+                action_data = body_data["action"]
+            except Exception as e:
+                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+
+            # Perform step logic
+            response_dict = self.step(env_key=env_key, action_data=action_data)
+            
+            packed = msgpack.packb(response_dict, use_bin_type=True)
+            return Response(content=packed, media_type="application/x-msgpack")
 
         @self.app.get("/action_space")
-        def action_space_endpoint(env_key: str):
-            return self.action_space(env_key)
+        async def action_space_endpoint(env_key: str) -> Response:
+            """Equivalent to /action_space but returns msgpack."""
+            response_dict = self.action_space(env_key)
+            packed = msgpack.packb(response_dict, use_bin_type=True)
+            return Response(content=packed, media_type="application/x-msgpack")
 
         @self.app.get("/observation_space")
-        def observation_space_endpoint(env_key: str):
-            return self.observation_space(env_key)
+        async def observation_space_endpoint(env_key: str) -> Response:
+            """Equivalent to /observation_space but returns msgpack."""
+            response_dict = self.observation_space(env_key)
+            packed = msgpack.packb(response_dict, use_bin_type=True)
+            return Response(content=packed, media_type="application/x-msgpack")
 
         @self.app.post("/close")
-        def close_endpoint(body: CloseRequest):
-            return self.close(env_key=body.env_key)
+        async def close_endpoint(request: Request) -> Response:
+            """
+            POST /close, receives env_key in the body as msgpack.
+            Expects:
+            {
+                "env_key": str
+            }
+            """
+            raw_body = await request.body()
+            try:
+                body_data = msgpack.unpackb(raw_body, raw=False)
+                env_key = body_data["env_key"]
+            except Exception as e:
+                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+
+            response_dict = self.close(env_key)
+            packed = msgpack.packb(response_dict, use_bin_type=True)
+            return Response(content=packed, media_type="application/x-msgpack")
 
     # ------------------------------------------------
-    # The methods each endpoint calls
+    # The methods each endpoint calls (same logic, but returning Python dicts)
     # ------------------------------------------------
     def make(self, env_key: str, env_id: str, render_mode: Optional[str] = None):
-        """Equivalent to your /make endpoint."""
-
         if not self.env_simulator or not hasattr(self.env_simulator, "make"):
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Backend not properly registered."
-            )
-
-        # Create environment
-        env_instance = self.env_simulator.make(env_id, render_mode=render_mode) 
+            raise HTTPException(status_code=HTTP_BAD_REQUEST,
+                                detail="Backend not properly registered.")
+        env_instance = self.env_simulator.make(env_id, render_mode=render_mode)
         self.environments[env_key] = env_instance
         logging.info(f"Environment {env_id} created with key {env_key}.")
         return {
-            "message": f"Environment {env_id} created.",
+            "message": f"Environment {env_id} created.",    
             "env_key": env_key
         }
 
     def make_vec(self, env_key: str, env_id: str, num_envs: int):
-        """Equivalent to your /make_vec endpoint."""
-
         if not self.env_simulator or not hasattr(self.env_simulator, "make_vec"):
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Backend not properly registered."
-            )
-
+            raise HTTPException(status_code=HTTP_BAD_REQUEST,
+                                detail="Backend not properly registered.")
         env_instance = self.env_simulator.make_vec(env_id, num_envs=num_envs)
         self.environments[env_key] = env_instance
-        logging.info(f"Vectorized env {env_id} with {num_envs} instances, key {env_key}.")
+        logging.info(f"Vectorized env {env_id} with {num_envs} instance(s), key {env_key}.")
         return {
             "message": f"Environment {env_id} created with {num_envs} instance(s).",
             "env_key": env_key
         }
 
     def reset(self, env_key: str, seed: Optional[int], options: Optional[Any]):
-        """Equivalent to your /reset endpoint."""
         if env_key not in self.environments:
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Environment not initialized. Please call /make first."
-            )
+            raise HTTPException(status_code=HTTP_BAD_REQUEST,
+                                detail="Environment not initialized. Please call /make first.")
         env = self.environments[env_key]
         observation, info = env.reset(seed=seed, options=options)
-        # Convert to nested lists
+        # Convert to nested lists for serialization
         observation, info = (
             convert_ndarrays_to_nested_lists(x) for x in (observation, info)
         )
         return {"observation": observation, "info": info}
 
     def step(self, env_key: str, action_data):
-        """Equivalent to your /step endpoint."""
+        # Check environment existence
         if env_key not in self.environments:
             raise HTTPException(
                 status_code=HTTP_BAD_REQUEST,
                 detail="Environment not initialized. Please call /make first."
             )
         env = self.environments[env_key]
-        # Convert Python lists to np.ndarray
-        action = convert_nested_lists_to_ndarrays(action_data, dtype=np.float32)
         
+        action = convert_nested_lists_to_ndarrays(action_data, dtype=np.float32)
         observation, reward, terminated, truncated, info = env.step(action)
+
+        # Convert all to nested lists for messagepack
         observation, reward, terminated, truncated, info = (
             convert_ndarrays_to_nested_lists(x)
             for x in (observation, reward, terminated, truncated, info)
         )
-        
         return {
             "observation": observation,
             "reward": reward,
@@ -177,7 +258,6 @@ class EnvAPI:
         }
 
     def action_space(self, env_key: str):
-        """Equivalent to your /action_space endpoint."""
         if env_key not in self.environments:
             raise HTTPException(
                 status_code=HTTP_BAD_REQUEST,
@@ -188,7 +268,6 @@ class EnvAPI:
         return replace_nans_infs(action_space)
 
     def observation_space(self, env_key: str):
-        """Equivalent to your /observation_space endpoint."""
         if env_key not in self.environments:
             raise HTTPException(
                 status_code=HTTP_BAD_REQUEST,
@@ -199,7 +278,6 @@ class EnvAPI:
         return replace_nans_infs(observation_space)
 
     def close(self, env_key: str):
-        """Equivalent to your /close endpoint."""
         if env_key not in self.environments:
             raise HTTPException(
                 status_code=HTTP_BAD_REQUEST,
@@ -209,28 +287,14 @@ class EnvAPI:
         del self.environments[env_key]
         logging.info(f"Environment with key {env_key} closed.")
         return {"message": f"Environment {env_key} closed successfully."}
-    
-# ------------------------------------------------
-# Pydantic request models
-# ------------------------------------------------
-class MakeRequest(BaseModel):
-    env_key: str
-    env_id: str
-    render_mode: Optional[str] = None
 
-class MakeVecRequest(BaseModel):
-    env_key: str
-    env_id: str
-    num_envs: int
-
-class ResetRequest(BaseModel):
-    env_key: str
-    seed: Optional[int] = None
-    options: Optional[Any] = None
-
-class StepRequest(BaseModel):
-    env_key: str
-    action: Any  # We'll convert it to np.ndarray
-    
-class CloseRequest(BaseModel):
-    env_key: str
+    def close(self, env_key: str):
+        if env_key not in self.environments:
+            raise HTTPException(
+                status_code=HTTP_BAD_REQUEST,
+                detail="Environment not initialized. Please call /make first."
+            )
+        self.environments[env_key].close()
+        del self.environments[env_key]
+        logging.info(f"Environment with key {env_key} closed.")
+        return {"message": f"Environment {env_key} closed successfully."}
