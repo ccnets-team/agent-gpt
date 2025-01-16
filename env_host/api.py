@@ -57,7 +57,8 @@ class EnvAPI:
     
     def run_server(self):
         """Run the FastAPI/Starlette application via uvicorn."""
-        uvicorn.run(self.app, host=self.host, port=self.port)
+        uvicorn.run(self.app, host=self.host, port=self.port,  
+                    log_level="warning") # Only show warnings and errors
         
     def _define_endpoints(self):
         """Attach all routes/endpoints to self.app."""
