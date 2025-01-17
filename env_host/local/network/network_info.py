@@ -1,7 +1,7 @@
 import socket
-import requests
 
 def get_network_info():
+    import requests
     """
     Returns a dictionary with:
     - 'public_ip': The public IP address (if retrievable)

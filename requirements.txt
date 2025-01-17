@@ -4,3 +4,4 @@ fastapi
 uvicorn
 pydantic
 gymnasium==1.0.0
+msgpack
