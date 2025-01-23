@@ -131,15 +131,14 @@ class Hyperparameters:
     use_cloudwatch: bool = True
 
     # 2) Session
-    use_print: bool = True
     use_graphics: bool = False
-    max_test_episodes: int = 100
-
+    resume_training: bool = False       # If True, trainer loads from checkpoint/optimal. fill in checkpoint path
+    
     # 3) Training
     batch_size: int = 128
-    replay_ratio: float = 1.0
+    replay_ratio: float = 2.0
     max_steps: int = 20_000_000
-    buffer_size: int = 1_000_000
+    buffer_size: int = 500_000
 
     # 4) Algorithm
     gamma_init: float = 0.99
@@ -158,7 +157,7 @@ class Hyperparameters:
     gpt_type: str = "gpt2"  
     num_layers: int = 5
     d_model: int = 256
-    dropout: float = 0.15
+    dropout: float = 0.1
     num_heads: int = 8
     
     # -----------------------
