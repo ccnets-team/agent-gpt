@@ -50,7 +50,7 @@ gpt_type             : (str)    GPT variant (e.g., "gpt2", "gpt-neo", etc.) from
 -------------------------------------------------------------------
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 @dataclass
@@ -226,38 +226,54 @@ class Hyperparameters:
 
     def to_dict(self) -> dict:
         """
-        Returns a dictionary of all fields (useful for logging, JSON export, etc.).
+        Returns a deep dictionary of all dataclass fields,
+        including nested dataclasses, by leveraging asdict().
         """
-        return vars(self)
+        return asdict(self)
     
-
 def main():
+    # 1) Instantiate hyperparameters with defaults
     hyperparams = Hyperparameters()
 
-    # Option 1: Use set_config with a dictionary of dicts/EnvHost
-    hyperparams.set_config(
-        env_hosts={
-            "local": {"endpoint": "http://localhost:8000", "num_agents": 64},
-            "remote": EnvHost(
-                host_id="aws-1",
-                env_endpoint="http://ec2-xxx.compute.amazonaws.com",
-                num_agents=128
-            ),
-        },
-        env_id="Walker-v2"
+    # 2) Add a single known local host ("local1")
+    hyperparams.set_env_host(
+        "local1",
+        EnvHost(env_endpoint="http://23.34.13.132:8500", num_agents=32)
     )
 
-    # Option 2: Use set_env_host for single entries
-    hyperparams.set_env_host("backup", EnvHost(env_endpoint="http://backup-env.com", num_agents=32))
+    # 3) Specify how many additional local hosts to create, starting from index 2
+    num_local_hosts = 4  # e.g., will generate local2, local3, local4, local5
 
-    # Example of setting exploration
-    hyperparams.set_exploration("continuous", Exploration(type="ornstein_uhlenbeck", mu=0.1, theta=0.2))
+    # Base IP and port for these extra hosts
+    base_ip = "http://30.14.22.168:"
+    starting_port = 45450
 
-    # Check results
+    # 4) Loop to add local2..localN, each with a unique endpoint
+    for i in range(2, num_local_hosts + 2):
+        host_key = f"local{i}"
+        # Construct an endpoint using base_ip plus an incremental port number
+        env_endpoint = f"{base_ip}{starting_port + i}"
+        # Add the host to hyperparams
+        hyperparams.set_env_host(host_key, EnvHost(env_endpoint=env_endpoint, num_agents=32))
+
+    # 5) Configure exploration parameters for continuous action space
+    hyperparams.set_exploration(
+        "continuous",
+        Exploration(type="gaussian_noise", initial_sigma=0.1, final_sigma=0.001)
+    )
+
+    # 6) Convert to a dictionary for printing or downstream consumption
     config_dict = hyperparams.to_dict()
-    print(config_dict["env_hosts"])   # => {'local': EnvHost(...), 'remote': EnvHost(...), 'backup': EnvHost(...)}
-    print(config_dict["exploration"]) # => {'continuous': Exploration(...)}
-    print("gpt_type =", config_dict["gpt_type"])  # => "gpt2"
+
+    # 7) Print environment hosts
+    print("Environment hosts:")
+    for key, host_info in config_dict["env_hosts"].items():
+        print(f"  {key}: endpoint={host_info['env_endpoint']}, agents={host_info['num_agents']}")
+
+    # 8) Print exploration settings and other highlights
+    print("\nExploration configs:", config_dict["exploration"])
+    print("GPT type:", config_dict["gpt_type"])
+    print("\nFull hyperparams dictionary:\n", config_dict)
 
 if __name__ == "__main__":
     main()
