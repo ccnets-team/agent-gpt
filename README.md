@@ -1,7 +1,10 @@
 # AgentGPT: One-Click Cloud-Based Distributed RL
 
 **Repository:** [ccnets-team/agent-gpt](https://github.com/ccnets-team/agent-gpt.git)  
-**W&B Benchmarks:** [Weights & Biases Dashboard](https://wandb.ai/junhopark/agentgpt)
+
+**Overall Gym Benchmark Archive(running on standard Gym, not via Internet):** [Weights & Biases Dashboard](https://wandb.ai/ccnets/one-click-robotics)
+
+**Live Gym Humanoid-v5(via Internet):** [AWS CloudWatch Dashboard](https://cloudwatch.amazonaws.com/dashboard.html?dashboard=AgentGPT-Benchmark-Gym-Humanoid-v5&context=eyJSIjoidXMtZWFzdC0xIiwiRCI6ImN3LWRiLTUzMzI2NzMxNjcwMyIsIlUiOiJ1cy1lYXN0LTFfcUFYZHp4ank3IiwiQyI6Ijc2bXM5azI2dHE2a29pY2IwZGxkc2g2bDgwIiwiSSI6InVzLWVhc3QtMTo1YTJjZTUxMy04YTE2LTQ1NTEtYWEyNS05Mjk3ZjE3ZjVkNzUiLCJNIjoiUHVibGljIn0%3D)
 
 This README explains how AgentGPT orchestrates RL training on AWS SageMaker, hosts environments in the cloud or locally, and provides multi-agent GPT-based endpoints.
 
