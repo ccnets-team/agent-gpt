@@ -59,7 +59,6 @@ class EnvHost:
     Holds the env_endpoint info and agent count for a single hosting environment 
     (whether it's local or remote).
     """
-    host_id: Optional[str] = None  # e.g., "local", "remote", "aws", "azure", etc.
     env_endpoint: str = ''                  # e.g., "http://localhost:8000" or "http://ec2-xxx.compute.amazonaws.com"
     num_agents: int = 128
 
@@ -127,7 +126,7 @@ class Hyperparameters:
     # 1) Client / Env
     env_id: Optional[str] = None
     env_hosts: dict[str, EnvHost] = field(default_factory=dict)
-    use_tensorboard: bool = True
+    use_tensorboard: bool = False
     use_cloudwatch: bool = True
 
     # 2) Session
