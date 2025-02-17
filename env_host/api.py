@@ -242,7 +242,12 @@ class EnvAPI:
         env = self.environments[env_key]
         
         action = convert_nested_lists_to_ndarrays(action_data, dtype=np.float32)
-        observation, reward, terminated, truncated, info = env.step(action)
+        
+        try:
+            observation, reward, terminated, truncated, info = env.step(action)
+        except Exception as e:
+            logging.exception("Error in env.step()")
+            raise HTTPException(status_code=HTTP_INTERNAL_SERVER_ERROR, detail=str(e))
 
         # Convert all to nested lists for messagepack
         observation, reward, terminated, truncated, info = (
