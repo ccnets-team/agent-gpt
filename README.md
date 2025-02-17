@@ -11,7 +11,7 @@ This README explains how AgentGPT orchestrates RL training on AWS SageMaker, hos
 ![How AgentGPT Works](https://imgur.com/r4hGxqO.png)
 ---
 
-## 1. Overview
+## Overview
 AgentGPT is a **one-click, cloud-based distributed RL** platform built for multi-agent environments running in **parallel**. With minimal setup, it can automatically package and host your environment (assigning it a URL or IP) or launch a training job on AWS SageMaker. A **GPT model** is then served in real time, supporting **multiple local or cloud simulators** connected to a single AgentGPT trainer in the cloud—scaling effortlessly from small proofs-of-concept to large-scale, asynchronous RL deployments.
 
 > **Note for Large Enterprises**  
@@ -26,7 +26,8 @@ AgentGPT is a **one-click, cloud-based distributed RL** platform built for multi
 - **Distributed RL Agent Support**: Each environment endpoint feeds observations to—and receives actions from—a central policy, enabling fully distributed, scalable training.  
 
 ---
-## 2. Architecture
+
+## Architecture
 
 1. **Environment Hosting**  
    - **Local**: A FastAPI server (optionally tunneled via ngrok/localtunnel).  
@@ -45,85 +46,7 @@ AgentGPT is a **one-click, cloud-based distributed RL** platform built for multi
 
 ---
 
-## 3. Major Components
-
-### 3.1 `AgentGPT` (in `agent_gpt.py`)
-Orchestrates cloud-based training and inference:
-- **`train_on_cloud(sagemaker_config, hyperparameters)`**  
-  - Validates configs, instantiates a `sagemaker.Estimator`, and launches a training job.  
-
-- **`run_on_cloud(sagemaker_config, user_endpoint_name=None)`**  
-  - Deploys or reuses a SageMaker real-time inference endpoint.  
-
-### 3.2 `GPTAPI` (in `gpt_api.py`)
-A high-level interface to the SageMaker endpoint:
-
-- **`select_action(agent_ids, observations, terminated_agent_ids=None)`**  
-  Returns a NumPy array of actions for each agent.
-
-- **`set_num_input_states`** / **`get_num_input_states`**  
-  Adjusts or retrieves the **input sequence length** for the GPT-based model. In other words, it controls how many past timesteps (context) the model sees when making action decisions.
-
-- **`set_control_value`** / **`get_control_value`**  
-  Adjusts or retrieves an agent’s performance scaling factor (`[0.0, 1.0]`), effectively empowering or limiting an agent’s abilities.
-
-### 3.3 Configuration Objects
-
-- **`SageMakerConfig`** (`config/aws_config.py`):  
-  - Specifies AWS credentials, Docker URIs, instance types, S3 paths, etc.
-
-- **`Hyperparameters`** (`config/hyperparams.py`):  
-  - Defines RL training settings (environment ID, batch size, buffer size, max steps, etc.).
-
-### 3.4 Environment Hosting
-
-- **Local** (`env_host/local/`):  
-  - A FastAPI-based `EnvAPI` server providing REST endpoints for `reset`, `step`, `action_space`, etc.  
-  - `TunnelManager` can open tunnels (ngrok/localtunnel) for external access.
-
-- **Cloud** (`env_host/cloud/`):  
-  - `CloudEnvLauncher` automates Dockerfile generation, ECR pushes, and EC2 launches, so your environment is accessible publicly.
-
-     ![Environment Launching Steps](https://imgur.com/awvPxyx.png)
-
----
-
-## 4. Usage Flow
-
-1. **Host Your Environment**  
-   - Start it locally with `EnvLauncher.launch_on_local_with_url(...)`,  
-   - Or deploy it on AWS (`EnvLauncher.launch_on_cloud(...)`).
-
-2. **Define SageMakerConfig**  
-   - Example:
-     ```python
-     sagemaker_cfg = SageMakerConfig(
-         role_arn="arn:aws:iam::123456789012:role/SageMakerRole",
-         image_uri="123456789012.dkr.ecr.us-east-1.amazonaws.com/agent-gpt:latest",
-         model_data="s3://your-bucket/model.tar.gz"
-     )
-     ```
-     
-3. **Set Hyperparameters**  
-   - Example:
-     ```python
-     hyperparams = Hyperparameters(
-         env_id="CartPole-v1",
-         batch_size=128,
-         max_steps=1_000_000
-     )
-     ```
-
-4. **Train on SageMaker**  
-   ```python
-   from agent_gpt import AgentGPT
-
-   estimator = AgentGPT.train_on_cloud(sagemaker_cfg, hyperparams)
-   print("Training job:", estimator.latest_training_job.name)
-
----
-
-## Product Highlights
+## Highlights
 
 ### One-Click Training Process
 Upload your environment and let **AgentGPT** handle everything—**setup, job submission, and training**—so you can focus on designing better RL tasks
@@ -159,10 +82,3 @@ Leverages a **GPT-based model** for real-time **action decision-making**, offeri
 Reduce cloud expenses by **linking local environments to a single cloud trainer**, cutting AWS costs **without sacrificing performance**.
 
 ---
-
-5. **Support**  
-For questions, issues, or assistance, you can reach us at:
-
-**Email:** [michikoleo@ccnets.org](mailto:michikoleo@ccnets.org)
-
-Our team typically responds within 1-2 business days. Your feedback is invaluable and helps us continually enhance AgentGPT.
