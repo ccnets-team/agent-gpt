@@ -142,7 +142,7 @@ class Hyperparameters:
     # 4) Algorithm
     gamma_init: float = 0.99
     lambda_init: float = 0.95
-    max_input_states: int = 32
+    max_input_states: int = 16
     exploration: dict[str, Exploration] = field(default_factory=dict)
 
     # 5) Optimization
@@ -176,11 +176,12 @@ class Hyperparameters:
         if key in self.exploration:
             del self.exploration[key]
 
-    def list_exploration_keys(self) -> list[str]:
+    def get_exploration_configs(self) -> dict[str, dict]:
         """
-        Returns a list of all keys for which explorations are defined, e.g. ["continuous", "discrete"].
+        Returns a dictionary mapping each exploration key (e.g., "continuous", "discrete")
+        to its full configuration as a dictionary.
         """
-        return list(self.exploration.keys())
+        return {key: asdict(exp) for key, exp in self.exploration.items()}
 
     def set_env_host(self, key: str, env_host: EnvHost):
         """Sets a new environment host (endpoint + agent count) in the env_hosts dict."""
@@ -195,11 +196,12 @@ class Hyperparameters:
         if key in self.env_hosts:
             del self.env_hosts[key]
 
-    def list_env_host_keys(self) -> list[str]:
+    def get_env_host_configs(self) -> dict[str, dict]:
         """
-        Returns a list of all environment host keys, e.g. ["local", "remote"].
+        Returns a dictionary mapping each environment host key (e.g., "local", "remote")
+        to its full configuration as a dictionary.
         """
-        return list(self.env_hosts.keys())
+        return {key: asdict(host) for key, host in self.env_hosts.items()}
 
     def set_config(self, **kwargs):
         for k, v in kwargs.items():
