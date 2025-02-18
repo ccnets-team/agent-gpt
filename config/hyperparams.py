@@ -142,15 +142,15 @@ class Hyperparameters:
     # 4) Algorithm
     gamma_init: float = 0.99
     lambda_init: float = 0.95
-    max_input_states: int = 16
+    max_input_states: int = 32
     exploration: dict[str, Exploration] = field(default_factory=dict)
 
     # 5) Optimization
     lr_init: float = 1e-4
     lr_end: float = 1e-6
-    lr_scheduler: str = "exponential"  # "linear", "exponential",
+    lr_scheduler: str = "linear"  # "linear", "exponential",
     tau: float = 0.01
-    max_grad_norm: float = 1.0
+    max_grad_norm: float = 0.5
 
     # 6) Network
     gpt_type: str = "gpt2"  
