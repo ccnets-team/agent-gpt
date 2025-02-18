@@ -284,21 +284,14 @@ class EnvAPI:
 
     def close(self, env_key: str):
         if env_key not in self.environments:
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Environment not initialized. Please call /make first."
-            )
-        self.environments[env_key].close()
-        del self.environments[env_key]
-        logging.info(f"Environment with key {env_key} closed.")
-        return {"message": f"Environment {env_key} closed successfully."}
-
-    def close(self, env_key: str):
-        if env_key not in self.environments:
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Environment not initialized. Please call /make first."
-            )
+            # Close all environments if the key is not found
+            for key in list(self.environments.keys()):
+                self.environments[key].close()
+                logging.info(f"Environment with key {key} closed.")
+                del self.environments[key]
+            return {"message": "All environments closed successfully."}
+        
+        # Otherwise, close only the specified environment.
         self.environments[env_key].close()
         del self.environments[env_key]
         logging.info(f"Environment with key {env_key} closed.")
