@@ -16,7 +16,7 @@ class EC2Config:
     subnet_id: Optional[str] = None
     security_group_id: Optional[str] = None
     instance_name: Optional[str] = None
-    def __init__(self, ami_id: str = None, instance_type: str = "g5.xlarge", instance_name: str = None, region_name: str = "us-east-1", 
+    def __init__(self, ami_id: str = None, instance_type: str = "ml.g5.xlarge", instance_name: str = None, region_name: str = "us-east-1", 
                  key_name: str = None, subnet_id: str = None, security_group_id: str = None, ensure_ami_config: bool = False):
         self.ami_id = ami_id
         self.instance_type = instance_type
@@ -72,11 +72,11 @@ class SageMakerConfig:
     model_data: Optional[str] = "s3://your-bucket/model.tar.gz"
     instance_type: str = "ml.t2.medium" # for endpoint instance (e.g. ml.t2.medium eq) or training instance (e.g. ml.g4dn.xlarge eq) for trainer instance
     instance_count: int = 1
-    region: Optional[str] = "us-east-1"
+    region: Optional[str] = "ap-northeast-2"
     max_run: int = 3600               # Max training time in seconds
 
     def __init__(self, role_arn: str = None, image_uri: str = None, output_path: str = None, model_data: str = None,
-                    instance_type: str = "ml.g4dn.xlarge", instance_count: int = 1, region: str = "us-east-1", max_run: int = 3600):
+                    instance_type: str = "ml.g4dn.xlarge", instance_count: int = 1, region: str = "ap-northeast-2", max_run: int = 3600):
         self.role_arn = role_arn
         self.image_uri = image_uri
         self.output_path = output_path

@@ -1,8 +1,8 @@
 # env_launcher.py
 
-from config.aws_config import EC2Config
-from env_host.local.local_launcher import LocalEnvLauncher
-from env_host.cloud.cloud_launcher import CloudEnvLauncher
+from src.config.aws_config import EC2Config
+from src.env_host.local.local_launcher import LocalEnvLauncher
+from src.env_host.cloud.cloud_launcher import CloudEnvLauncher
 
 class EnvLauncher:
     """

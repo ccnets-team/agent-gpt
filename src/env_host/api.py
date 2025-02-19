@@ -9,12 +9,12 @@ from typing import Optional, Any
 # ------------------------------------------------
 # Utility imports
 # ------------------------------------------------
-from utils.data_converters import (
+from src.utils.data_converters import (
     convert_ndarrays_to_nested_lists,
     convert_nested_lists_to_ndarrays,
     replace_nans_infs,
 )
-from utils.gym_space import space_to_dict
+from src.utils.gym_space import space_to_dict
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200

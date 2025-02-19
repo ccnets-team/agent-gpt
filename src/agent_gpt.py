@@ -9,9 +9,9 @@ from sagemaker import Model
 from sagemaker.estimator import Estimator
 from sagemaker.predictor import Predictor
 
-from config.aws_config import SageMakerConfig
-from config.hyperparams import Hyperparameters
-from gpt_api import GPTAPI
+from src.config.aws_config import SageMakerConfig
+from src.config.hyperparams import Hyperparameters
+from src.gpt_api import GPTAPI
 
 class AgentGPT:
     """
@@ -60,8 +60,8 @@ class AgentGPT:
         **Usage Example**::
         
             from agent_gpt import AgentGPT
-            from config.aws_config import SageMakerConfig
-            from config.hyperparams import Hyperparameters
+            from src.config.aws_config import SageMakerConfig
+            from src.config.hyperparams import Hyperparameters
 
             sagemaker_cfg = SageMakerConfig(...)
             hyperparams = Hyperparameters(...)

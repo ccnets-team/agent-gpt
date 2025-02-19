@@ -1,8 +1,8 @@
 # env_hosting/local_host/local_env_launcher.py
 
 from threading import Thread
-from env_host.api import EnvAPI
-from env_host.local.tunnel_manager import TunnelManager
+from src.env_host.api import EnvAPI
+from src.env_host.local.tunnel_manager import TunnelManager
 
 class LocalEnvLauncher(EnvAPI):
     """

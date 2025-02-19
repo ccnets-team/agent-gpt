@@ -1,7 +1,7 @@
 # env_hosting/local_host/local_env_launcher.py
 
-from env_host.local.tunnel.ngrok import NgrokTunnel
-from env_host.local.tunnel.localtunnel import LocalTunnel
+from src.env_host.local.tunnel.ngrok import NgrokTunnel
+from src.env_host.local.tunnel.localtunnel import LocalTunnel
 from urllib.parse import urlparse
 from enum import Enum 
 

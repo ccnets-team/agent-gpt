@@ -29,14 +29,14 @@ def get_additional_files(env_simulator: str) -> dict:
     Returns a dict where the key is the basename and the value is the full 
     path relative to the build context. For example:
       {
-        "serve.py": "env_host/serve.py",
-        "api.py": "env_host/api.py",
+        "serve.py": "src/env_host/serve.py",
+        "api.py": "src/env_host/api.py",
         "utils": "utils/",
-        "gym_env.py": "env_host/wrappers/gym_env.py"
+        "gym_env.py": "src/env_host/wrappers/gym_env.py"
       }
     """
-    serve_file = "env_host/serve.py"
-    api_file   = "env_host/api.py"
+    serve_file = "src/env_host/serve.py"
+    api_file   = "src/env_host/api.py"
     utils_file = "utils/"
 
     if env_simulator == "gym":
@@ -74,7 +74,7 @@ def write_code_copy_instructions(f, additional_files: dict):
     Example:
         # Copy serve.py
         RUN mkdir -p /app/env_host
-        COPY env_host/serve.py /app/env_host/serve.py
+        COPY src/env_host/serve.py /app/env_host/serve.py
     """
     for base_name, rel_path in additional_files.items():
         f.write(f"# Copy {base_name}\n")

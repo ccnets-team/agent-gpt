@@ -6,7 +6,7 @@ try:
 except ImportError:
     boto3 = None
     ClientError = None
-from config.aws_config import EC2Config
+from src.config.aws_config import EC2Config
 from typing import Optional
 
 def _create_or_fetch_security_group(ec2_client) -> str:
