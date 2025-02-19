@@ -99,47 +99,28 @@ class AgentGPT:
         return estimator
         
     @staticmethod
-    def run_on_cloud(sagemaker_config: SageMakerConfig, user_endpoint_name: str = None):
+    def run_on_cloud(sagemaker_config: SageMakerConfig):
         """
         Creates (or reuses) a SageMaker real-time inference endpoint for AgentGPT.
 
-        This method uses your pre-trained model artifacts, the 
-        container image (`image_uri`), and other config details from 
-        `sagemaker_config` to build and/or deploy a SageMaker Endpoint. 
-        If `user_endpoint_name` is provided, it attempts to reuse that 
-        endpoint if it exists, or create a new one otherwise.
+        This method uses your pre-trained model artifacts, the container image (`image_uri`),
+        and other configuration details from `sagemaker_config` to build and/or deploy a SageMaker Endpoint.
+        The `endpoint_name` field in the configuration is used to determine the name of the deployed
+        inference endpoint. If not provided, a default name is auto-generated.
 
-        **Workflow**:
-          1) A `Model` object is created referencing your model data in S3 
-             (e.g. `model_data`) and the container `image_uri`.
-          2) The method checks if an endpoint with `endpoint_name` already 
-             exists.
-          3) If yes, reuses it by creating a `Predictor`.
-          4) If no, calls `.deploy(...)` on the `Model` to create a brand-new
-             endpoint.
-          5) Finally, returns a GPTAPI object that can communicate 
-             with the newly active endpoint.
-
-        **Usage Example**::
-
-            from agent_gpt import AgentGPT, SageMakerConfig
-
-            sagemaker_cfg = SageMakerConfig(..., model_data="s3://my-bucket/model.tar.gz")
-            gpt_api = AgentGPT.run_on_cloud(sagemaker_cfg, user_endpoint_name="agent-gpt-prod")
-
-            # Now you can do:
-            actions = gpt_api.select_action(agent_ids, observations)
-            print("Actions:", actions)
+        Workflow:
+          1) A `Model` object is created referencing your model data in S3 (e.g. `model_data`)
+             and the container image (`image_uri`).
+          2) The method checks if an endpoint with the specified `endpoint_name` already exists.
+          3) If it exists, the existing endpoint is reused by creating a `Predictor`.
+          4) Otherwise, the method calls `.deploy(...)` on the `Model` to create a new endpoint.
+          5) Finally, a GPTAPI object is returned to communicate with the deployed endpoint.
 
         :param sagemaker_config:
-            Contains the AWS IAM role, model_data path, instance_type, etc. 
-            used for deploying the real-time endpoint.
-        :param user_endpoint_name:
-            If provided, tries to reuse or create an endpoint under this name.
-            Otherwise, a name is auto-generated: "agent-gpt-{timestamp}".
+            Contains the AWS IAM role, model data path, instance type, and the 
+            `endpoint_name` to be used for the deployed inference endpoint.
         :return:
-            A `GPTAPI` instance, preconfigured to call this SageMaker endpoint.
-            You can directly call e.g. `select_action`, `set_control_value`, etc.
+            A `GPTAPI` instance, preconfigured to call the SageMaker endpoint for inference.
         """
         model = Model(
             role=sagemaker_config.role_arn,
@@ -147,10 +128,10 @@ class AgentGPT:
             model_data=sagemaker_config.model_data
         )
         print("Created SageMaker Model:", model)
+        
+        endpoint_name = sagemaker_config.endpoint_name
 
-        if user_endpoint_name:
-            endpoint_name = user_endpoint_name
-        else:
+        if not endpoint_name:
             endpoint_name = f"agent-gpt-{int(time.time())}"
             
         print("Using endpoint name:", endpoint_name)
