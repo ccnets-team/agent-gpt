@@ -4,4 +4,6 @@ fastapi
 uvicorn
 pydantic
 gymnasium==1.0.0
+gymnasium[mujoco]
 msgpack
+requests==2.32.3
