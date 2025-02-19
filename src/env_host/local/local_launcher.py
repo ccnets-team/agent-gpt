@@ -10,10 +10,10 @@ class LocalEnvLauncher(EnvAPI):
     """
     def __init__(self, env_simulator: str, host: str = "0.0.0.0", port: int = 8000):
         if env_simulator == 'unity':
-            from wrappers.unity_env import UnityEnv  # Interface for Unity environments
+            from src.wrappers.unity_env import UnityEnv  # Interface for Unity environments
             env_simulator_cls = UnityEnv
         elif env_simulator == 'gym':
-            from wrappers.gym_env import GymEnv      # Interface for Gym environments
+            from src.wrappers.gym_env import GymEnv      # Interface for Gym environments
             env_simulator_cls = GymEnv
         else:
             raise ValueError("Unknown environment simulator. Choose 'unity' or 'gym'.")
