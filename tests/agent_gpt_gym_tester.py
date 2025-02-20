@@ -27,7 +27,7 @@ def run_episodes(agent_gpt, env_name, render_mode=DEFAULT_RENDER_MODE, num_episo
     
     for ep in range(num_episodes):
         # Reset the environment with a seed for reproducibility.
-        obs, _ = env.reset(seed=ep)
+        obs, _ = env.reset()
         done = False
         total_reward = 0.0
         agent_id = f"agent_{ep}"
@@ -36,10 +36,11 @@ def run_episodes(agent_gpt, env_name, render_mode=DEFAULT_RENDER_MODE, num_episo
             # Select an action using the public API.
             action_list = agent_gpt.select_action(agent_ids=[agent_id], observations=[obs])
             action = action_list[0]
-            
+            # print(f"Selected action: {action}")
             # Step the environment.
             obs, reward, terminated, truncated, _ = env.step(action)
             total_reward += reward
+            print(f"Step reward: {reward}, total reward: {total_reward}")
             done = terminated or truncated
             
         print(f"[TEST] status:\n{agent_gpt.status()}")
@@ -61,7 +62,7 @@ def parse_arguments(parser):
     parser.add_argument("--instance-type", type=str,
                         default=DEFAULT_INSTANCE_TYPE,
                         help="SageMaker instance type.")
-    parser.add_argument("--user-endpoint-name", type=str,
+    parser.add_argument("--endpoint-name", type=str,
                         default=DEFAULT_ENDPOINT_NAME,
                         help="Endpoint name to use or create.")
     parser.add_argument("--env-id", type=str,
