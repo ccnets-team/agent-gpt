@@ -134,10 +134,10 @@ class Hyperparameters:
     resume_training: bool = False       # If True, trainer loads from checkpoint/optimal. fill in checkpoint path
     
     # 3) Training
-    batch_size: int = 128
+    batch_size: int = 256
     replay_ratio: float = 2.0
     max_steps: int = 20_000_000
-    buffer_size: int = 500_000
+    buffer_size: int = 1_000_000
 
     # 4) Algorithm
     gamma_init: float = 0.99
@@ -147,7 +147,7 @@ class Hyperparameters:
 
     # 5) Optimization
     lr_init: float = 1e-4
-    lr_end: float = 1e-6
+    lr_end: float = 1e-5
     lr_scheduler: str = "linear"  # "linear", "exponential",
     tau: float = 0.01
     max_grad_norm: float = 0.5
