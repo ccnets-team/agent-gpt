@@ -1,5 +1,5 @@
 
-# env_host/cloud/ec2_instance.py
+# src/env_host/cloud/ec2_instance.py
 try:
     import boto3
     from botocore.exceptions import ClientError

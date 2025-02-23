@@ -2,7 +2,7 @@
 
 from threading import Thread
 from src.env_host.api import EnvAPI
-from src.env_host.local.tunnel_manager import TunnelManager
+from src.env_host.local.tunnel.tunnel_manager import TunnelManager
 
 class LocalEnvLauncher(EnvAPI):
     """

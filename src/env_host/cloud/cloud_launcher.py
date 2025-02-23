@@ -1,4 +1,4 @@
-# env_hosting/cloud_host/cloud_launcher.py
+# src/env_hosting/cloud_host/cloud_launcher.py
 from src.config.aws_config import EC2Config
 from src.env_host.cloud.dockerfile_generator import generate_dockerfile_impl
 from src.env_host.cloud.docker_env_builder import (
