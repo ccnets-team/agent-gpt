@@ -1,6 +1,6 @@
 # src/agent_gpt/aws_config.py
 
-from dataclasses import dataclass
+from dataclasses import dataclass, InitVar
 from typing import Optional
       
 @dataclass
@@ -33,40 +33,43 @@ class SageMakerConfig:
     def to_dict(self) -> dict:
         """Returns a dictionary of all SageMaker configuration fields."""
         return vars(self)
-    
+
 @dataclass
 class EC2Config:
     """
     Holds basic AWS EC2 configuration details.
     Feel free to extend with more fields as needed (e.g., user_data, IAM roles).
+    
+    Attributes:
+        region_name: AWS region (default "ap-northeast-2" but can be changed to automatic cross region solution)
+        ami_id: AMI ID to use; if None and ensure_ami_config is True, the latest Amazon Linux 2 AMI is auto-configured.
+        instance_type: Type of EC2 instance (default "ml.g5.xlarge").
+        key_name: Name of the EC2 key pair.
+        subnet_id: ID of the subnet for the instance.
+        security_group_id: Security group ID.
+        instance_name: Name for the EC2 instance.
     """
-    region_name: str = None    # Provide defaults if you like
-    ami_id: str = None      # Some base AMI
-    instance_type: str = None   # Default instance type
+    region_name: str = "ap-northeast-2"
+    ami_id: Optional[str] = None
+    instance_type: str = "ml.g5.xlarge"
     key_name: Optional[str] = None
     subnet_id: Optional[str] = None
     security_group_id: Optional[str] = None
     instance_name: Optional[str] = None
-    def __init__(self, ami_id: str = None, instance_type: str = "ml.g5.xlarge", instance_name: str = None, region_name: str = "us-east-1", 
-                 key_name: str = None, subnet_id: str = None, security_group_id: str = None, ensure_ami_config: bool = False):
-        self.ami_id = ami_id
-        self.instance_type = instance_type
-        self.instance_name = instance_name
-        self.region_name = region_name
-        self.key_name = key_name
-        self.subnet_id = subnet_id
-        self.security_group_id = security_group_id
+    # Using InitVar to allow a parameter that is not stored as a field
+    ensure_ami_config: InitVar[bool] = False
+
+    def __post_init__(self, ensure_ami_config: bool):
         if self.ami_id is None and ensure_ami_config:
             self.ami_id = self.configure_ami()
-        
-    def configure_ami(self) -> None:
+
+    def configure_ami(self) -> Optional[str]:
         """
         Automatically finds the latest Amazon Linux 2 AMI in the given region
-        and updates self.ami_id accordingly.
+        and returns its AMI ID.
         """
         import boto3
         ec2 = boto3.client("ec2", region_name=self.region_name)
-
         response = ec2.describe_images(
             Owners=["amazon"],
             Filters=[
@@ -76,18 +79,14 @@ class EC2Config:
                 {"Name": "architecture", "Values": ["x86_64"]},
             ],
         )
-        ami_id = None
-
         # Sort images by CreationDate descending, so the newest is first
         images = sorted(response["Images"], key=lambda x: x["CreationDate"], reverse=True)
         if images:
-            latest = images[0]
-            ami_id = latest["ImageId"]
-            
-        return ami_id
-  
+            return images[0]["ImageId"]
+        return None
+
     def to_dict(self) -> dict:
         """
-        Returns a dictionary of all SageMaker configuration fields.
+        Returns a dictionary of all EC2 configuration fields.
         """
         return vars(self)
