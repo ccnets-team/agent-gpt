@@ -14,7 +14,7 @@ from utils.data_converters import (
     convert_nested_lists_to_ndarrays,
     replace_nans_infs,
 )
-from src.utils.gym_space import space_to_dict
+from utils.gym_space import space_to_dict
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200
