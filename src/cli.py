@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+# src/cli.py
 import os
 import yaml
 import typer
-from src.agent_gpt import AgentGPT
-from src.config.sagemaker_config import SageMakerConfig
-from src.config.hyperparams import Hyperparameters
+from agent_gpt import AgentGPT
+from config.sagemaker_config import SageMakerConfig
+from config.hyperparams import Hyperparameters
 
 app = typer.Typer()
 
@@ -13,13 +13,13 @@ DEFAULT_CONFIG_PATH = os.path.expanduser("~/.agent_gpt/config.yaml")
 
 def load_config():
     if os.path.exists(DEFAULT_CONFIG_PATH):
-        with open(DEFAULT_CONFIG_PATH, "r") as f:
+        with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
     else:
         typer.echo("Configuration file not found. Please run 'agent-gpt config' to create one.")
         raise typer.Exit()
 
-@app.command()
+@app.command("simulate")
 def simulate(
     ip: str = typer.Option(..., help="The public IP address to launch the environment on"),
     port: str = typer.Option(..., help="Port or port range (e.g., 45670 or 45670:45673)"),
@@ -37,10 +37,13 @@ def simulate(
     else:
         ports = [int(port)]
     
+    # Import the EnvLauncher from our package
     from src.env_host.simulator import EnvSimulator
     launchers = []
     for p in ports:
-        launcher = EnvSimulator.launch_on_local_with_ip(env_simulator=env_simulator, ip_address=ip, host=ip, port=p)
+        launcher = EnvSimulator.launch_on_local_with_ip(
+            env_simulator=env_simulator, ip_address=ip, host=ip, port=p
+        )
         launchers.append(launcher)
         typer.echo(f"Local environment hosted on http://{ip}:{p}")
     typer.echo(f"Launched {len(launchers)} local environment(s).")
@@ -67,7 +70,6 @@ def train(
     )
     hyperparams = Hyperparameters(env_id=env_id, batch_size=batch_size)
     typer.echo("Submitting training job...")
-    # Assuming AgentGPT.train is the refactored method replacing train_on_cloud.
     estimator = AgentGPT.train(sagemaker_config, hyperparams)
     typer.echo(f"Training job submitted: {estimator.latest_training_job.name}")
 
@@ -88,7 +90,6 @@ def infer():
         region=infer_config.get("region")
     )
     typer.echo("Deploying inference endpoint...")
-    # Assuming AgentGPT.infer is the refactored method replacing run_on_cloud.
     gpt_api = AgentGPT.infer(sagemaker_config)
     typer.echo(f"Inference endpoint deployed: {gpt_api.endpoint_name}")
 
@@ -106,7 +107,7 @@ def config(
     """
     Save SageMaker configuration to the default config file.
     """
-    config = {
+    config_data = {
         "train": {
             "role_arn": role_arn,
             "image_uri": image_uri,
@@ -128,8 +129,8 @@ def config(
         }
     }
     os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
-    with open(DEFAULT_CONFIG_PATH, "w") as f:
-        yaml.dump(config, f)
+    with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.dump(config_data, f)
     typer.echo(f"Configuration saved to {DEFAULT_CONFIG_PATH}")
 
 @app.command("list")
@@ -140,7 +141,6 @@ def list_config():
     config = load_config()
     typer.echo("Current configuration:")
     typer.echo(yaml.dump(config))
-    # Optionally, display network info.
     try:
         from src.utils.network_info import get_network_info
         network_info = get_network_info()

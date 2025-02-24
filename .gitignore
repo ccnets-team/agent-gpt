@@ -1,83 +1,105 @@
-# -----------------------------------------------------------------------------
-# 1) Ignore the entire Unity build folder (and all contents):
-# -----------------------------------------------------------------------------
-MonoBleedingEdge/
-*.info
-Resources/
-globalgamemanagers
-*.resS
-level0
-
-# -----------------------------------------------------------------------------
-# 2) Python cache and virtual environments:
-# -----------------------------------------------------------------------------
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
-# If using a virtual environment named venv/ or .venv/, ignore it:
-venv/
-.venv/
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Translations
+*.mo
+*.pot
+
+# Django / Flask logs
+*.log
+
+# Flask instance folder
+instance/
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Environments
+.env
 env/
-.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# -----------------------------------------------------------------------------
-# 3) OS & Editor / IDE files:
-# -----------------------------------------------------------------------------
+# pyenv
+.python-version
+
+# Mypy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Pyright
+.pyrightcache/
+
+# VS Code settings
+.vscode/
+
+# Operating system files
 .DS_Store
 Thumbs.db
-*.swp  # Vim swap files
-*.swo  # Vim swap files
+ehthumbs.db
+Desktop.ini
 
-# -----------------------------------------------------------------------------
-# 4) Common binary/build artifacts:
-# -----------------------------------------------------------------------------
-*.exe
-*.dll
-*.pdb
-*.so
-*.dylib
-*.mdb
-*.log
-*.meta
-*.csproj
-*.sln
-*.user
-*.suo
-*.zip
-*.rar
-*.7z
-*.gz
-*.tar
-*.jar
-*.war
-*.ear
+# Project-specific
+# Ignore build artifacts and egg info
+*.egg-info/
+.installed.cfg
+*.egg
 
-# -----------------------------------------------------------------------------
-# 5) Optional text/binary formats:
-# -----------------------------------------------------------------------------
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.tiff
-*.tif
-*.svg
-*.ico
+# PyInstaller spec file (if you use it)
+*.spec
 
-# -----------------------------------------------------------------------------
-# 6) If you genuinely want to ignore  .json / etc.:
-# -----------------------------------------------------------------------------
-*.json
-*.config
-*.html
-*.map
-*.assets
-*.xml
-
-# -----------------------------------------------------------------------------
-# 7) Dockerfile (if you don’t want it in Git):
-# -----------------------------------------------------------------------------
-Dockerfile
+# Local configuration file for agent-gpt (if desired)
+~/.agent_gpt/config.yaml

@@ -2,7 +2,7 @@
 import numpy as np
 import json
 from typing import List, Optional, Union
-from src.utils.data_converters import (
+from utils.data_converters import (
     convert_ndarrays_to_nested_lists,
     convert_nested_lists_to_ndarrays,
 )

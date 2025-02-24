@@ -9,7 +9,7 @@ from typing import Optional, Any
 # ------------------------------------------------
 # Utility imports
 # ------------------------------------------------
-from src.utils.data_converters import (
+from utils.data_converters import (
     convert_ndarrays_to_nested_lists,
     convert_nested_lists_to_ndarrays,
     replace_nans_infs,

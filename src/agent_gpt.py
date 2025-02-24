@@ -9,9 +9,9 @@ from sagemaker import Model
 from sagemaker.estimator import Estimator
 from sagemaker.predictor import Predictor
 
-from src.config.sagemaker_config import SageMakerConfig
-from src.config.hyperparams import Hyperparameters
-from src.gpt_api import GPTAPI
+from config.sagemaker_config import SageMakerConfig
+from config.hyperparams import Hyperparameters
+from gpt_api import GPTAPI
 
 class AgentGPT:
     """
