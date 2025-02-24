@@ -4,7 +4,7 @@ import os
 import shutil
 import logging
 
-class CloudEnvLauncher:
+class CloudEnvSimulator:
     """
     A class to generate a Dockerfile for hosting the environment on the cloud.
     
@@ -18,7 +18,7 @@ class CloudEnvLauncher:
     """
     def __init__(self, env_simulator: str, env_id: str, env_file_path: str, global_image_name: str):
         """
-        Initializes the CloudEnvLauncher.
+        Initializes the CloudEnvSimulator.
         
         :param env_simulator: The RL environment simulator ('gym', 'unity', or 'custom').
         :param env_id: A unique ID or name for the environment.

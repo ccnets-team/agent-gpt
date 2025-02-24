@@ -3,7 +3,7 @@
 import argparse
 import gymnasium as gym
 from src.agent_gpt import AgentGPT
-from src.config.aws_config import SageMakerConfig
+from src.config.sagemaker_config import SageMakerConfig
 
 DEFAULT_ENDPOINT_NAME = "agent_gpt_gym_tester"
 DEFAULT_RENDER_MODE = None
@@ -89,7 +89,7 @@ def main():
     )
     
     # Deploy (or reuse) the endpoint using AgentGPT to obtain a GPTAPI client.
-    agent_gpt = AgentGPT.run_on_cloud(sagemaker_config)
+    agent_gpt = AgentGPT.infer(sagemaker_config)
     
     # Run episodes and print cumulative rewards.
     cumulative_rewards = run_episodes(agent_gpt, env_name=args.env_id, render_mode=args.render_mode, num_episodes=args.num_episodes)

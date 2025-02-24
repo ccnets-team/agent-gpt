@@ -1,4 +1,4 @@
-# agent_gpt.py
+# src/agent_gpt.py
 ###############################################################################
 # AgentGPT: the main class for training and running an RL environment in SageMaker
 ###############################################################################
@@ -9,7 +9,7 @@ from sagemaker import Model
 from sagemaker.estimator import Estimator
 from sagemaker.predictor import Predictor
 
-from src.config.aws_config import SageMakerConfig
+from src.config.sagemaker_config import SageMakerConfig
 from src.config.hyperparams import Hyperparameters
 from src.gpt_api import GPTAPI
 
@@ -48,7 +48,7 @@ class AgentGPT:
         pass
         
     @staticmethod
-    def train_on_cloud(sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters):
+    def train(sagemaker_config: SageMakerConfig, hyperparameters: Hyperparameters):
         """
         Launch a SageMaker training job for your AgentGPT environment.
 
@@ -99,7 +99,7 @@ class AgentGPT:
         return estimator
         
     @staticmethod
-    def run_on_cloud(sagemaker_config: SageMakerConfig):
+    def infer(sagemaker_config: SageMakerConfig):
         """
         Creates (or reuses) a SageMaker real-time inference endpoint for AgentGPT.
 

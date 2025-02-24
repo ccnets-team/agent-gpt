@@ -4,9 +4,9 @@ from threading import Thread
 from src.env_host.api import EnvAPI
 from src.env_host.local.tunnel.tunnel_manager import TunnelManager
 
-class LocalEnvLauncher(EnvAPI):
+class LocalEnvSimulator(EnvAPI):
     """
-    LocalEnvLauncher extends EnvironmentAPI to manage environment hosting locally.
+    LocalEnvSimulator extends EnvironmentAPI to manage environment hosting locally.
     """
     def __init__(self, env_simulator: str, host: str = "0.0.0.0", port: int = 8000):
         if env_simulator == 'unity':
