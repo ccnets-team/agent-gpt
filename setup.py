@@ -1,16 +1,17 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
     name="agent-gpt-aws",  # Package name on PyPI
-    version="0.1.0",
-    packages=find_packages(where="agent_gpt"),
-    package_dir={"": "agent_gpt"},
+    version="0.1.1",
+    # Define the internal package name as "agent_gpt" even though the folder is "agent-gpt"
+    packages=["agent_gpt"],
+    package_dir={"agent_gpt": "agent-gpt"},
     entry_points={
         "console_scripts": [
-            "agent-gpt=agent_gpt.cli:app",  # Reference the CLI inside the package
+            "agent-gpt=agent_gpt.cli:app",  # CLI command uses the internal package name agent_gpt
         ],
     },
     install_requires=[

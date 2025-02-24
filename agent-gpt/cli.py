@@ -2,10 +2,10 @@ import os
 import sys
 import yaml
 import typer
-from agent_gpt import AgentGPT
-from config.sagemaker import SageMakerConfig
-from config.hyperparams import Hyperparameters
-from config.network import NetworkConfig  # <-- New import for network config
+from .agent_gpt import AgentGPT
+from .config.sagemaker import SageMakerConfig
+from .config.hyperparams import Hyperparameters
+from .config.network import NetworkConfig  # <-- New import for network config
 from typing import List
 
 app = typer.Typer()
