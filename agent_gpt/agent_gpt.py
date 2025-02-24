@@ -9,7 +9,7 @@ from sagemaker import Model
 from sagemaker.estimator import Estimator
 from sagemaker.predictor import Predictor
 
-from config.sagemaker_config import SageMakerConfig
+from config.sagemaker import SageMakerConfig
 from config.hyperparams import Hyperparameters
 from gpt_api import GPTAPI
 
@@ -84,14 +84,14 @@ class AgentGPT:
         _validate_hyperparams(hyperparameters)
 
         hyperparams_dict = hyperparameters.to_dict()
-        
+        trainer_config = sagemaker_config.trainer
         estimator = Estimator(
-            image_uri=sagemaker_config.image_uri,
+            image_uri=trainer_config.image_uri,
             role=sagemaker_config.role_arn,
-            instance_type=sagemaker_config.instance_type,
-            instance_count=sagemaker_config.instance_count,
-            output_path=sagemaker_config.output_path,
-            max_run=sagemaker_config.max_run,
+            instance_type=trainer_config.instance_type,
+            instance_count=trainer_config.instance_count,
+            output_path=trainer_config.output_path,
+            max_run=trainer_config.max_run,
             region=sagemaker_config.region,
             hyperparameters=hyperparams_dict
         )
@@ -122,14 +122,15 @@ class AgentGPT:
         :return:
             A `GPTAPI` instance, preconfigured to call the SageMaker endpoint for inference.
         """
+        inference_config = sagemaker_config.inference
         model = Model(
             role=sagemaker_config.role_arn,
-            image_uri=sagemaker_config.image_uri,
-            model_data=sagemaker_config.model_data
+            image_uri=inference_config.image_uri,
+            model_data=inference_config.model_data
         )
         print("Created SageMaker Model:", model)
         
-        endpoint_name = sagemaker_config.endpoint_name
+        endpoint_name = inference_config.endpoint_name
 
         if not endpoint_name:
             endpoint_name = f"agent-gpt-{int(time.time())}"
@@ -154,8 +155,8 @@ class AgentGPT:
         else:
             print(f"Creating a new endpoint: {endpoint_name}")
             new_predictor = model.deploy(
-                initial_instance_count=sagemaker_config.instance_count,
-                instance_type=sagemaker_config.instance_type,
+                initial_instance_count=inference_config.instance_count,
+                instance_type=inference_config.instance_type,
                 endpoint_name=endpoint_name
             )
             print("Deployed model to endpoint:", new_predictor)
@@ -171,7 +172,6 @@ class AgentGPT:
 
         # Return a GPTAPI client for inference calls
         return GPTAPI(predictor)
-
 
 def _validate_sagemaker(sagemaker_config: SageMakerConfig):
     """

@@ -1,9 +1,0 @@
-# requirements.txt
-numpy==1.22.4
-fastapi
-uvicorn
-pydantic
-gymnasium==1.0.0
-gymnasium[mujoco]
-msgpack
-requests==2.32.3

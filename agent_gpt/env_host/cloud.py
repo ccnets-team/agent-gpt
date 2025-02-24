@@ -4,7 +4,7 @@ import os
 import shutil
 import logging
 
-class CloudEnvSimulator:
+class CloudEnv:
     """
     A class to generate a Dockerfile for hosting the environment on the cloud.
     

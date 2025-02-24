@@ -2,7 +2,7 @@
 
 import sys
 import uvicorn
-from src.env_host.api import EnvAPI
+from env_host.api import EnvAPI
 
 def main(simulator="gym", id=None, entry_point=None, host="0.0.0.0", port=80):
     """

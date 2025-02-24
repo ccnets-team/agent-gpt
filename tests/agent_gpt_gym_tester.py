@@ -3,7 +3,7 @@
 import argparse
 import gymnasium as gym
 from src.agent_gpt import AgentGPT
-from src.config.sagemaker_config import SageMakerConfig
+from config.sagemaker import SageMakerConfig
 
 DEFAULT_ENDPOINT_NAME = "agent_gpt_gym_tester"
 DEFAULT_RENDER_MODE = None
