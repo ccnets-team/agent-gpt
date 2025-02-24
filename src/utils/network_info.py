@@ -6,12 +6,10 @@ def get_network_info():
     Returns a dictionary with:
     - 'public_ip': The public IP address (if retrievable)
     - 'internal_ip': The local LAN IP address
-    - 'free_port': An available TCP port on this machine
     """
     info = {
         "public_ip": None,
         "internal_ip": None,
-        "free_port": None
     }
 
     # 1. Get Public IP via an external service
@@ -31,14 +29,6 @@ def get_network_info():
             info["internal_ip"] = s.getsockname()[0]
     except OSError:
         info["internal_ip"] = "127.0.0.1"  # fallback if unable to detect
-
-    # 3. Get a free TCP port
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("", 0))  # Bind to an ephemeral port chosen by the OS
-            info["free_port"] = s.getsockname()[1]
-    except OSError:
-        info["free_port"] = None  # fallback if something goes wrong
 
     return info
 

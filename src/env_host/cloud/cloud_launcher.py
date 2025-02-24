@@ -1,216 +1,268 @@
-# src/env_hosting/cloud_host/cloud_launcher.py
-from src.config.aws_config import EC2Config
-from src.env_host.cloud.dockerfile_generator import generate_dockerfile_impl
-from src.env_host.cloud.docker_env_builder import (
-    detect_docker_cmd,
-    build_docker_image_impl,
-    tag_docker_image_impl,
-    push_docker_image_impl
-)
-from src.env_host.cloud.ec2_env_launcher import (
-    generate_user_data_script_impl,
-    launch_ec2_instance_impl,
-    get_env_endpoint_impl
-)
-try:
-    import boto3
-except ImportError:
-    boto3 = None
+# src/env_host/cloud/cloud_launcher.py
+
+import os
+import shutil
 import logging
-from typing import Optional
 
 class CloudEnvLauncher:
     """
-    A class that orchestrates the process of:
-      * Generating a Dockerfile
-      * Building and pushing a Docker image to ECR
-      * Launching an EC2 instance to run the environment
-      * Retrieving the environment endpoint
+    A class to generate a Dockerfile for hosting the environment on the cloud.
+    
+    This Dockerfile includes:
+      * The necessary application files (e.g., serve.py, api.py)
+      * The appropriate wrapper (gym_env.py, unity_env.py, or custom_env.py)
+      * Additional files (e.g., utils/)
+      * The specified environment file (which may include our extra dependency "env_api.py")
+    
+    Clients are expected to use the CLI to build, tag, push the Docker image, and deploy it (e.g., on EKS).
     """
-
-    def __init__(
-        self,
-        env_simulator: str,
-        env_id: str,
-        env_file_path: str,
-        global_image_name: str,
-        ecr_registry: str,
-        ec2_config: EC2Config
-    ):
+    def __init__(self, env_simulator: str, env_id: str, env_file_path: str, global_image_name: str):
         """
         Initializes the CloudEnvLauncher.
-
-        :param env_simulator: An object representing the RL environment simulator.
-        :param env_id: A unique ID or name for the environment.
-        :param env_file_path: The path to the local environment file.
-        :param global_image_name: global name for the Docker/ECR image.
-        :param ec2_config: An EC2Config object containing AWS EC2 configuration.
-        :param ecr_registry: The ECR registry URI, e.g., "123456789012.dkr.ecr.us-east-1.amazonaws.com".
-        """
-        self.ec2_config: EC2Config = ec2_config
-        self.region_name: str = ec2_config.region_name
-        self.env_simulator = env_simulator
-        self.env_id: str = env_id
-        self.global_image_name: str = global_image_name.lower()
-        self.ecr_registry: str = ecr_registry
-        self.env_file_path: str = env_file_path
-
-        self.os_name, self.docker_cmd = detect_docker_cmd()
-        self.ec2_client = boto3.client("ec2", region_name=self.region_name)
         
-        self.instance_id: Optional[str] = None
-        self.remote_image_uri: Optional[str] = None
-
+        :param env_simulator: The RL environment simulator ('gym', 'unity', or 'custom').
+        :param env_id: A unique ID or name for the environment.
+        :param env_file_path: Path to the local environment file.
+        :param global_image_name: Global name for the Docker image.
+        """
+        self.env_simulator = env_simulator
+        self.env_id = env_id
+        self.env_file_path = env_file_path
+        self.global_image_name = global_image_name.lower()
         self.logger = logging.getLogger(__name__)
-
-    def launch_remote_env(self, ensure_ecr_login: bool = True, ensure_ecr_repo: bool = True) -> str:
-        """
-        High-level method that orchestrates Docker/ECR/EC2 flow:
-
-        1. Generates a Dockerfile
-        2. Builds the Docker image locally
-        3. Tags & pushes the image to ECR
-        4. Launches an EC2 instance with the new image
-        5. Retrieves and returns the environment endpoint
-
-        :param ensure_ecr_repo: Whether to ensure the ECR repository is created if it doesn't exist.
-        :return: The endpoint of the launched environment.
-        """
-        dockerfile_path = self.generate_dockerfile(env_file_path=self.env_file_path)
-        self.build_docker_image(docker_image_name=self.global_image_name, dockerfile_path=dockerfile_path)
-        self.tag_docker_image(ecr_registry=self.ecr_registry, local_image_name=self.global_image_name)
-        self.push_docker_image(
-            ecr_registry=self.ecr_registry,
-            local_image_name=self.global_image_name,
-            ensure_ecr_login=ensure_ecr_login,
-            ensure_ecr_repo=ensure_ecr_repo
-        )
-        self.launch_ec2_instance()
-        endpoint = self.get_env_endpoint()
-        return endpoint
-                
+    
     def generate_dockerfile(
         self, 
-        env_file_path: Optional[str] = None, 
+        entry_point: str = None, 
+        host: str = "0.0.0.0", 
+        port: int = 80, 
         copy_env_file_if_outside: bool = False
     ) -> str:
         """
-        Generates a Dockerfile from the specified environment file.
-
-        :param env_file_path: Path to the local environment file. If None, defaults to self.env_file_path.
-        :param dockerfile_path: The output path for the Dockerfile. Defaults to "./Dockerfile".
+        Generates a Dockerfile at './Dockerfile' that packages the required application files and environment.
+        
+        :param entry_point: Optional entry point for the environment.
+        :param host: Host address inside the container.
+        :param port: Port number inside the container.
+        :param copy_env_file_if_outside: If True, copies the environment file to './env_files' if it is outside the current directory.
         :return: The path to the generated Dockerfile.
         """
-        env_file_path = env_file_path or self.env_file_path
-        return generate_dockerfile_impl(
-            self.env_simulator,
-            self.env_id,
-            env_file_path = env_file_path,
-            copy_env_file_if_outside = copy_env_file_if_outside
-        )
-
-    def build_docker_image(
-        self,
-        docker_image_name: Optional[str] = None,
-        dockerfile_path: str = "./Dockerfile"
-    ) -> None:
-        """
-        Builds a Docker image using a specified Dockerfile.
-
-        :param docker_image_name: The local name for the Docker image. If None, defaults to self.docker_image_name.
-        :param dockerfile_path: The path to the Dockerfile. Defaults to "./Dockerfile".
-        :raises Exception: Raises an exception if the Docker build command fails.
-        """
-        docker_image_name = docker_image_name or self.global_image_name
-        docker_image_name = docker_image_name.lower()
-
-        self.logger.info(f"Building Docker image '{docker_image_name}' from '{dockerfile_path}'...")
+        dockerfile_path = "./Dockerfile"
+        env_file_path = self.env_file_path
         
-        try:
-            build_docker_image_impl(self.docker_cmd, docker_image_name, dockerfile_path)
-            self.logger.info(f"Successfully built image '{docker_image_name}'")
-        except Exception as e:
-            self.logger.error(f"Error building Docker image '{docker_image_name}': {str(e)}")
-            raise
+        self.logger.info(f"Creating Dockerfile at: {dockerfile_path}")
+        self.logger.info(f" - Environment file path: {env_file_path}")
+        self.logger.info(f" - Simulator: {self.env_simulator}")
+        
+        final_env_path = env_file_path
+        if env_file_path and not is_in_current_directory(env_file_path) and copy_env_file_if_outside:
+            self.logger.info(f"'{env_file_path}' is outside the current directory. Copying to './env_files/'.")
+            safe_mkdir("env_files")
+            env_basename = os.path.basename(env_file_path.rstrip("/"))
+            final_env_path = os.path.join("env_files", env_basename)
+            if os.path.isdir(env_file_path):
+                shutil.copytree(env_file_path, final_env_path, dirs_exist_ok=True)
+            else:
+                shutil.copy2(env_file_path, final_env_path)
+        else:
+            self.logger.info("Environment file is in the current directory or copying is not required.")
+        
+        cloud_import_path = "/app/env_files"
+        if entry_point:
+            class_name = entry_point.split(":")[-1]
+            cloud_entry_point = f"{cloud_import_path}:{class_name}"
+        else:
+            cloud_entry_point = cloud_import_path
+        
+        additional_files = get_additional_files(self.env_simulator)
+        additional_libs = get_additional_libs(self.env_simulator, self.env_id)
+        
+        with open(dockerfile_path, "w") as f:
+            f.write("FROM python:3.9-slim\n\n")
+            f.write("WORKDIR /app\n\n")
+            
+            # Copy additional application files (e.g., serve.py, api.py, wrappers, utils/)
+            write_code_copy_instructions(f, additional_files)
+            
+            if final_env_path:
+                f.write("# Copy environment files\n")
+                f.write(f"RUN mkdir -p {cloud_import_path}\n")
+                f.write(f"COPY {final_env_path} {cloud_import_path}/\n\n")
+            else:
+                f.write("# No environment files to copy (env_file_path is None)\n")
+            
+            # Install dependencies from requirements.txt
+            f.write("# Copy requirements.txt and install dependencies\n")
+            f.write("COPY requirements.txt /app/requirements.txt\n")
+            f.write("RUN pip install --no-cache-dir --upgrade pip\n")
+            f.write("RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi\n\n")
+            
+            # Install any additional libraries
+            for lib in additional_libs:
+                f.write(f"RUN pip install --no-cache-dir {lib}\n")
+            
+            # Final command to run the environment server
+            f.write("# Final command to run the environment server\n")
+            f.write(f'CMD ["python", "{additional_files["serve.py"]}", ')
+            f.write(f'"{self.env_simulator}", "{self.env_id}", "{cloud_entry_point}", "{host}", "{port}"]\n')
+        
+        self.logger.info(f"Done. Dockerfile written at: {dockerfile_path}")
+        return dockerfile_path
 
-    def tag_docker_image(
+    def generate_k8s_manifest(
         self,
-        ecr_registry: Optional[str] = None,
-        local_image_name: Optional[str] = None,
-        remote_image_name: Optional[str] = None
-    ) -> None:
-        """
-        Tags a locally built Docker image to prepare for pushing to ECR.
-
-        :param ecr_registry: The ECR registry URI. If None, uses self.ecr_registry.
-        :param local_image_name: The local Docker image name. If None, uses self.docker_image_name.
-        :param remote_image_name: The remote Docker image name. If None, uses self.docker_image_name.
-        """
-        ecr_registry = ecr_registry or self.ecr_registry
-        local_image_name = (local_image_name or self.global_image_name).lower()
-        remote_image_name = (remote_image_name or self.global_image_name).lower()
-
-        self.logger.info(f"Tagging local image '{local_image_name}' for registry '{ecr_registry}'...")
-        tag_docker_image_impl(self.docker_cmd, local_image_name, remote_image_name)
-
-    def push_docker_image(
-        self,
-        ecr_registry: Optional[str] = None,
-        local_image_name: Optional[str] = None,
-        remote_image_name: Optional[str] = None,
-        ensure_ecr_login: bool = False,
-        ensure_ecr_repo: bool = False
+        deployment_name: str,
+        container_port: int = 80,
+        replicas: int = 1,
+        service_type: str = "LoadBalancer"
     ) -> str:
         """
-        Pushes a Docker image to an ECR repository.
-
-        :param ecr_registry: The ECR registry URI. If None, uses self.ecr_registry.
-        :param local_image_name: The local Docker image name. If None, uses self.docker_image_name.
-        :param remote_image_name: The remote Docker image name. If None, uses self.docker_image_name.
-        :param ensure_ecr_login: Whether to perform 'docker login' to ECR before pushing.
-        :param ensure_ecr_repo: Whether to create the ECR repo if it does not exist.
-        :return: The URI of the pushed Docker image in ECR.
+        Generates a Kubernetes manifest YAML file for deploying the environment on EKS.
+        
+        This manifest includes both a Deployment and a Service.
+        
+        :param deployment_name: Name to use for the Kubernetes Deployment.
+        :param container_port: The port on which the container listens.
+        :param replicas: Number of pod replicas.
+        :param service_type: Kubernetes Service type (e.g., LoadBalancer, ClusterIP).
+        :return: The file path of the generated YAML manifest.
         """
-        ecr_registry = ecr_registry or self.ecr_registry
-        local_image_name = (local_image_name or self.global_image_name).lower()
-        remote_image_name = (remote_image_name or self.global_image_name).lower()
+        # Use the global image name directly since tagging & pushing is handled via CLI.
+        image = self.global_image_name
+        
+        k8s_manifest = f"""apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    name: {deployment_name}
+    spec:
+    replicas: {replicas}
+    selector:
+        matchLabels:
+        app: {deployment_name}
+    template:
+        metadata:
+        labels:
+            app: {deployment_name}
+        spec:
+        containers:
+        - name: {deployment_name}
+            image: {image}
+            ports:
+            - containerPort: {container_port}
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+    name: {deployment_name}-svc
+    spec:
+    type: {service_type}
+    selector:
+        app: {deployment_name}
+    ports:
+    - protocol: TCP
+        port: {container_port}
+        targetPort: {container_port}
+    """
+        file_path = f"{deployment_name}_k8s_manifest.yaml"
+        with open(file_path, "w") as f:
+            f.write(k8s_manifest)
+        self.logger.info(f"Kubernetes manifest written to: {file_path}")
+        return file_path
 
-        self.logger.info(f"Pushing image '{local_image_name}' to ECR registry '{ecr_registry}'...")
-        self.remote_image_uri = push_docker_image_impl(
-            self.docker_cmd,
-            ecr_registry,
-            local_image_name,
-            remote_image_name,
-            self.region_name,
-            ensure_ecr_login,
-            ensure_ecr_repo
-        )
-        self.logger.info(f"Successfully pushed image: {self.remote_image_uri}")
-        return self.remote_image_uri
+# Helper functions
+def get_gymnasium_envs(categories=None):
+    """
+    Retrieves environment IDs from the Gymnasium registry filtered by categories.
+    
+    :param categories: List of categories (defaults to a set of common categories).
+    :return: List of environment IDs.
+    """
+    from gymnasium import envs
+    categories = categories or ["classic_control", "box2d", "toy_text", "mujoco", "phys2d", "tabular"]
+    envs_by_category = {category: [] for category in categories}
+    
+    for env_spec in envs.registry.values():
+        if isinstance(env_spec.entry_point, str):
+            for category in categories:
+                if category in env_spec.entry_point:
+                    envs_by_category[category].append(env_spec.id)
+                    break
 
-    def launch_ec2_instance(self, remote_image_uri: Optional[str] = None) -> str:
-        """
-        Launches an EC2 instance that runs the specified Docker image via user data.
+    return [env_id for env_list in envs_by_category.values() for env_id in env_list]
 
-        :param remote_image_uri: The URI of the Docker image in ECR. If None, uses self.remote_image_uri.
-        :return: The AWS EC2 instance ID.
-        """
-        remote_image_uri = remote_image_uri or self.remote_image_uri
-        user_data = generate_user_data_script_impl(remote_image_uri)
+def get_additional_files(env_simulator: str) -> dict:
+    """
+    Returns a dictionary mapping file basenames to their paths required for the Docker build.
+    
+    :param env_simulator: The environment simulator ('gym', 'unity', or 'custom').
+    :return: Dictionary of file paths.
+    """
+    serve_file = "src/env_host/serve.py"
+    api_file = "src/env_host/api.py"
+    utils_file = "src/utils/"
+    
+    if env_simulator == "gym":
+        env_wrapper_file = "src/wrappers/gym_env.py"
+    elif env_simulator == "unity":
+        env_wrapper_file = "src/wrappers/unity_env.py"
+    elif env_simulator == "custom":
+        env_wrapper_file = "src/wrappers/custom_env.py"
+    else:
+        raise ValueError(f"Unknown simulator '{env_simulator}'. Choose 'gym', 'unity', or 'custom'.")
+    
+    files = [serve_file, api_file, utils_file, env_wrapper_file]
+    return {os.path.basename(p.rstrip("/")): p for p in files}
 
-        self.logger.info(f"Launching EC2 instance in region '{self.region_name}' with image '{remote_image_uri}'...")
-        self.instance_id = launch_ec2_instance_impl(self.ec2_config, self.ec2_client, user_data)
-        self.logger.info(f"EC2 instance launched with ID: {self.instance_id}")
-        return self.instance_id
+def get_additional_libs(env_simulator: str, env_id: str):
+    """
+    Returns a list of additional libraries to install based on the simulator type and environment ID.
+    
+    :param env_simulator: The environment simulator ('gym', 'unity', or 'custom').
+    :param env_id: The environment ID.
+    :return: List of libraries for pip installation.
+    """
+    if env_simulator == "unity":
+        return ["mlagents==0.30", "protobuf==3.20.0"]
+    elif env_simulator == "gym":
+        standard_env_ids = get_gymnasium_envs(["classic_control", "mujoco", "phys2d"])
+        if env_id in standard_env_ids:
+            return ["gymnasium[mujoco]"]
+        return []
+    elif env_simulator == "custom":
+        return []
+    else:
+        raise ValueError(f"Unknown simulator '{env_simulator}'")
 
-    def get_env_endpoint(self, instance_id) -> str:
-        """
-        Retrieves the environment endpoint (public DNS or IP) from the launched EC2 instance.
+def write_code_copy_instructions(f, additional_files: dict):
+    """
+    Writes Docker COPY instructions for each provided file.
+    
+    :param f: File handle for the Dockerfile.
+    :param additional_files: Dictionary mapping basenames to file paths.
+    """
+    for base_name, rel_path in additional_files.items():
+        f.write(f"# Copy {base_name}\n")
+        dir_part = os.path.dirname(rel_path.rstrip("/"))
+        if dir_part:
+            f.write(f"RUN mkdir -p /app/{dir_part}\n")
+        f.write(f"COPY {rel_path} /app/{rel_path}\n\n")
 
-        :return: The endpoint (public DNS or IP) of the environment.
-        """
-        if instance_id:
-          self.instance_id = instance_id
-        endpoint = get_env_endpoint_impl(self.instance_id, self.region_name)
-        self.logger.info(f"Retrieved endpoint for instance '{self.instance_id}': {endpoint}")
-        return endpoint
+def is_in_current_directory(path: str) -> bool:
+    """
+    Determines if a given path is within the current working directory.
+    
+    :param path: The path to check.
+    :return: True if the path is within the current directory; otherwise, False.
+    """
+    current_dir = os.path.abspath(os.getcwd())
+    target_abs = os.path.abspath(path)
+    return os.path.commonprefix([current_dir, target_abs]) == current_dir
+
+def safe_mkdir(path: str):
+    """
+    Creates the specified directory if it does not already exist.
+    
+    :param path: Directory path.
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
