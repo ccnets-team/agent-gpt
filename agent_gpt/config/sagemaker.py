@@ -38,26 +38,22 @@ class SageMakerConfig:
     
     def set_config(self, **kwargs):
         """
-        Updates the SageMakerConfig instance using provided keyword arguments.
-        
-        For nested fields like 'trainer' and 'inference', the method supports either
-        a dict (which is used to construct a new instance) or an already instantiated object.
+        Update the SageMakerConfig instance using provided keyword arguments.
+        For nested fields like 'trainer' and 'inference', update only the specified sub-attributes.
         """
         for k, v in kwargs.items():
-            if k == "trainer":
-                if isinstance(v, dict):
-                    self.trainer = TrainerConfig(**v)
-                elif isinstance(v, TrainerConfig):
-                    self.trainer = v
-                else:
-                    raise TypeError(f"'trainer' must be a dict or TrainerConfig, got {type(v)}")
-            elif k == "inference":
-                if isinstance(v, dict):
-                    self.inference = InferenceConfig(**v)
-                elif isinstance(v, InferenceConfig):
-                    self.inference = v
-                else:
-                    raise TypeError(f"'inference' must be a dict or InferenceConfig, got {type(v)}")
+            if k == "trainer" and isinstance(v, dict):
+                for sub_key, sub_value in v.items():
+                    if hasattr(self.trainer, sub_key):
+                        setattr(self.trainer, sub_key, sub_value)
+                    else:
+                        print(f"Warning: TrainerConfig has no attribute '{sub_key}'")
+            elif k == "inference" and isinstance(v, dict):
+                for sub_key, sub_value in v.items():
+                    if hasattr(self.inference, sub_key):
+                        setattr(self.inference, sub_key, sub_value)
+                    else:
+                        print(f"Warning: InferenceConfig has no attribute '{sub_key}'")
             elif hasattr(self, k):
                 setattr(self, k, v)
             else:

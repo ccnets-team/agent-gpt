@@ -3,10 +3,10 @@ import yaml
 import typer
 from typing import List
 from .core import AgentGPT
-from .config.sagemaker import SageMakerConfig, TrainerConfig, InferenceConfig
-from .config.hyperparams import Hyperparameters, EnvHost
+from .config.sagemaker import SageMakerConfig
+from .config.hyperparams import Hyperparameters
 from .config.network import NetworkConfig
-from .env_host.local import LocalEnv  # Adjust the import if necessary
+from .env_host.local import LocalEnv
 
 app = typer.Typer()
 
@@ -96,20 +96,79 @@ def parse_extra_args(args: list[str]) -> dict:
             i += 1
     return new_changes
 
+def recursive_update(target, changes: dict) -> bool:
+    """
+    Recursively update attributes of an object (or dictionary) using a nested changes dict.
+    Only updates existing attributes/keys.
+    
+    Returns:
+        bool: True if any update was made, False otherwise.
+    """
+    changed = False
+
+    if isinstance(target, dict):
+        for k, v in changes.items():
+            if k in target:
+                if isinstance(target[k], dict) and isinstance(v, dict):
+                    if recursive_update(target[k], v):
+                        changed = True
+                else:
+                    if target[k] != v:
+                        target[k] = v
+                        changed = True
+            # Do not add new keys.
+    else:
+        for attr, new_val in changes.items():
+            if not hasattr(target, attr):
+                continue
+            current_val = getattr(target, attr)
+            if isinstance(current_val, dict) and isinstance(new_val, dict):
+                if recursive_update(current_val, new_val):
+                    changed = True
+            else:
+                if current_val != new_val:
+                    setattr(target, attr, new_val)
+                    changed = True
+
+    return changed
+
+
 @app.command("config", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def config(ctx: typer.Context):
     """
     Update configuration settings.
 
-    **Field Update Mode:**
-      Example: agent-gpt config --batch_size 64 --lr_init 0.0005 --env_id "CartPole-v1"
+    Modes:
 
-    **Method Mode:**
-      Example: agent-gpt config --set_env_host local0 http://your_domain.com 32
+      Field Update Mode:
+        Example: agent-gpt config --batch_size 64 --lr_init 0.0005 --env_id "CartPole-v1"
+
+      Method Mode:
+        Example: agent-gpt config --set_env_host local0 http://your_domain.com 32
+
+    Note:
+      You can use dot notation to access nested configuration values.
+      For example:
+        agent-gpt config --sagemaker.trainer.max_run 360
+      will update the 'max_run' value inside the 'trainer' configuration under 'sagemaker'.
+      The top-level prefixes 'hyperparams', 'sagemaker', and 'network'
+      can be omitted for convenience.
+
+    Available Methods:
+
+      set_env_host       - Set a new environment host.
+      del_env_host       - Delete an existing environment host.
+      set_exploration    - Set exploration parameters.
+      del_exploration    - Delete an exploration configuration.
     """
-    # Parse CLI extra arguments into a dictionary.
+
+    # Parse CLI extra arguments into a nested dictionary.
     new_changes = parse_extra_args(ctx.args)
     
+    if not new_changes:
+        typer.echo("No configuration options provided.")
+        raise typer.Exit()
+
     # Load stored configuration overrides.
     stored_overrides = load_config()
     
@@ -118,39 +177,61 @@ def config(ctx: typer.Context):
     default_sagemaker = SageMakerConfig()
     default_network = NetworkConfig().from_network_info()
 
-    # Apply stored overrides to the defaults.
+    # Apply stored overrides.
     default_hyperparams.set_config(**stored_overrides.get("hyperparams", {}))
     default_sagemaker.set_config(**stored_overrides.get("sagemaker", {}))
     default_network.set_config(**stored_overrides.get("network", {}))
     
-    # Loop through the parsed changes.
-    # For each key, if the config object has a callable with that name, call it;
-    # otherwise, treat it as a normal field update.
-    for key, value in new_changes.items():
-        for obj in [default_hyperparams, default_sagemaker, default_network]:
-            attr = getattr(obj, key, None)
-            if callable(attr):
-                # If value is not a list (e.g. a single value), wrap it.
-                if not isinstance(value, list):
-                    value = [value]
-                # Optionally, you might want to convert values further here.
-                converted_args = [parse_value(arg) for arg in value]
-                attr(*converted_args)
-            elif hasattr(obj, key):
-                setattr(obj, key, value)
+    # List to collect change summaries: (key, value, changed_flag)
+    list_changes = []
     
-    # Build the full configuration dictionary.
+    # Loop through the parsed changes.
+    for key, value in new_changes.items():
+        changed = False
+        # Top-level namespaces
+        if key == "hyperparams":
+            changed = recursive_update(default_hyperparams, value)
+        elif key == "sagemaker":
+            changed = recursive_update(default_sagemaker, value)
+        elif key == "network":
+            changed = recursive_update(default_network, value)
+        else:
+            # Otherwise, update all config objects that have the attribute.
+            for obj in [default_hyperparams, default_sagemaker, default_network]:
+                if not hasattr(obj, key):
+                    continue
+                attr = getattr(obj, key)
+                updated = False
+                if callable(attr):
+                    # Call the method if applicable.
+                    if not isinstance(value, list):
+                        value = [value]
+                    converted_args = [parse_value(arg) for arg in value]
+                    attr(*converted_args)
+                    updated = True
+                elif isinstance(value, dict):
+                    updated = recursive_update(attr, value)
+                else:
+                    if getattr(obj, key) != value:
+                        setattr(obj, key, value)
+                        updated = True
+                changed = changed or updated
+
+        list_changes.append((key, value, changed))
+
+    # Print only a summary of changes instead of the full configuration.
+    for key, value, changed in list_changes:
+        if changed:
+            typer.echo(typer.style(f" - {key} updated to {value}", fg=typer.colors.GREEN))
+        else:
+            typer.echo(typer.style(f" - {key} not updated (no matching attribute)", fg=typer.colors.YELLOW))
+
     full_config = {
         "hyperparams": default_hyperparams.to_dict(),
         "sagemaker": default_sagemaker.to_dict(),
         "network": default_network.to_dict(),
     }
-    
-    # Save the merged configuration.
     save_config(full_config)
-    
-    typer.echo("Updated configuration:")
-    typer.echo(yaml.dump(full_config))
 
 @app.command("clear")
 def clear_config():
@@ -163,6 +244,15 @@ def clear_config():
     else:
         typer.echo("No configuration cache found.")
 
+@app.command("list")
+def list_config():
+    """
+    List the current configuration settings.
+    """
+    config_data = load_config()
+    typer.echo("Current configuration:")
+    typer.echo(yaml.dump(config_data))
+    
 @app.command("simulate")
 def simulate(
     env: str = typer.Argument(
@@ -263,4 +353,4 @@ def infer():
     typer.echo(f"Inference endpoint deployed: {gpt_api.endpoint_name}")
 
 if __name__ == "__main__":
-    app()
+    app()   

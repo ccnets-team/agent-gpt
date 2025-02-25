@@ -162,16 +162,14 @@ class Hyperparameters:
     # -----------------------
     # Methods
     # -----------------------
-    def set_exploration(self, key: str, exploration: Exploration):
-        """Sets exploration config under a named key, e.g. 'continuous' or 'discrete'."""
+    def set_exploration(
+        self,
+        key: str,
+        type: str = "gaussian_noise",
+    ):
         assert key in ["continuous", "discrete"], "Key must be 'continuous' or 'discrete'"
-        self.exploration[key] = exploration
-    
-    def get_exploration(self, key: str = None) -> Exploration:
-        """Retrieves exploration config under a named key, e.g. 'continuous' or 'discrete'."""
-        if key is None:
-            return self.exploration
-        return self.exploration.get(key, None)
+        
+        self.exploration[key] = Exploration(type=type)
     
     def del_exploration(self, key: str):
         """Deletes exploration config under a named key, e.g. 'continuous' or 'discrete'."""
@@ -181,20 +179,7 @@ class Hyperparameters:
     def set_env_host(self, key: str, env_endpoint: str, num_agents: int):
         """Sets a new environment host (endpoint + agent count) in the env_hosts dict."""
         self.env_hosts[key] = EnvHost(env_endpoint=env_endpoint, num_agents=num_agents) 
-            
-    def get_env_host(self, key: str = None) -> EnvHost:
-        """Retrieves an environment host (endpoint + agent count) from the env_hosts dict."""
-        if key is None:
-            return self.env_hosts
-        return self.env_hosts.get(key, None)
 
-    # def get_env_host_configs(self) -> dict[str, dict]:
-    #     """
-    #     Returns a dictionary mapping each environment host key (e.g., "local", "remote")
-    #     to its full configuration as a dictionary.
-    #     """
-    #     return {key: asdict(host) for key, host in self.env_hosts.items()}
-    
     def del_env_host(self, key: str):
         """Deletes an environment host (endpoint + agent count) from the env_hosts dict."""
         if key in self.env_hosts:
@@ -234,10 +219,7 @@ def main():
     hyperparams = Hyperparameters()
 
     # 2) Add a single known local host ("local1")
-    hyperparams.set_env_host(
-        "local1",
-        EnvHost(env_endpoint="http://23.34.13.132:8500", num_agents=32)
-    )
+    hyperparams.set_env_host("local1", "http://23.34.13.132:8500", 32)
 
     # 3) Specify how many additional local hosts to create, starting from index 2
     num_local_hosts = 4  # e.g., will generate local2, local3, local4, local5
@@ -251,13 +233,15 @@ def main():
         host_key = f"local{i}"
         # Construct an endpoint using base_ip plus an incremental port number
         env_endpoint = f"{base_ip}{starting_port + i}"
-        # Add the host to hyperparams
-        hyperparams.set_env_host(host_key, EnvHost(env_endpoint=env_endpoint, num_agents=32))
+        # Add the host to hyperparams using the new signature
+        hyperparams.set_env_host(host_key, env_endpoint, 32)
 
-    # 5) Configure exploration parameters for continuous action space
+    # 5) Configure exploration parameters for continuous action space using the new API
     hyperparams.set_exploration(
         "continuous",
-        Exploration(type="gaussian_noise", initial_sigma=0.1, final_sigma=0.001)
+        type="gaussian_noise",
+        initial_sigma=0.1,
+        final_sigma=0.001
     )
 
     # 6) Convert to a dictionary for printing or downstream consumption
