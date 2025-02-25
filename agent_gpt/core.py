@@ -5,7 +5,7 @@
 import re
 import time
 import boto3
-from sagemaker import Model
+from sagemaker import Model 
 from sagemaker.estimator import Estimator
 from sagemaker.predictor import Predictor
 
@@ -15,12 +15,12 @@ from .gpt_api import GPTAPI
 
 class AgentGPT:
     """
-    AgentGPT is your one-click solution for **training** and **running** a 
-    multi-agent RL model on AWS SageMaker. This class provides:
+    AgentGPT is your one‑click solution for **training** and **running** a 
+    multi‑agent RL model on AWS SageMaker. This class provides:
     
-      1) **train_on_cloud**: Launch a training job in SageMaker.
-      2) **run_on_cloud**: Deploy a real-time inference endpoint in SageMaker.
-      3) **return a GPTAPI client** to communicate with the deployed model 
+      1) **train**: Launch a training job in SageMaker.
+      2) **infer**: Deploy a real‑time inference endpoint in SageMaker.
+      3) **Return a GPTAPI client** to communicate with the deployed model 
          (for actions, control values, etc.).
 
     Note on Environment Hosting:
@@ -30,15 +30,7 @@ class AgentGPT:
     That is assumed to be set up separately—either locally or in the cloud—
     using tools in the **`env_host`** directory. 
     The environment server (e.g. a FastAPI app) should already be accessible 
-    by the time you run `train_on_cloud` or `run_on_cloud`.
-
-    Why Static Methods?
-    -------------------
-    We keep `train_on_cloud` and `run_on_cloud` as static methods to emphasize
-    “AgentGPT” as the central orchestrator for your RL workflows—no instantiation
-    required. You simply call `AgentGPT.train_on_cloud(...)` or
-    `AgentGPT.run_on_cloud(...)` to handle everything from code packaging 
-    to launching the SageMaker job or endpoint.
+    by the time you run `train` or `infer`.
     """
 
     def __init__(self):
@@ -67,7 +59,7 @@ class AgentGPT:
             hyperparams = Hyperparameters(...)
 
             # Kick off training in the cloud
-            estimator = AgentGPT.train_on_cloud(sagemaker_cfg, hyperparams)
+            estimator = AgentGPT.train(sagemaker_cfg, hyperparams)
             print("Training job submitted:", estimator.latest_training_job.name)
         
         :param sagemaker_config: 

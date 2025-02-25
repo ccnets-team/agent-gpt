@@ -2,8 +2,8 @@
 
 import argparse
 import gymnasium as gym
-from src.agent_gpt import AgentGPT
-from config.sagemaker import SageMakerConfig
+from agent_gpt.core import AgentGPT
+from agent_gpt.config.sagemaker import SageMakerConfig, InferenceConfig
 
 DEFAULT_ENDPOINT_NAME = "agent_gpt_gym_tester"
 DEFAULT_RENDER_MODE = None
@@ -79,13 +79,15 @@ def parse_arguments(parser):
 def main():
     parser = argparse.ArgumentParser(description="AgentGPT Gym Tester")
     args = parse_arguments(parser)
-    
-    sagemaker_config = SageMakerConfig(
-        role_arn=args.role_arn,
+    inference_config = InferenceConfig(
         image_uri=args.image_uri,
         model_data=args.model_data,
         instance_type=args.instance_type,
         endpoint_name=args.endpoint_name
+    )
+    sagemaker_config = SageMakerConfig(
+        role_arn=args.role_arn,
+        inference=inference_config,
     )
     
     # Deploy (or reuse) the endpoint using AgentGPT to obtain a GPTAPI client.

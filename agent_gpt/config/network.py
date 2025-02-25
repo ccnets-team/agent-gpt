@@ -12,18 +12,31 @@ class NetworkConfig:
         """Returns a dictionary of all Network configuration fields."""
         return asdict(self)
 
+    def set_config(self, **kwargs):
+        """
+        Updates the NetworkConfig instance based on provided keyword arguments.
+        Only updates existing attributes; warns if an unknown key is provided.
+        """
+        for k, v in kwargs.items():
+            if hasattr(self, k):
+                setattr(self, k, v)
+            else:
+                print(f"Warning: No attribute '{k}' in NetworkConfig")
+                
     @classmethod
     def from_network_info(cls) -> "NetworkConfig":
         """
         Creates a NetworkConfig instance by fetching network information.
-        If a public IP is available, it will be  used as the public_ip and host.
+        If a public IP is available, it will be used as the public_ip and host.
         """
         info = get_network_info()
         public_ip = info.get("public_ip") or ""
         internal_ip = info.get("internal_ip") or "127.0.0.1"
         # Use public_ip as host if available; otherwise, default to "0.0.0.0"
-        return cls(public_ip=public_ip, internal_ip=internal_ip, host="0.0.0.0")
-
+        host = "0.0.0.0"
+        return cls(public_ip=public_ip, internal_ip=internal_ip, host=host)
+    
+                
 def get_network_info() -> dict:
     """
     Returns a dictionary with:

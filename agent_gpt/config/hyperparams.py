@@ -167,8 +167,10 @@ class Hyperparameters:
         assert key in ["continuous", "discrete"], "Key must be 'continuous' or 'discrete'"
         self.exploration[key] = exploration
     
-    def get_exploration(self, key: str) -> Exploration:
+    def get_exploration(self, key: str = None) -> Exploration:
         """Retrieves exploration config under a named key, e.g. 'continuous' or 'discrete'."""
+        if key is None:
+            return self.exploration
         return self.exploration.get(key, None)
     
     def del_exploration(self, key: str):
@@ -176,33 +178,28 @@ class Hyperparameters:
         if key in self.exploration:
             del self.exploration[key]
 
-    def get_exploration_configs(self) -> dict[str, dict]:
-        """
-        Returns a dictionary mapping each exploration key (e.g., "continuous", "discrete")
-        to its full configuration as a dictionary.
-        """
-        return {key: asdict(exp) for key, exp in self.exploration.items()}
-
-    def set_env_host(self, key: str, env_host: EnvHost):
+    def set_env_host(self, key: str, env_endpoint: str, num_agents: int):
         """Sets a new environment host (endpoint + agent count) in the env_hosts dict."""
-        self.env_hosts[key] = env_host
-    
-    def get_env_host(self, key: str) -> EnvHost:
+        self.env_hosts[key] = EnvHost(env_endpoint=env_endpoint, num_agents=num_agents) 
+            
+    def get_env_host(self, key: str = None) -> EnvHost:
         """Retrieves an environment host (endpoint + agent count) from the env_hosts dict."""
+        if key is None:
+            return self.env_hosts
         return self.env_hosts.get(key, None)
+
+    # def get_env_host_configs(self) -> dict[str, dict]:
+    #     """
+    #     Returns a dictionary mapping each environment host key (e.g., "local", "remote")
+    #     to its full configuration as a dictionary.
+    #     """
+    #     return {key: asdict(host) for key, host in self.env_hosts.items()}
     
     def del_env_host(self, key: str):
         """Deletes an environment host (endpoint + agent count) from the env_hosts dict."""
         if key in self.env_hosts:
             del self.env_hosts[key]
-
-    def get_env_host_configs(self) -> dict[str, dict]:
-        """
-        Returns a dictionary mapping each environment host key (e.g., "local", "remote")
-        to its full configuration as a dictionary.
-        """
-        return {key: asdict(host) for key, host in self.env_hosts.items()}
-
+            
     def set_config(self, **kwargs):
         for k, v in kwargs.items():
             if k == "env_hosts":
