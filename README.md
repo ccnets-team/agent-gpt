@@ -1,8 +1,8 @@
-# AgentGPT: Distributed RL training with AWS and local simulators
+# AgentGPT: Cloud RL training with local simulators
 
 **W&B Humanoid-v5 Benchmark(via Internet):** [Weights & Biases Dashboard](https://wandb.ai/junhopark/agentgpt-beta)
 
-**AWS Humanoid-v5 Benchmark(via Internet):** [AWS CloudWatch Dashboard](https://cloudwatch.amazonaws.com/dashboard.html?dashboard=AgentGPT-Benchmark-Gym-Humanoid-v5&context=eyJSIjoidXMtZWFzdC0xIiwiRCI6ImN3LWRiLTUzMzI2NzMxNjcwMyIsIlUiOiJ1cy1lYXN0LTFfcUFYZHp4ank3IiwiQyI6Ijc2bXM5azI2dHE2a29pY2IwZGxkc2g2bDgwIiwiSSI6InVzLWVhc3QtMTo1YTJjZTUxMy04YTE2LTQ1NTEtYWEyNS05Mjk3ZjE3ZjVkNzUiLCJNIjoiUHVibGljIn0%3D)
+v5&context=eyJSIjoidXMtZWFzdC0xIiwiRCI6ImN3LWRiLTUzMzI2NzMxNjcwMyIsIlUiOiJ1cy1lYXN0LTFfcUFYZHp4ank3IiwiQyI6Ijc2bXM5azI2dHE2a29pY2IwZGxkc2g2bDgwIiwiSSI6InVzLWVhc3QtMTo1YTJjZTUxMy04YTE2LTQ1NTEtYWEyNS05Mjk3ZjE3ZjVkNzUiLCJNIjoiUHVibGljIn0%3D)
 
 
 ![How AgentGPT Works](https://imgur.com/r4hGxqO.png)
