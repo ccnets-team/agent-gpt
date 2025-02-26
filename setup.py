@@ -3,24 +3,20 @@ from setuptools import setup, find_packages
 with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
+# Read the dependencies from requirements.txt
+with open("requirements.txt", encoding="utf-8") as f:
+    requirements = f.read().splitlines()
+    
 setup(
     name="agent-gpt-aws",
-    version="0.2.2",
+    version="0.2.3",
     packages=find_packages(), 
     entry_points={
         "console_scripts": [
             "agent-gpt=agent_gpt.cli:app",
         ],
     },
-    install_requires=[
-        "typer",
-        "pyyaml",
-        "boto3",
-        "uvicorn",
-        "fastapi",
-        "sagemaker",
-        "gymnasium",
-    ],
+    install_requires=requirements,    
     author="JunHo Park",
     author_email="junho@ccnets.org",
     url="https://github.com/ccnets-team/agent-gpt",

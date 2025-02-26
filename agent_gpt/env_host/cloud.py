@@ -197,16 +197,16 @@ def get_additional_files(env_simulator: str) -> dict:
     :param env_simulator: The environment simulator ('gym', 'unity', or 'custom').
     :return: Dictionary of file paths.
     """
-    serve_file = "src/env_host/serve.py"
-    api_file = "src/env_host/api.py"
-    utils_file = "src/utils/"
+    serve_file = "env_host/serve.py"
+    api_file = "env_host/api.py"
+    utils_file = "utils/"
     
     if env_simulator == "gym":
-        env_wrapper_file = "src/wrappers/gym_env.py"
+        env_wrapper_file = "wrappers/gym_env.py"
     elif env_simulator == "unity":
-        env_wrapper_file = "src/wrappers/unity_env.py"
+        env_wrapper_file = "wrappers/unity_env.py"
     elif env_simulator == "custom":
-        env_wrapper_file = "src/wrappers/custom_env.py"
+        env_wrapper_file = "wrappers/custom_env.py"
     else:
         raise ValueError(f"Unknown simulator '{env_simulator}'. Choose 'gym', 'unity', or 'custom'.")
     
