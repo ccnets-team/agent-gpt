@@ -9,24 +9,23 @@
 
 AgentGPT is a one-click, cloud-based platform for distributed reinforcement learning. It lets you easily host your environment simulators—either locally or in the cloud—and connect them to a central training job on AWS SageMaker. This enables efficient data collection and scalable multi-agent training using a GPT-based RL policy.
 
-## Commands
+## Installation
 
 ```markdown
-# Installation
-pip install agent-gpt-aws
+pip install agent-gpt-aws --upgrade
 ```
 
 ### Configuration
-
-- **View saved configuration:**
-  ```bash
-  agent-gpt config
-  ```
 
 - **Config hyperparams & SageMaker:**
   ```bash
   agent-gpt config --batch_size 256
   agent-gpt config --role_arn arn:aws:iam::123456789012:role/AgentGPTSageMakerRole
+  ```
+- **List & Clear current configuration:**
+  ```bash
+  agent-gpt list
+  agent-gpt clear
   ```
 
 ### Simulation
@@ -39,7 +38,7 @@ pip install agent-gpt-aws
 
 ### Training & Inference
 
-- **Set local/cloud environment hosts:**  
+- **Set local and cloud environment hosts:**  
   Here, the number at the end indicates the number of agents to run in that environment.
   ```bash
   agent-gpt config --set_env_host local1 http://your_local_ip:port num_agents
@@ -52,7 +51,7 @@ pip install agent-gpt-aws
   agent-gpt train
   ```
 
-- **Run agents gpt on AWS:**
+- **Run agent gpt on AWS:**
   ```bash
   agent-gpt infer
   ```
@@ -63,4 +62,4 @@ pip install agent-gpt-aws
 - **Parallel Training:** Connect multiple simulators to one AWS SageMaker trainer.
 - **Real-Time Inference:** Serve a GPT-based RL policy for instant decision-making.
 - **Cost-Optimized:** Minimize expenses by centralizing training while keeping simulations local if needed.
-- **Scalable GPT Training Support:** Train Actor (policy) and Critic (value) GPT models together using reverse transitions.
+- **Scalable GPT Support:** Train Actor (policy) and Critic (value) GPT models together using reverse transitions.
