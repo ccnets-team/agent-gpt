@@ -5,23 +5,142 @@ The AgentGPT CLI provides a set of commands that allow you to interact with the 
 
 ## Commands
 
-### Config
-Update configuration settings. This command accepts extra options (e.g., `--batch_size`, `--role_arn`, `--set_env_host`, etc.) and saves the result so that subsequent `agent-gpt train` or `agent-gpt infer` commands use the updated configuration.
-
+### Help
+Display help information and usage guidelines for AgentGPT CLI commands.
 ```bash
-# View current configuration
-agent-gpt config
-
-# Update configuration with hyperparameters and SageMaker settings
-agent-gpt config --batch_size 256 --role_arn arn:aws:iam::123456789012:role/AgentGPTSageMakerRole
-agent-gpt config --set_env_host cloud1 your_endpoint_on_cloud 32
+agent-gpt --help
+agent-gpt config --help
+agent-gpt simulate --help
+...
 ```
 
-The same `agent-gpt config` command lists the full stored configuration (i.e., defaults merged with any overrides).
+### Config
+Update configuration settings. This command accepts various options (e.g., --batch_size, --role_arn, --set_env_host, etc.) and saves the results so that subsequent agent-gpt train or agent-gpt infer commands use the updated configuration.
+
+- **Basic Configuration:**  
+  Update global settings such as hyperparameters and AWS credentials.
+  ```bash
+  # Update global configuration with hyperparameters and SageMaker settings
+  agent-gpt config --batch_size 256
+  agent-gpt config --region us-east-1 --role_arn arn:aws:iam::123456789012:role/AgentGPTSageMakerRole
+  ```
+
+- **Module Configuration:**  
+  Manage specific modules like environment hosts and exploration methods, including adding or removing them.
+  ```bash
+  # Add a cloud environment host with 32 agents
+  agent-gpt config --set_env_host endpoint_name your_endpoint_on_cloud 32
+  ```
+
+  ```bash
+  # Remove an environment host configuration
+  agent-gpt config --del_env_host endpoint_name
+  ```
+
+  ```bash
+  # Add an exploration method for continuous control using gaussian_noise
+  agent-gpt config --set_exploration continuous gaussian_noise
+  agent-gpt config --set_exploration discrete epsilon_greedy
+  ```
+
+  ```bash
+  # Remove an exploration method configuration
+  agent-gpt config --del_exploration discrete
+  ```
+
+- **Nested Configuration:**  
+  Update deeply nested configuration parameters using dot notation for fine-grained control.
+  ```bash
+  # Change the initial sigma for continuous exploration
+  agent-gpt config --exploration.continuous.initial_sigma 0.2 
+  ```
+
+  ```bash
+  # Set the number of agents for a specific environment host
+  agent-gpt config --env_hosts.cloud1.num_agents 512
+  ```
+
+### List
+View current configuration.
+```bash
+agent-gpt list
+```
+Output example:
+```bash
+Current configuration:
+hyperparams:
+  batch_size: 256
+  buffer_size: 1000000
+  d_model: 256
+  dropout: 0.2
+  env_hosts:
+    cloud0:
+      env_endpoint: https://ABCDEF0123456789.gr7.eks.us-east-1.amazonaws.com
+      num_agents: 64
+    cloud1:
+      env_endpoint: https://EXAMPLECLUSTER.1a2b3c4d.eks.eu-central-1.amazonaws.com
+      num_agents: 512
+    local0:
+      env_endpoint: http://175.112.9.67:34560
+      num_agents: 32
+    local1:
+      env_endpoint: http://175.112.9.67:34561
+      num_agents: 32
+  env_id: null
+  exploration:
+    continuous:
+      dt: null
+      final_epsilon: null
+      final_sigma: 0.001
+      final_stddev: null
+      initial_epsilon: null
+      initial_sigma: 0.1
+      initial_stddev: null
+      mu: null
+      ou_sigma: null
+      theta: null
+      type: gaussian_noise
+  gamma_init: 0.99
+  gpt_type: gpt2
+  lambda_init: 0.95
+  lr_end: 1.0e-05
+  lr_init: 0.0001
+  lr_scheduler: linear
+  max_grad_norm: 0.5
+  max_input_states: 16
+  max_steps: 20000000
+  num_heads: 8
+  num_layers: 5
+  replay_ratio: 2.0
+  resume_training: false
+  tau: 0.01
+  use_cloudwatch: true
+  use_graphics: false
+  use_tensorboard: false
+network:
+  host: 0.0.0.0
+  internal_ip: 324.123.5.645
+  public_ip: 331.224.1.543
+sagemaker:
+  inference:
+    endpoint_name: agent-gpt-inference-endpoint
+    image_uri: 533267316703.dkr.ecr.ap-northeast-2.amazonaws.com/agent-gpt-inference:latest
+    instance_count: 1
+    instance_type: ml.t2.medium
+    max_run: 3600
+    model_data: s3://your-bucket/model.tar.gz
+  region: ap-northeast-2
+  role_arn: arn:aws:iam::<your-account-id>:role/SageMakerExecutionRole
+  trainer:
+    image_uri: 533267316703.dkr.ecr.ap-northeast-2.amazonaws.com/agent-gpt-trainer:latest
+    instance_count: 1
+    instance_type: ml.g5.4xlarge
+    max_run: 3600
+    output_path: s3://your-bucket/output/
+```
 
 ### Clear
-Delete the configuration cache and reset the CLI state.
-
+Reset the configuration cache and reset the CLI state.
 ```bash
 agent-gpt clear
 ```
@@ -61,10 +180,6 @@ Each CLI command is defined using a decorator (e.g., `@app.command()`) from a CL
 
 The AgentGPT CLI enables structured interaction with the application by letting you specify actions and provide necessary options or arguments. Whether you're updating configurations, launching simulations, training models, or running inference, these commands streamline your workflow.
 
-For more details on each command or advanced options, you can always run:
-```bash
-agent-gpt --help
-```
 ```
 
 Simply copy and paste the above content into your `docs/Command-Line Interface.md` file.
