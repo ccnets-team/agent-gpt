@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, is_dataclass
 from typing import Optional, List, Dict
 from .network import get_network_info
 
@@ -48,15 +48,13 @@ class MultiEnvironmentConfig:
         if "local" not in self.envs:
             self.envs["local"] = EnvironmentConfig(
                 host_type="local", 
-                host_name=public_ip, 
+                host_name="http://" + public_ip,  
                 env="gym"
             )
     
     def set_env(self, env_identifier: str, host_type: str = "local", host_name: str = None, env: str = "gym") -> None:
         valid_host_types = ["cloud", "remote", "local"]
-        public_ip = get_network_info()['public_ip']
-        if host_name is None:
-            host_name = public_ip or ""
+        
         if env_identifier in self.envs:
             print(f"Warning: Environment config already exists for identifier '{env_identifier}'")
             return
@@ -78,60 +76,29 @@ class MultiEnvironmentConfig:
     def to_dict(self) -> dict:
         # Return a flat dictionary of env configs.
         return asdict(self)
-    
-    # Native dictionary-like access.
-    def __getitem__(self, key: str) -> EnvironmentConfig:
-        return self.envs[key]
-    
-    def __setitem__(self, key: str, value: EnvironmentConfig) -> None:
-        self.envs[key] = value
-    
-    def get_value(self, env_identifier: str, attribute: str):
-        env_config = self.envs.get(env_identifier)
-        if env_config is None:
-            print(f"Warning: No environment config found for identifier '{env_identifier}'")
-            return None
-        return getattr(env_config, attribute, None)
-    
-    def set_value(self, env_identifier: str, attribute: str, value) -> None:
-        env_config = self.envs.get(env_identifier)
-        if env_config is None:
-            print(f"Warning: No environment config found for identifier '{env_identifier}'")
-            return
-        try:
-            setattr(env_config, attribute, value)
-        except Exception as e:
-            print(f"Error setting attribute '{attribute}' on environment '{env_identifier}': {e}")
-    
+        
     def set_config(self, **kwargs) -> None:
         """
         Update nested environment configurations.
         Expects a key "envs" in kwargs whose value is a dict mapping environment
         identifiers to their updates.
         """
-        envs_data = kwargs.get("envs", {})
-        for env_identifier, env_values in envs_data.items():
-            env_config = self.envs.get(env_identifier)
-            if not env_config:
-                print(f"Warning: No environment config found for identifier '{env_identifier}'")
-                continue
-            for k, v in env_values.items():
-                try:
-                    if k == "dockerfile" and isinstance(v, dict):
-                        for sub_key, sub_value in v.items():
-                            if hasattr(env_config.dockerfile, sub_key):
-                                setattr(env_config.dockerfile, sub_key, sub_value)
-                            else:
-                                print(f"Warning: dockerfile has no attribute '{sub_key}'")
-                    elif k == "k8s_manifest" and isinstance(v, dict):
-                        for sub_key, sub_value in v.items():
-                            if hasattr(env_config.k8s_manifest, sub_key):
-                                setattr(env_config.k8s_manifest, sub_key, sub_value)
-                            else:
-                                print(f"Warning: k8s_manifest has no attribute '{sub_key}'")
-                    elif hasattr(env_config, k):
-                        setattr(env_config, k, v)
+        def update_dataclass(instance, updates: dict):
+            for key, value in updates.items():
+                if hasattr(instance, key):
+                    attr = getattr(instance, key)
+                    if is_dataclass(attr) and isinstance(value, dict):
+                        update_dataclass(attr, value)
                     else:
-                        print(f"Warning: No attribute '{k}' in EnvConfig")
-                except Exception as e:
-                    print(f"Error updating environment '{env_identifier}' attribute '{k}': {e}")
+                        setattr(instance, key, value)
+                else:
+                    print(f"Warning: {instance.__class__.__name__} has no attribute '{key}'")
+        
+        envs_data = kwargs.get("envs", {})
+        for env_identifier, env_updates in envs_data.items():
+            # If the environment doesn't exist yet, create a new default instance.
+            if env_identifier not in self.envs:
+                self.envs[env_identifier] = EnvironmentConfig()  # all defaults applied
+                print(f"Created new environment config for identifier '{env_identifier}'")
+            env_config = self.envs.get(env_identifier)
+            update_dataclass(env_config, env_updates)                
