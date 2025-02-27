@@ -9,7 +9,7 @@ from .core import AgentGPT
 from .config.sagemaker import SageMakerConfig
 from .config.hyperparams import Hyperparameters
 from .config.network import NetworkConfig
-from .env_host.local import LocalEnv
+from .env_host.server import EnvServer
 
 app = typer.Typer()
 
@@ -99,7 +99,7 @@ def parse_extra_args(args: list[str]) -> dict:
             i += 1
     return new_changes
 
-def recursive_update(target, changes: dict, prefix="") -> (bool, list):
+def recursive_update(target, changes: dict, prefix="") -> tuple:
     """
     Recursively update attributes of an object (or dictionary) using a nested changes dict.
     Only updates existing attributes/keys.
@@ -337,7 +337,7 @@ def simulate(
     launchers = []
     # Launch the simulation server on each specified port.
     for port in ports:
-        launcher = LocalEnv.launch(
+        launcher = EnvServer.launch(
             env=env,
             ip=ip,
             host=host,
