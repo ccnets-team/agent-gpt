@@ -33,7 +33,7 @@ pip install agent-gpt-aws --upgrade
 - **Run your environment (gym/unity/unreal, etc.) before training starts:**   
   Replace `port1 port2 ...` with actual port values for local environment hosting.
   ```bash
-   agent-gpt simulate gym port1 port2 ...
+   agent-gpt simulate local port1 port2 ...
   ```
 
 ### Training & Inference
