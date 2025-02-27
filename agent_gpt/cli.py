@@ -6,10 +6,12 @@ import yaml
 import typer
 from typing import List
 from .core import AgentGPT
-from .config.sagemaker import SageMakerConfig
-from .config.hyperparams import Hyperparameters
+from .config.container import ContainerConfig 
 from .config.network import NetworkConfig
+from .config.hyperparams import Hyperparameters
+from .config.sagemaker import SageMakerConfig
 from .env_host.server import EnvServer
+from typing import Optional
 
 app = typer.Typer()
 
@@ -190,19 +192,22 @@ def config(ctx: typer.Context):
     stored_overrides = load_config()
 
     # Instantiate default configuration objects.
+    default_container = ContainerConfig()
+    default_network = NetworkConfig().from_network_info()
     default_hyperparams = Hyperparameters()
     default_sagemaker = SageMakerConfig()
-    default_network = NetworkConfig().from_network_info()
 
     # Apply stored overrides.
+    default_container.set_config(**stored_overrides.get("container", {}))
+    default_network.set_config(**stored_overrides.get("network", {}))
     default_hyperparams.set_config(**stored_overrides.get("hyperparams", {}))
     default_sagemaker.set_config(**stored_overrides.get("sagemaker", {}))
-    default_network.set_config(**stored_overrides.get("network", {}))
 
     # Use the updated defaults as our working configuration.
+    new_container = default_container
+    new_network = default_network
     new_hyperparams = default_hyperparams 
     new_sagemaker = default_sagemaker 
-    new_network = default_network
 
     # List to collect change summaries.
     list_changes = []
@@ -221,7 +226,7 @@ def config(ctx: typer.Context):
             value = inner_value
 
         # Otherwise, update all config objects that have the attribute.
-        for obj in [new_hyperparams, new_sagemaker, new_network]:
+        for obj in [new_container, new_network, new_hyperparams, new_sagemaker]:
             if not hasattr(obj, key):
                 continue
             attr = getattr(obj, key)
@@ -267,44 +272,79 @@ def config(ctx: typer.Context):
             ))
 
     full_config = {
+        "container": default_container.to_dict(),
+        "network": default_network.to_dict(),
         "hyperparams": default_hyperparams.to_dict(),
         "sagemaker": default_sagemaker.to_dict(),
-        "network": default_network.to_dict(),
     }
     save_config(full_config)
 
-@app.command("clear")
-def clear_config():
-    """
-    Delete the configuration cache and display the default configuration.
-    """
-    if os.path.exists(DEFAULT_CONFIG_PATH):
-        os.remove(DEFAULT_CONFIG_PATH)
-        typer.echo("Configuration cache deleted.")
+def get_default(section: str) -> dict:
+    if section == "container":
+        return ContainerConfig().to_dict()
+    elif section == "network":
+        return NetworkConfig().from_network_info().to_dict()
+    elif section == "hyperparams":
+        return Hyperparameters().to_dict()
+    elif section == "sagemaker":
+        return SageMakerConfig().to_dict()
     else:
-        typer.echo("No configuration cache found.")
-    
-    # Reconstruct the default configuration objects.
-    default_hyperparams = Hyperparameters()
-    default_sagemaker = SageMakerConfig()
-    default_network = NetworkConfig().from_network_info()
-    
-    # Create a default configuration dictionary.
-    default_config = {
-        "hyperparams": default_hyperparams.to_dict(),
-        "sagemaker": default_sagemaker.to_dict(),
-        "network": default_network.to_dict(),
-    }
-    save_config(default_config)
+        return {}
+
+@app.command("clear")
+def clear_config(
+    section: Optional[str] = typer.Argument(
+        None,
+        help="Optional configuration section to clear (container, network, hyperparams, sagemaker). If not provided, clears the entire configuration."
+    )
+):
+    """
+    Clear configuration settings. If a section is provided, reset that section to its default.
+    Otherwise, clear all configuration and restore defaults.
+    """
+    allowed_sections = {"container", "network", "hyperparams", "sagemaker"}
+    if section:
+        if section not in allowed_sections:
+            typer.echo(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.")
+            raise typer.Exit()
+        config_data = load_config()
+        config_data[section] = get_default(section)
+        save_config(config_data)
+        typer.echo(f"Configuration section '{section}' has been reset to default.")
+    else:
+        if os.path.exists(DEFAULT_CONFIG_PATH):
+            os.remove(DEFAULT_CONFIG_PATH)
+            typer.echo("Entire configuration cache deleted.")
+        default_config = {
+            "container": ContainerConfig().to_dict(),
+            "network": NetworkConfig().from_network_info().to_dict(),
+            "hyperparams": Hyperparameters().to_dict(),
+            "sagemaker": SageMakerConfig().to_dict(),
+        }
+        save_config(default_config)
+        typer.echo("Default configuration restored for all sections.")
 
 @app.command("list")
-def list_config():
+def list_config(
+    section: Optional[str] = typer.Argument(
+        None,
+        help="Configuration section to list (container, network, hyperparams, sagemaker). If not provided, lists all configuration settings."
+    )
+):
     """
-    List the current configuration settings.
+    List the current configuration settings. If a section is provided,
+    only that part of the configuration is displayed.
     """
     config_data = load_config()
-    typer.echo("Current configuration:")
-    typer.echo(yaml.dump(config_data))
+    
+    if section:
+        # Use dict.get() to retrieve the specified section with a default empty dict.
+        section_data = config_data.get(section, {})
+        typer.echo(f"Current configuration for '{section}':")
+        typer.echo(yaml.dump({section: section_data}))
+    else:
+        typer.echo("Current configuration:")
+        typer.echo(yaml.dump(config_data))
     
 @app.command("simulate")
 def simulate(
