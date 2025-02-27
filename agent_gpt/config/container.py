@@ -4,12 +4,10 @@ from typing import Optional, List
 @dataclass
 class DockerfileConfig:
     env: str = "gym"               # Environment simulator: 'gym', 'unity', or 'custom'
-    env_path: str = ""             # Path to the environment file/directory
     env_id: Optional[str] = None   # Optional environment identifier
     entry_point: Optional[str] = None  # Optional entry point for the environment
     additional_dependencies: List[str] = field(default_factory=list)
         
-
 @dataclass
 class K8SManifestConfig:
     image_name: str = ""
@@ -20,10 +18,11 @@ class K8SManifestConfig:
             self.container_ports = [80]
 
         if not self.deployment_name:
-            self.deployment_name = "cloud-env-host"                 
+            self.deployment_name = "agent-gpt-cloud-env-k8s"                 
 
 @dataclass
 class ContainerConfig:
+    env_path: str = ""             # Path to the environment file
     dockerfile: DockerfileConfig = field(default_factory=DockerfileConfig)
     k8s_manifest: K8SManifestConfig = field(default_factory=K8SManifestConfig)
 
@@ -67,9 +66,13 @@ class ContainerConfig:
     def create_dockerfile(self):
         # Import locally to avoid circular dependency
         from ..utils.deployment import create_dockerfile as _create_dockerfile
-        _create_dockerfile(self.dockerfile)
+        _create_dockerfile(self.env_path, self.dockerfile)
 
     def create_k8s_manifest(self):
         # Import locally to avoid circular dependency
         from ..utils.deployment import create_k8s_manifest as _create_k8s_manifest
-        _create_k8s_manifest(self.k8s_manifest)
+        _create_k8s_manifest(self.env_path, self.k8s_manifest)
+    
+    def compose_container(self):
+        self.create_dockerfile()
+        self.create_k8s_manifest()

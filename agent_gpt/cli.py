@@ -233,8 +233,12 @@ def config(ctx: typer.Context):
             if callable(attr):
                 if not isinstance(value, list):
                     value = [value]
-                converted_args = [parse_value(arg) for arg in value]
-                attr(*converted_args)
+                # Filter out None values if necessary.
+                converted_args = [parse_value(arg) for arg in value if arg is not None]
+                if converted_args:
+                    attr(*converted_args)
+                else:
+                    attr()
                 arg_str = " ".join(str(x) for x in converted_args)
                 diffs_for_key.append((key, None, arg_str))
                 changed = True

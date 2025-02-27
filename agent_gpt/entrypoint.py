@@ -2,7 +2,7 @@ import sys
 import os
 import signal
 import typer
-from .server import EnvServer
+from .env_host.server import EnvServer
 
 def main():
     # Signal handler to catch SIGTERM and SIGINT
