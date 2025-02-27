@@ -1,25 +1,25 @@
 import os
 import logging
 import yaml
-from ..config.container import ContainerConfig
+from ..config.container import DockerfileConfig, K8SManifestConfig
 
 logger = logging.getLogger(__name__)
 
-def generate_dockerfile(container_config: ContainerConfig) -> str:
+def create_dockerfile(docker_config: DockerfileConfig) -> str:
     """
     Generates a Dockerfile that packages the required application files and environment,
     based on the provided container configuration.
 
-    :param container_config: ContainerConfig object containing all deployment settings.
+    :param container_config: DockerfileConfig object containing all deployment settings.
     :return: The path to the generated Dockerfile.
     """
     # Extract configuration values.
-    env = container_config.env
-    env_path = container_config.env_path
-    env_id = container_config.env_id
-    entry_point = container_config.entry_point
-    additional_dependencies = container_config.additional_dependencies
-    container_ports = container_config.container_ports
+    env = docker_config.env
+    env_path = docker_config.env_path
+    env_id = docker_config.env_id
+    entry_point = docker_config.entry_point
+    additional_dependencies = docker_config.additional_dependencies
+    container_ports = docker_config.container_ports
 
     # Define the Dockerfile location in the same directory as env_path.
     dockerfile_path = os.path.join(os.path.dirname(os.path.abspath(env_path)), "Dockerfile")
@@ -73,17 +73,17 @@ def generate_dockerfile(container_config: ContainerConfig) -> str:
     return dockerfile_path
 
 
-def generate_kubernetes_manifest(container_config: ContainerConfig) -> str:
+def create_k8s_manifest(k8s_config: K8SManifestConfig) -> str:
     """
     Generates a Kubernetes manifest YAML file for deploying the environment on EKS using PyYAML,
     based on the provided container configuration.
 
-    :param container_config: ContainerConfig object containing all deployment settings.
+    :param container_config: K8SManifestConfig object containing all deployment settings.
     :return: The file path of the generated YAML manifest.
     """
-    image_name = container_config.image_name
-    deployment_name = container_config.deployment_name or "cloud-env-host"
-    container_ports = container_config.container_ports or [80]
+    image_name = k8s_config.image_name
+    deployment_name = k8s_config.deployment_name
+    container_ports = k8s_config.container_ports
 
     # Define the Deployment spec.
     deployment = {

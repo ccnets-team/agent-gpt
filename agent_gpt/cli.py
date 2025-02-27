@@ -220,7 +220,7 @@ def config(ctx: typer.Context):
         # then unpack that item so that:
         #   key becomes the inner attribute (e.g. "exploration")
         #   value becomes its nested dict (e.g. {'continuous': {'mu': 32}})
-        if key in ("hyperparams", "sagemaker", "network") and isinstance(value, dict) and len(value) == 1:
+        if key in ("container", "hyperparams", "sagemaker", "network") and isinstance(value, dict) and len(value) == 1:
             inner_key, inner_value = list(value.items())[0]
             key = inner_key
             value = inner_value
