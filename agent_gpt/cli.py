@@ -392,11 +392,6 @@ def simulate(
     entry_point = environment_conf.get("entry_point")
     host_type = environment_conf.get("host_type")
     
-    # if there is no env_id raise an error
-    if not env_id:
-        typer.echo("Environment ID is required to launch the simulation.")
-        raise typer.Exit(code=1)
-    
     if env == "unity" and not entry_point:
         typer.echo("Unity environment requires an entry point to launch the simulation.")
         raise typer.Exit(code=1)
