@@ -68,24 +68,57 @@ agent-gpt list
 Output example:
 ```bash
 Current configuration:
+environment:
+  envs:
+    cloud1:
+      dockerfile:
+        additional_dependencies: []
+      entry_point: null
+      env: gym
+      env_id: null
+      env_path: ''
+      host_name: https://ABCDEF0123456789.gr7.eks.us-east-1.amazonaws.com
+      host_type: cloud
+      k8s_manifest:
+        deployment_name: agent-gpt-cloud-env-k8s
+        image_name: ''
+      ports:
+      - 55670
+      - 55671
+      - 55672
+      - 55673
+    local:
+      dockerfile:
+        additional_dependencies: []
+      entry_point: null
+      env: gym
+      env_id: null
+      env_path: ''
+      host_name: http://198.51.100.23
+      host_type: local
+      k8s_manifest:
+        deployment_name: agent-gpt-cloud-env-k8s
+        image_name: ''
+      ports:
+      - 45670
+      - 45671
+      - 45672
+      - 45673
 hyperparams:
   batch_size: 256
   buffer_size: 1000000
   d_model: 256
-  dropout: 0.2
+  dropout: 0.1
   env_hosts:
-    cloud0:
-      env_endpoint: https://ABCDEF0123456789.gr7.eks.us-east-1.amazonaws.com
+    cloud1_0:
+      env_endpoint: https://ABCDEF0123456789.gr7.eks.us-east-1.amazonaws.com:55670
+      num_agents: 32
+    cloud1_1:
+      env_endpoint: https://ABCDEF0123456789.gr7.eks.us-east-1.amazonaws.com:55671
       num_agents: 64
-    cloud1:
-      env_endpoint: https://EXAMPLECLUSTER.1a2b3c4d.eks.eu-central-1.amazonaws.com
-      num_agents: 512
-    local0:
-      env_endpoint: http://175.112.9.67:34560
-      num_agents: 32
-    local1:
-      env_endpoint: http://175.112.9.67:34561
-      num_agents: 32
+    local_0:
+      env_endpoint: http://198.51.100.23:45670
+      num_agents: 128
   env_id: null
   exploration:
     continuous:
@@ -119,8 +152,8 @@ hyperparams:
   use_tensorboard: false
 network:
   host: 0.0.0.0
-  internal_ip: 324.123.5.645
-  public_ip: 331.224.1.543
+  internal_ip: 328.54.120.28
+  public_ip: 198.51.100.23
 sagemaker:
   inference:
     endpoint_name: agent-gpt-inference-endpoint
@@ -152,7 +185,7 @@ Launch simulation environments. This command supports different modes:
 
 ```bash
 # Launch a local gym simulation on specified ports
-agent-gpt simulate gym port1 port2 ...
+agent-gpt simulate local port1 port2 ...
 ```
 
 ### Train
