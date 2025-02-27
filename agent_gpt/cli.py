@@ -6,7 +6,7 @@ import yaml
 import typer
 from typing import List
 from .core import AgentGPT
-from .config.container import ContainerConfig 
+from .config.environment import MultiEnvironmentConfig 
 from .config.network import NetworkConfig
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
@@ -163,7 +163,7 @@ def config(ctx: typer.Context):
         Example: agent-gpt config --batch_size 64 --lr_init 0.0005 --env_id "CartPole-v1"
     
       Method Mode:
-        Example: agent-gpt config --set_env_host local0 http://your_domain.com 32
+        Example: agent-gpt config --set_env_host local0 http://your_domain.com:port 32
     
     Note:
       You can use dot notation to access nested configuration values.
@@ -178,6 +178,12 @@ def config(ctx: typer.Context):
       del_env_host       - Delete an existing environment host.
       set_exploration    - Set exploration parameters.
       del_exploration    - Delete an exploration configuration.
+      
+      compose_environment  - Automatically generate a complete environment setup.
+                           This command creates a Dockerfile with stored configs to your environment
+                           by bundling the necessary files, installing dependencies, and
+                           setting the appropriate entry point. It also generates a
+                           corresponding Kubernetes manifest for deployment to AWS EKS.
     """
 
     # Parse CLI extra arguments into a nested dictionary.
@@ -192,19 +198,19 @@ def config(ctx: typer.Context):
     stored_overrides = load_config()
 
     # Instantiate default configuration objects.
-    default_container = ContainerConfig()
+    default_environment = MultiEnvironmentConfig()
     default_network = NetworkConfig().from_network_info()
     default_hyperparams = Hyperparameters()
     default_sagemaker = SageMakerConfig()
 
     # Apply stored overrides.
-    default_container.set_config(**stored_overrides.get("container", {}))
+    default_environment.set_config(**stored_overrides.get("environment", {}))
     default_network.set_config(**stored_overrides.get("network", {}))
     default_hyperparams.set_config(**stored_overrides.get("hyperparams", {}))
     default_sagemaker.set_config(**stored_overrides.get("sagemaker", {}))
 
     # Use the updated defaults as our working configuration.
-    new_container = default_container
+    new_environment = default_environment
     new_network = default_network
     new_hyperparams = default_hyperparams 
     new_sagemaker = default_sagemaker 
@@ -220,13 +226,13 @@ def config(ctx: typer.Context):
         # then unpack that item so that:
         #   key becomes the inner attribute (e.g. "exploration")
         #   value becomes its nested dict (e.g. {'continuous': {'mu': 32}})
-        if key in ("container", "hyperparams", "sagemaker", "network") and isinstance(value, dict) and len(value) == 1:
+        if key in ("environment", "hyperparams", "sagemaker", "network") and isinstance(value, dict) and len(value) == 1:
             inner_key, inner_value = list(value.items())[0]
             key = inner_key
             value = inner_value
 
         # Otherwise, update all config objects that have the attribute.
-        for obj in [new_container, new_network, new_hyperparams, new_sagemaker]:
+        for obj in [new_environment, new_network, new_hyperparams, new_sagemaker]:
             if not hasattr(obj, key):
                 continue
             attr = getattr(obj, key)
@@ -276,7 +282,7 @@ def config(ctx: typer.Context):
             ))
 
     full_config = {
-        "container": default_container.to_dict(),
+        "environment": default_environment.to_dict(),
         "network": default_network.to_dict(),
         "hyperparams": default_hyperparams.to_dict(),
         "sagemaker": default_sagemaker.to_dict(),
@@ -284,8 +290,8 @@ def config(ctx: typer.Context):
     save_config(full_config)
 
 def get_default(section: str) -> dict:
-    if section == "container":
-        return ContainerConfig().to_dict()
+    if section == "environment":
+        return MultiEnvironmentConfig().to_dict()
     elif section == "network":
         return NetworkConfig().from_network_info().to_dict()
     elif section == "hyperparams":
@@ -299,14 +305,14 @@ def get_default(section: str) -> dict:
 def clear_config(
     section: Optional[str] = typer.Argument(
         None,
-        help="Optional configuration section to clear (container, network, hyperparams, sagemaker). If not provided, clears the entire configuration."
+        help="Optional configuration section to clear (envrionment, network, hyperparams, sagemaker). If not provided, clears the entire configuration."
     )
 ):
     """
     Clear configuration settings. If a section is provided, reset that section to its default.
     Otherwise, clear all configuration and restore defaults.
     """
-    allowed_sections = {"container", "network", "hyperparams", "sagemaker"}
+    allowed_sections = {"environment", "network", "hyperparams", "sagemaker"}
     if section:
         if section not in allowed_sections:
             typer.echo(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.")
@@ -320,7 +326,7 @@ def clear_config(
             os.remove(DEFAULT_CONFIG_PATH)
             typer.echo("Entire configuration cache deleted.")
         default_config = {
-            "container": ContainerConfig().to_dict(),
+            "environment": MultiEnvironmentConfig().to_dict(),
             "network": NetworkConfig().from_network_info().to_dict(),
             "hyperparams": Hyperparameters().to_dict(),
             "sagemaker": SageMakerConfig().to_dict(),
@@ -332,7 +338,7 @@ def clear_config(
 def list_config(
     section: Optional[str] = typer.Argument(
         None,
-        help="Configuration section to list (container, network, hyperparams, sagemaker). If not provided, lists all configuration settings."
+        help="Configuration section to list (environment, network, hyperparams, sagemaker). If not provided, lists all configuration settings."
     )
 ):
     """
@@ -352,68 +358,86 @@ def list_config(
     
 @app.command("simulate")
 def simulate(
-    env: str = typer.Argument(
-        ..., 
-        help="Name of the environment simulator to use. For example: 'gym' or 'unity'."
+    env_identifier: str = typer.Argument(
+        "local",
+        help="Environment identifier to simulate. Default: 'local'."
     ),
     ports: List[int] = typer.Argument(
         ..., 
-        help="One or more port numbers on which to run the local simulation server. Example: 8000 8001"
+        help="One or more container port numbers on which to run the simulation server. Example: 80"
     )
 ):
     """
     Launch an environment simulation locally using the specified simulator and ports.
 
     Examples:
-      agent-gpt simulate gym 8000 8001
-      agent-gpt simulate unity 8500
+      agent-gpt simulate gym 80
+      agent-gpt simulate local 80
+      agent-gpt simulate unity 8080
 
-    This command starts a simulation server for the specified environment on each port.
+    This command starts a simulation server for the specified environment on each provided port.
     Press Ctrl+C (or CTRL+C on Windows) to terminate the simulation.
     """
 
     # Load configuration to get the network settings.
     config_data = load_config()
     network_conf = config_data.get("network", {})
-    host = network_conf.get("host", "localhost")  # Default to 'localhost'
+    host = network_conf.get("host", "localhost")
     ip = network_conf.get("public_ip", network_conf.get("internal_ip", "127.0.0.1"))
+
+    multi_environment_conf = config_data.get("environment", {}).get("envs", {})
+    environment_conf = multi_environment_conf.get(env_identifier, {})
+    env = environment_conf.get("env")
+    env_id = environment_conf.get("env_id")
+    entry_point = environment_conf.get("entry_point")
+    host_type = environment_conf.get("host_type")
     
-    launchers = []
-    # Launch the simulation server on each specified port.
-    for port in ports:
-        launcher = EnvServer.launch(
-            env=env,
-            ip=ip,
-            host=host,
-            port=port
-        )
-        launchers.append(launcher)
+    # if there is no env_id raise an error
+    if not env_id:
+        typer.echo("Environment ID is required to launch the simulation.")
+        raise typer.Exit(code=1)
+    
+    if env == "unity" and not entry_point:
+        typer.echo("Unity environment requires an entry point to launch the simulation.")
+        raise typer.Exit(code=1)
+    
+    if host_type == "local":
+        launchers = []
+        # Get the port mappings; if a port is not mapped, use the provided port directly.
+        for port in ports:
+            launcher = EnvServer.launch(
+                env=env,
+                env_id=env_id,
+                entry_point=entry_point,
+                ip=ip,
+                host=host,
+                port=port
+            )
+            launchers.append(launcher)
 
-    # Echo termination instructions based on OS.
-    import sys
-    if sys.platform.startswith("win"):
-        typer.echo("Simulation running. Press CTRL+C to terminate the simulation...")
-    else:
-        typer.echo("Simulation running. Press Ctrl+C to terminate the simulation...")
+        import sys
+        if sys.platform.startswith("win"):
+            typer.echo("Simulation running. Press CTRL+C to terminate the simulation...")
+        else:
+            typer.echo("Simulation running. Press Ctrl+C to terminate the simulation...")
 
-    # Block the main thread by joining server threads in a loop with a timeout.
-    try:
-        while any(launcher.server_thread.is_alive() for launcher in launchers):
+        try:
+            while any(launcher.server_thread.is_alive() for launcher in launchers):
+                for launcher in launchers:
+                    launcher.server_thread.join(timeout=0.5)
+        except KeyboardInterrupt:
+            typer.echo("Shutdown requested, stopping all servers...")
             for launcher in launchers:
-                # Join with a short timeout so we can periodically check for KeyboardInterrupt.
-                launcher.server_thread.join(timeout=0.5)
-    except KeyboardInterrupt:
-        typer.echo("Shutdown requested, stopping all servers...")
-        for launcher in launchers:
-            launcher.shutdown()
-        # Optionally wait a little longer for threads to shutdown gracefully.
-        for launcher in launchers:
-            launcher.server_thread.join(timeout=2)
+                launcher.shutdown()
+            for launcher in launchers:
+                launcher.server_thread.join(timeout=2)
 
-    typer.echo("Local environments launched on:")
-    for launcher in launchers:
-        typer.echo(f" - {launcher.public_ip}")
-
+        typer.echo("Local environments launched on:")
+        for launcher in launchers:
+            typer.echo(f" - {launcher.public_ip}:{launcher.port}")
+    else:
+        typer.echo("Other host types are not supported yet.")
+        
 @app.command()
 def train():
     """

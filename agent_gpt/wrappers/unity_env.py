@@ -7,13 +7,13 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 class UnityEnv(Env):
     # Class-level attribute to track instance count
     _instance_count = 0    
-    env_import_path = None
-    id = None
+    entry_point = None
+    env_id = None
 
     @classmethod
     def register(cls, id, entry_point):
-        UnityEnv.env_import_path = entry_point
-        UnityEnv.id = id
+        UnityEnv.entry_point = entry_point
+        UnityEnv.env_id = id
         print(f"Registering environment: {id} with file path: {entry_point}")
 
     @staticmethod
@@ -42,11 +42,11 @@ class UnityEnv(Env):
         
         use_graphics = kwargs.get("use_graphics", False)
         time_scale = kwargs.get("time_scale", 4)
-        if UnityEnv.env_import_path is None:
-            UnityEnv.env_import_path = "../unity_environments/" + env_id + "/"
+        if UnityEnv.entry_point is None:
+            raise ValueError("Unity environment not registered. Use UnityEnv.register() to register the environment.")
         else:
-            if env_id != UnityEnv.id:
-                print(f"Environment ID mismatch: {env_id} != {UnityEnv.id}")
+            if env_id != UnityEnv.env_id:
+                print(f"Environment ID mismatch: {env_id} != {UnityEnv.env_id}")
             
         self.env_id = env_id
         
@@ -89,7 +89,7 @@ class UnityEnv(Env):
     def create_unity_env(channel, no_graphics, seed, worker_id):
         base_port = UnityEnvironment.BASE_ENVIRONMENT_PORT
         env = UnityEnvironment(
-            file_name=UnityEnv.env_import_path,
+            file_name=UnityEnv.entry_point,
             base_port=base_port,
             no_graphics=no_graphics,
             seed=seed,

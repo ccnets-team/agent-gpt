@@ -1,11 +1,11 @@
 import os
 import logging
-import yaml
-from ..config.container import DockerfileConfig, K8SManifestConfig
+from ..config.environment import DockerfileConfig, K8SManifestConfig
+from typing import List
 
 logger = logging.getLogger(__name__)
 
-def create_dockerfile(env_path: str, docker_config: DockerfileConfig) -> str:
+def create_dockerfile(env_path: str, env, env_id, entry_point, dockerfile: DockerfileConfig) -> str:
     """
     Generates a Dockerfile that packages the required application files and environment,
     based on the provided container configuration. The build context is set as the parent
@@ -17,13 +17,9 @@ def create_dockerfile(env_path: str, docker_config: DockerfileConfig) -> str:
     """
     import shutil
 
-    # Extract configuration values.
-    env = docker_config.env
     # Normalize env_path to use forward slashes.
     env_path = env_path.replace(os.sep, "/")
-    env_id = docker_config.env_id
-    entry_point = docker_config.entry_point
-    additional_dependencies = docker_config.additional_dependencies
+    additional_dependencies = dockerfile.additional_dependencies
 
     # Use the parent directory of env_path as the build context.
     # For example, if env_path is "C:/.../3DBallHard", then project_root becomes
@@ -100,7 +96,8 @@ def create_dockerfile(env_path: str, docker_config: DockerfileConfig) -> str:
     logger.info(f"Done. Dockerfile written at: {dockerfile_path}")
     return dockerfile_path
         
-def create_k8s_manifest(env_path: str, k8s_config: K8SManifestConfig) -> str:
+def create_k8s_manifest(env_path: str, ports: List[int], 
+                        k8s_config: K8SManifestConfig) -> str:
     """
     Generates a Kubernetes manifest YAML file for deploying the environment on EKS using PyYAML,
     based on the provided container configuration. The manifest is written into the build context,
@@ -116,7 +113,7 @@ def create_k8s_manifest(env_path: str, k8s_config: K8SManifestConfig) -> str:
     # Extract configuration values.
     image_name = k8s_config.image_name
     deployment_name = k8s_config.deployment_name
-    container_ports = k8s_config.container_ports
+    container_ports = ports
 
     # Define the Deployment spec.
     deployment = {

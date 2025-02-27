@@ -4,7 +4,7 @@ import signal
 import typer
 from .env_host.server import EnvServer
 
-def main():
+def main(): 
     # Signal handler to catch SIGTERM and SIGINT
     def handle_shutdown(signum, frame):
         print(f"Signal {signum} received, initiating shutdown...")
@@ -15,9 +15,9 @@ def main():
     signal.signal(signal.SIGINT, handle_shutdown)
 
     # Use command-line arguments (sys.argv[0] is the script name)
-    env = sys.argv[1] if len(sys.argv) > 1 else "gym"
-    env_id = sys.argv[2] if len(sys.argv) > 2 else None
-    entry_point = sys.argv[3] if len(sys.argv) > 3 else None
+    env = sys.argv[2] if len(sys.argv) > 2 else "gym"
+    env_id = sys.argv[3] if len(sys.argv) > 3 else None
+    entry_point = sys.argv[4] if len(sys.argv) > 4 else None
 
     host_arg = os.getenv("HOST", "0.0.0.0")
     # Expect PORTS as a comma-separated list, e.g., "8000,8001,8002"
