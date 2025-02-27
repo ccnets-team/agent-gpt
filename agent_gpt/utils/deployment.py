@@ -32,12 +32,6 @@ def create_dockerfile(env_path: str, docker_config: DockerfileConfig) -> str:
     # Compute the relative path from the project root to env_path.
     rel_env_path = os.path.relpath(env_path, project_root).replace(os.sep, "/")
 
-    # Copy the agent_gpt files from the current project's "agent_gpt" folder into the build context.
-    # Source directory: current working directory + "agent_gpt"
-    source_dir = os.path.join(os.getcwd(), "agent_gpt")
-    # Destination: project_root/agent_gpt
-    dest_dir = os.path.join(project_root, "agent_gpt")
-
     # Get the build files.
     # Expect build_files to now have relative paths with the prefix "agent_gpt/".
     build_files = get_build_files(env)    
