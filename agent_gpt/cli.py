@@ -173,7 +173,14 @@ def config(ctx: typer.Context):
       The top-level prefixes 'hyperparams', 'sagemaker', and 'network' can be omitted for convenience.
     
     Available Methods:
-    
+      set_aws_account_id - Set the AWS account ID for SageMaker IAM roles.
+                           This method updates the role ARN using the provided AWS account ID in the format:
+                           'arn:aws:iam::<account-id>:role/AgentGPT-BetaTester'.
+      
+      set_region         - Set the AWS region for SageMaker configurations.
+                           This method updates the ECR image URIs for both the trainer and inference images.
+                           Only two regions are allowed: 'us-east-1' and 'ap-northeast-2' (Seoul).
+      
       set_env_host       - Set a new environment host.
       del_env_host       - Delete an existing environment host.
       set_exploration    - Set exploration parameters.

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from typing import Optional
+import re
 
 @dataclass
 class TrainerConfig:
@@ -20,7 +21,7 @@ class InferenceConfig:
 
 @dataclass
 class SageMakerConfig:
-    role_arn: Optional[str] = "arn:aws:iam::<your-account-id>:role/SageMakerExecutionRole"
+    role_arn: Optional[str] = "arn:aws:iam::<your-aws-account-id>:role/AgentGPT-BetaTester"
     region: Optional[str] = "ap-northeast-2"
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
@@ -32,6 +33,21 @@ class SageMakerConfig:
         if isinstance(self.inference, dict):
             self.inference = InferenceConfig(**self.inference)
     
+    def set_region(self, region: str) -> None:
+        allowed_regions = ["us-east-1", "ap-northeast-2"]  # ap-northeast-2 corresponds to Seoul
+        if region not in allowed_regions:
+            raise ValueError(f"Region {region} is not allowed. Allowed regions: {allowed_regions}")
+        
+        self.region = region
+        # This regex pattern matches the region between 'dkr.ecr.' and '.amazonaws.com'
+        pattern = r"(dkr\.ecr\.)([\w-]+)(\.amazonaws\.com)"
+        
+        self.trainer.image_uri = re.sub(pattern, rf"\1{region}\3", self.trainer.image_uri)
+        self.inference.image_uri = re.sub(pattern, rf"\1{region}\3", self.inference.image_uri)
+
+    def set_aws_account_id(self, account_id: str) -> None:
+        self.role_arn = f"arn:aws:iam::{account_id}:role/AgentGPT-BetaTester"
+
     def to_dict(self) -> dict:
         """Returns a nested dictionary of the full SageMaker configuration."""
         return asdict(self)
