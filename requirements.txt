@@ -1,6 +1,7 @@
 # requirements.txt
 
 typer
+msgpack
 pyyaml
 boto3
 uvicorn

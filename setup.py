@@ -9,7 +9,7 @@ with open("requirements.txt", encoding="utf-8") as f:
     
 setup(
     name="agent-gpt-aws",
-    version="0.2.6",
+    version="0.2.7",
     packages=find_packages(), 
     entry_points={
         "console_scripts": [
