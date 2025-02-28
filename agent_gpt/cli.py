@@ -4,6 +4,8 @@ logging.getLogger("sagemaker.config").setLevel(logging.WARNING)
 import os
 import yaml
 import typer
+import requests
+import json
 from typing import List
 from .core import AgentGPT
 from .config.environment import MultiEnvironmentConfig 
@@ -151,6 +153,56 @@ def recursive_update(target, changes: dict, prefix="") -> tuple:
 
     return changed, diffs
 
+@app.command("register")
+def register(
+    account_id: str = typer.Argument(..., help="AWS account ID of the beta tester"),
+    email: Optional[str] = typer.Option(None, help="Optional email address of the beta tester")
+):
+    """
+    Register a new user account.
+    
+    This command sends a POST request to the API endpoint to register the beta tester.
+    The API updates the trust policy of the AgentGPT-BetaTester role.
+    """
+    typer.echo(f"Registering beta tester with account ID: {account_id} ...")
+    
+    # Set the API endpoint URL (using non-custom API for now)
+    url = "https://agentgpt-beta.ccnets.org"
+    # Build the payload data with the required clientAccountId and optional email
+    payload = {
+        "clientAccountId": account_id,
+    }
+    if email:
+        payload["Email"] = email
+    
+    # Set the headers for the POST request
+    headers = {'Content-Type': 'application/json'}
+    
+    try:
+        # Send the POST request to the API Gateway endpoint
+        response = requests.post(url, json=payload, headers=headers)
+        
+        # Print the response status and body
+        typer.echo(f"Status Code: {response.status_code}")
+        typer.echo(f"Response Body: {response.text}")
+        
+        if response.status_code == 200:
+            # Parse the response JSON
+            response_data = response.json()
+            if response_data.get("statusCode") == 200:
+                typer.echo("Registration successful.")
+                stored_overrides = load_config()
+                default_sagemaker = SageMakerConfig()
+                default_sagemaker.set_config(**stored_overrides.get("sagemaker", {}))
+                default_sagemaker.set_account_id(account_id)
+                stored_overrides["sagemaker"] = default_sagemaker.to_dict()
+                save_config(stored_overrides)
+            else:
+                typer.echo("Registration failed.")
+        else:
+            typer.echo("Error registering beta tester connection.")
+    except Exception as e:  
+        typer.echo(f"Error sending request: {e}")
 
 @app.command("config", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def config(ctx: typer.Context):
@@ -173,10 +225,6 @@ def config(ctx: typer.Context):
       The top-level prefixes 'hyperparams', 'sagemaker', and 'network' can be omitted for convenience.
     
     Available Methods:
-      set_aws_account_id - Set the AWS account ID for SageMaker IAM roles.
-                           This method updates the role ARN using the provided AWS account ID in the format:
-                           'arn:aws:iam::<account-id>:role/AgentGPT-BetaTester'.
-      
       set_region         - Set the AWS region for SageMaker configurations.
                            This method updates the ECR image URIs for both the trainer and inference images.
                            Only two regions are allowed: 'us-east-1' and 'ap-northeast-2' (Seoul).

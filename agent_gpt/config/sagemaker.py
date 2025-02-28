@@ -45,7 +45,7 @@ class SageMakerConfig:
         self.trainer.image_uri = re.sub(pattern, rf"\1{region}\3", self.trainer.image_uri)
         self.inference.image_uri = re.sub(pattern, rf"\1{region}\3", self.inference.image_uri)
 
-    def set_aws_account_id(self, account_id: str) -> None:
+    def set_account_id(self, account_id: str) -> None:
         self.role_arn = f"arn:aws:iam::{account_id}:role/AgentGPT-BetaTester"
 
     def to_dict(self) -> dict:

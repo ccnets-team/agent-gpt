@@ -3,8 +3,9 @@
 typer
 msgpack
 pyyaml
-boto3
+requests
 uvicorn
 fastapi
-sagemaker
 gymnasium
+boto3
+sagemaker
