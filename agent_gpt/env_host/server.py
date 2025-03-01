@@ -7,17 +7,17 @@ class EnvServer(EnvAPI):
     It integrates the launching functionality so that you can simply call
     EnvServer.launch(...) to start a server.
     """
-    def __init__(self, env="gym", env_id=None, entry_point=None, host="0.0.0.0", port=8000):
-        if env.lower() == "unity":
+    def __init__(self, env_type="gym", env_id=None, entry_point=None, host="0.0.0.0", port=8000):
+        if env_type.lower() == "unity":
             from ..wrappers.unity_env import UnityEnv
             env_cls = UnityEnv
             print("[serve.py] Using UnityEnv wrapper.")
-        elif env.lower() == "gym":
+        elif env_type.lower() == "gym":
             from ..wrappers.gym_env import GymEnv
             env_cls = GymEnv
             print("[serve.py] Using GymEnv wrapper.")
         else:
-            raise ValueError(f"Unknown env type '{env}'. Choose 'unity' or 'gym'.")
+            raise ValueError(f"Unknown env type '{env_type}'. Choose 'unity' or 'gym'.")
 
         # Optionally call the parent's initializer
         super().__init__(env_cls, host, port)
@@ -47,12 +47,12 @@ class EnvServer(EnvAPI):
         # Additional logic would be needed here to stop the uvicorn server, etc.
 
     @classmethod
-    def launch(cls, env: str, env_id: str = None, entry_point: str = None, ip: str = None, host: str = "0.0.0.0", port: int = 8000) -> "EnvServer":
+    def launch(cls, env_type: str, env_id: str = None, entry_point: str = None, ip: str = None, host: str = "0.0.0.0", port: int = 8000) -> "EnvServer":
         """
         Create an EnvServer instance, launch its server in a separate thread,
         and set the public URL (defaulting to http://host:port).
         """
-        instance = cls(env, env_id, entry_point, host, port)
+        instance = cls(env_type, env_id, entry_point, host, port)
         instance.run_thread_server()
         # Default ip to host if not provided
         if ip is None:

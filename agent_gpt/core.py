@@ -31,6 +31,13 @@ class AgentGPT:
     using tools in the **`env_host`** directory. 
     The environment server (e.g. a FastAPI app) should already be accessible 
     by the time you run `train` or `infer`.
+
+    Container Image URI:
+    ----------------------
+    The image URI is generated dynamically using `get_image_uri()`,  
+    which builds the URI based on the configured region and service type  
+    ("trainer" or "inference"). This ensures that the image used aligns  
+    with the user's region and settings.
     """
 
     def __init__(self):
@@ -44,13 +51,13 @@ class AgentGPT:
         """
         Launch a SageMaker training job for your AgentGPT environment.
 
-        This method packages up your environment, hyperparameters, 
-        and Docker image references (from sagemaker_config) into a 
-        SageMaker Estimator. Then it calls `estimator.fit()` to run
-        a cloud-based training job.
+        This method packages up your environment, hyperparameters, and the dynamically
+        computed Docker image reference (using `get_image_uri("trainer")` from the 
+        SageMakerConfig) into a SageMaker Estimator. Then it calls `estimator.fit()` 
+        to run a cloud-based training job.
 
         **Usage Example**::
-        
+
             from agent_gpt import AgentGPT
             from src.config.aws_config import SageMakerConfig
             from src.config.hyperparams import Hyperparameters
@@ -61,24 +68,32 @@ class AgentGPT:
             # Kick off training in the cloud
             estimator = AgentGPT.train(sagemaker_cfg, hyperparams)
             print("Training job submitted:", estimator.latest_training_job.name)
-        
+
         :param sagemaker_config: 
-            A SageMakerConfig containing details like `role_arn`, 
-            `image_uri`, `instance_type`, etc.
+            A SageMakerConfig containing details like `role_arn`, `region`, and other 
+            configuration settings. The container image URI is computed via 
+            `sagemaker_config.get_image_uri("trainer")`.
         :param hyperparameters:
-            A Hyperparameters object with fields needed to configure
-            environment, RL training, and additional settings.
+            A Hyperparameters object with fields needed to configure environment, RL training, 
+            and additional settings.
         :return:
             A `sagemaker.estimator.Estimator` instance that has started 
             the training job. You can query `.latest_training_job` for status.
         """
+        
         _validate_sagemaker(sagemaker_config)
         _validate_hyperparams(hyperparameters)
 
-        hyperparams_dict = hyperparameters.to_dict()
         trainer_config = sagemaker_config.trainer
+        
+        # Check for default output_path
+        if trainer_config.output_path == trainer_config.DEFAULT_OUTPUT_PATH:
+            raise ValueError("Invalid output_path: Please update the SageMaker trainer output_path to a valid S3 location.")
+        
+        image_uri = sagemaker_config.get_image_uri("trainer")
+        hyperparams_dict = hyperparameters.to_dict()
         estimator = Estimator(
-            image_uri=trainer_config.image_uri,
+            image_uri=image_uri,
             role=sagemaker_config.role_arn,
             instance_type=trainer_config.instance_type,
             instance_count=trainer_config.instance_count,
@@ -95,14 +110,16 @@ class AgentGPT:
         """
         Creates (or reuses) a SageMaker real-time inference endpoint for AgentGPT.
 
-        This method uses your pre-trained model artifacts, the container image (`image_uri`),
-        and other configuration details from `sagemaker_config` to build and/or deploy a SageMaker Endpoint.
-        The `endpoint_name` field in the configuration is used to determine the name of the deployed
-        inference endpoint. If not provided, a default name is auto-generated.
+        This method uses your pre-trained model artifacts, and the container image URI
+        is determined dynamically by calling `get_image_uri("inference")` on the SageMakerConfig.
+        It uses other configuration details (such as model_data, instance type, and endpoint name)
+        from the SageMakerConfig to build and/or deploy a SageMaker Endpoint. The `endpoint_name`
+        field is used to determine the name of the deployed inference endpoint. If not provided,
+        a default name is auto-generated.
 
         Workflow:
           1) A `Model` object is created referencing your model data in S3 (e.g. `model_data`)
-             and the container image (`image_uri`).
+             and the container image (computed via `get_image_uri("inference")`).
           2) The method checks if an endpoint with the specified `endpoint_name` already exists.
           3) If it exists, the existing endpoint is reused by creating a `Predictor`.
           4) Otherwise, the method calls `.deploy(...)` on the `Model` to create a new endpoint.
@@ -110,14 +127,20 @@ class AgentGPT:
 
         :param sagemaker_config:
             Contains the AWS IAM role, model data path, instance type, and the 
-            `endpoint_name` to be used for the deployed inference endpoint.
+            `endpoint_name` to be used for the deployed inference endpoint. The container image 
+            is computed using `sagemaker_config.get_image_uri("inference")`.
         :return:
             A `GPTAPI` instance, preconfigured to call the SageMaker endpoint for inference.
         """
         inference_config = sagemaker_config.inference
+        # Check for default model_data
+        if inference_config.model_data == inference_config.DEFAULT_MODEL_DATA:
+            raise ValueError("Invalid model_data: Please update the SageMaker inference model_data to a valid S3 location.")
+        
+        image_uri = sagemaker_config.get_image_uri("inference")
         model = Model(
             role=sagemaker_config.role_arn,
-            image_uri=inference_config.image_uri,
+            image_uri=image_uri,
             model_data=inference_config.model_data
         )
         print("Created SageMaker Model:", model)
@@ -177,10 +200,11 @@ def _validate_sagemaker(sagemaker_config: SageMakerConfig):
 
 def _validate_hyperparams(params: Hyperparameters):
     """
-    Validate required hyperparameters (env_id, env_endpoint, etc.).
-    Raises ValueError if missing or invalid.
+    Validate required hyperparameters (env_id, env_hosts, etc.).
+    Raises ValueError if any required parameter is missing or invalid.
     """
     if params.env_id is None:
-        raise ValueError("Must provide an environment ID.")
-    if params.env_hosts is None:
-        raise ValueError("Must provide an environment URL.")
+        raise ValueError("Environment ID must be provided.")
+    if not params.env_hosts:
+        raise ValueError("No environment hosts specified in 'env_hosts'. \
+            Please run 'agent-gpt simulate ...' first to set up an environment.")

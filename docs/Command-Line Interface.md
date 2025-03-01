@@ -69,7 +69,7 @@ Output example:
 ```bash
 Current configuration:
 environment:
-  envs:
+  simulators:
     cloud1:
       dockerfile:
         additional_dependencies: []
@@ -157,7 +157,6 @@ network:
 sagemaker:
   inference:
     endpoint_name: agent-gpt-inference-endpoint
-    image_uri: 533267316703.dkr.ecr.ap-northeast-2.amazonaws.com/agent-gpt-inference:latest
     instance_count: 1
     instance_type: ml.t2.medium
     max_run: 3600
@@ -165,7 +164,6 @@ sagemaker:
   region: ap-northeast-2
   role_arn: arn:aws:iam::<your-account-id>:role/SageMakerExecutionRole
   trainer:
-    image_uri: 533267316703.dkr.ecr.ap-northeast-2.amazonaws.com/agent-gpt-trainer:latest
     instance_count: 1
     instance_type: ml.g5.4xlarge
     max_run: 3600

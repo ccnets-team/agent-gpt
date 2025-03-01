@@ -53,9 +53,6 @@ def parse_arguments(parser):
     parser.add_argument("--role-arn", type=str,
                         default="arn:aws:iam::<your-account-id>:role/<YourSageMakerRole>",
                         help="The AWS IAM Role ARN for SageMaker.")
-    parser.add_argument("--image-uri", type=str,
-                        default="agentgpt.ccnets.org",
-                        help="The ECR image URI for the inference container.")
     parser.add_argument("--model-data", type=str,
                         default="s3://<your-bucket>/agent-gpt-trainer/output/model.tar.gz",
                         help="S3 path to the model data tarball.")
@@ -80,7 +77,6 @@ def main():
     parser = argparse.ArgumentParser(description="AgentGPT Gym Tester")
     args = parse_arguments(parser)
     inference_config = InferenceConfig(
-        image_uri=args.image_uri,
         model_data=args.model_data,
         instance_type=args.instance_type,
         endpoint_name=args.endpoint_name

@@ -2,11 +2,12 @@ import logging
 logging.getLogger().setLevel(logging.WARNING)
 
 import os
+import re
 import yaml
 import typer
 import requests
 from typing import Optional, List
-from .config.environment import MultiEnvironmentConfig 
+from .config.simulator import SimulatorRegistry 
 from .config.network import NetworkConfig
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
@@ -200,19 +201,19 @@ def config(ctx: typer.Context):
     stored_overrides = load_config()
 
     # Instantiate default configuration objects.
-    default_environment = MultiEnvironmentConfig()
+    default_simulator_registry = SimulatorRegistry()
     default_network = NetworkConfig().from_network_info()
     default_hyperparams = Hyperparameters()
     default_sagemaker = SageMakerConfig()
 
     # Apply stored overrides.
-    default_environment.set_config(**stored_overrides.get("environment", {}))
+    default_simulator_registry.set_config(**stored_overrides.get("simulator_registry", {}))
     default_network.set_config(**stored_overrides.get("network", {}))
     default_hyperparams.set_config(**stored_overrides.get("hyperparams", {}))
     default_sagemaker.set_config(**stored_overrides.get("sagemaker", {}))
 
     # Use the updated defaults as our working configuration.
-    new_environment = default_environment
+    new_simulators = default_simulator_registry
     new_network = default_network
     new_hyperparams = default_hyperparams 
     new_sagemaker = default_sagemaker 
@@ -228,13 +229,13 @@ def config(ctx: typer.Context):
         # then unpack that item so that:
         #   key becomes the inner attribute (e.g. "exploration")
         #   value becomes its nested dict (e.g. {'continuous': {'mu': 32}})
-        if key in ("environment", "hyperparams", "sagemaker", "network") and isinstance(value, dict) and len(value) == 1:
+        if key in ("simulator_registry", "hyperparams", "sagemaker", "network") and isinstance(value, dict) and len(value) == 1:
             inner_key, inner_value = list(value.items())[0]
             key = inner_key
             value = inner_value
 
         # Otherwise, update all config objects that have the attribute.
-        for obj in [new_environment, new_network, new_hyperparams, new_sagemaker]:
+        for obj in [new_simulators, new_network, new_hyperparams, new_sagemaker]:
             if not hasattr(obj, key):
                 continue
             attr = getattr(obj, key)
@@ -284,7 +285,7 @@ def config(ctx: typer.Context):
             ))
 
     full_config = {
-        "environment": default_environment.to_dict(),
+        "simulator_registry": default_simulator_registry.to_dict(),
         "network": default_network.to_dict(),
         "hyperparams": default_hyperparams.to_dict(),
         "sagemaker": default_sagemaker.to_dict(),
@@ -292,8 +293,8 @@ def config(ctx: typer.Context):
     save_config(full_config)
 
 def get_default(section: str) -> dict:
-    if section == "environment":
-        return MultiEnvironmentConfig().to_dict()
+    if section == "simulator_registry":
+        return SimulatorRegistry().to_dict()
     elif section == "network":
         return NetworkConfig().from_network_info().to_dict()
     elif section == "hyperparams":
@@ -314,7 +315,7 @@ def clear_config(
     Clear configuration settings. If a section is provided, reset that section to its default.
     Otherwise, delete the entire configuration file from disk.
     """
-    allowed_sections = {"environment", "network", "hyperparams", "sagemaker"}
+    allowed_sections = {"simulator_registry", "network", "hyperparams", "sagemaker"}
     if section:
         if section not in allowed_sections:
             typer.echo(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.")
@@ -345,18 +346,18 @@ def list_config(
     
     # If no configuration exists, generate defaults and save them.
     if not config_data:
-        default_environment = MultiEnvironmentConfig().to_dict()
+        default_simulator_registry = SimulatorRegistry().to_dict()
         default_network = NetworkConfig().from_network_info().to_dict()
         default_hyperparams = Hyperparameters().to_dict()
         default_sagemaker = SageMakerConfig().to_dict()
         config_data = {
-            "environment": default_environment,
+            "simulator_registry": default_simulator_registry,
             "network": default_network,
             "hyperparams": default_hyperparams,
             "sagemaker": default_sagemaker,
         }
         save_config(config_data)
-    
+        
     if section:
         # Retrieve the specified section and print its contents directly.
         section_data = config_data.get(section, {})
@@ -364,14 +365,16 @@ def list_config(
         typer.echo(yaml.dump(section_data, default_flow_style=False))
     else:
         typer.echo("Current configuration:")
-        # Iterate over each top-level section and print them without extra nesting.
-        for sec, sec_data in config_data.items():
-            typer.echo(f"**{sec}**:")
-            typer.echo(yaml.dump(sec_data, default_flow_style=False))
+        # Define the desired order.
+        ordered_sections = ["simulator_registry", "network", "hyperparams", "sagemaker"]
+        for sec in ordered_sections:
+            if sec in config_data:
+                typer.echo(f"**{sec}**:")
+                typer.echo(yaml.dump(config_data[sec], default_flow_style=False))
     
 @app.command("simulate")
 def simulate(
-    env_identifier: str = typer.Argument(
+    simulator_id: str = typer.Argument(
         "local",
         help="Environment identifier to simulate. Default: 'local'."
     ),
@@ -384,28 +387,27 @@ def simulate(
     Launch an environment simulation locally using the specified simulator and ports.
 
     Examples:
-      agent-gpt simulate gym 80
-      agent-gpt simulate local 80
-      agent-gpt simulate unity 8080
+      agent-gpt simulate gym 5000
+      agent-gpt simulate local 8080, 8081
+      agent-gpt simulate unity 80, 81, 82, 83
 
     This command starts a simulation server for the specified environment on each provided port.
     Press Ctrl+C (or CTRL+C on Windows) to terminate the simulation.
     """
-
     # Load configuration to get the network settings.
     config_data = load_config()
     network_conf = config_data.get("network", {})
     host = network_conf.get("host", "localhost")
     ip = network_conf.get("public_ip", network_conf.get("internal_ip", "127.0.0.1"))
 
-    multi_environment_conf = config_data.get("environment", {}).get("envs", {})
-    environment_conf = multi_environment_conf.get(env_identifier, {})
-    env = environment_conf.get("env")
+    simulator_conf = config_data.get("simulator_registry", {}).get("simulators", {})
+    environment_conf = simulator_conf.get(simulator_id, {})
+    env_type = environment_conf.get("env_type")
     env_id = environment_conf.get("env_id")
     entry_point = environment_conf.get("entry_point")
     host_type = environment_conf.get("host_type")
     
-    if env == "unity" and not entry_point:
+    if env_type == "unity" and not entry_point:
         typer.echo("Unity environment requires an entry point to launch the simulation.")
         raise typer.Exit(code=1)
     
@@ -414,7 +416,7 @@ def simulate(
         # Get the port mappings; if a port is not mapped, use the provided port directly.
         for port in ports:
             launcher = EnvServer.launch(
-                env=env,
+                env_type=env_type,
                 env_id=env_id,
                 entry_point=entry_point,
                 ip=ip,
@@ -423,18 +425,16 @@ def simulate(
             )
             launchers.append(launcher)
 
-        import sys
-        if sys.platform.startswith("win"):
-            typer.echo("Simulation running. Press CTRL+C to terminate the simulation...")
-        else:
-            typer.echo("Simulation running. Press Ctrl+C to terminate the simulation...")
+        # Inform the user that the simulation command will block this terminal.
+        typer.echo("Simulation running. This terminal is now dedicated to simulation; open another terminal for AgentGPT training.") 
+        typer.echo("Press Ctrl+C to terminate the simulation.")
 
         try:
             while any(launcher.server_thread.is_alive() for launcher in launchers):
                 for launcher in launchers:
                     launcher.server_thread.join(timeout=0.5)
         except KeyboardInterrupt:
-            typer.echo("Shutdown requested, stopping all servers...")
+            typer.echo("Shutdown requested, stopping all local servers...")
             for launcher in launchers:
                 launcher.shutdown()
             for launcher in launchers:
@@ -453,41 +453,28 @@ def initialize_sagemaker_access(
     email: Optional[str] = None
 ):
     """
-    Initialize access for Amazon SageMaker by registering your AWS account details.
+    Initialize SageMaker access by registering your AWS account details.
+
+    - Validates the role ARN format.
+    - Extracts your AWS account ID from the role ARN.
+    - Sends the account ID, region, and service type to the registration endpoint.
     
-    This function sends a POST request to the Beta API endpoint to register your 
-    account and configure the necessary ECR repository policies for SageMaker operations.
-    This registration is required to launch SageMaker training or inference jobs.
-    
-    When executed, it performs the following:
-      - Extracts your AWS account ID from the provided role ARN.
-      - Sends the AWS account ID, region, and service type (trainer or inference) 
-        to the Beta API endpoint.
-      - Optionally includes your email address.
-      - On success, returns True; otherwise, returns False.
-    
-    Parameters:
-        role_arn (str): The ARN of the role associated with your AWS account.
-                        The account ID is extracted from this ARN.
-        region (str): The AWS region (e.g., "us-east-1" or "ap-northeast-2").
-        service_type (str): The service type needed, either "trainer" or "inference".
-        email (Optional[str]): Your email address (optional).
-    
-    Returns:
-        bool: True if initialization is successful, False otherwise.
+    Returns True on success; otherwise, returns False.
     """
-    try:
-        # Extract the AWS account ID from the role ARN (format: arn:aws:iam::<account_id>:role/RoleName)
-        account_id = role_arn.split(":")[4]
-    except IndexError:
-        typer.echo("Invalid role ARN format. Unable to extract account ID.")
+    # Validate the role ARN format.
+    if not re.match(r"^arn:aws:iam::\d{12}:role/[\w+=,.@-]+$", role_arn):
+        typer.echo("Invalid role ARN format.")
         return False
 
-    typer.echo(f"Initializing SageMaker access with account ID: {account_id} ...")
+    try:
+        account_id = role_arn.split(":")[4]
+    except IndexError:
+        typer.echo("Invalid role ARN. Unable to extract account ID.")
+        return False
+
+    typer.echo("Initializing access...")
     
-    beta_register_url = "https://agentgpt-beta.ccnets.org"  # API endpoint URL
-    
-    # Build the payload data with the required fields.
+    beta_register_url = "https://agentgpt-beta.ccnets.org"
     payload = {
         "clientAccountId": account_id,
         "region": region,
@@ -496,37 +483,33 @@ def initialize_sagemaker_access(
     if email:
         payload["Email"] = email
     
-    # Set the headers for the POST request.
     headers = {'Content-Type': 'application/json'}
     
     try:
         response = requests.post(beta_register_url, json=payload, headers=headers)
-    except Exception as e:
-        typer.echo(f"Error sending request: {e}")
+    except Exception:
+        typer.echo("Request error.")
         return False
 
-    typer.echo(f"Status Code: {response.status_code}")
-    typer.echo(f"Response Body: {response.text}")
-
     if response.status_code != 200:
-        typer.echo("Error initializing SageMaker access.")
+        typer.echo("Initialization failed.")
         return False
 
     if response.text.strip() in ("", "null"):
-        typer.echo("Received empty JSON response, assuming success.")
+        typer.echo("Initialization succeeded.")
         return True
 
     try:
         data = response.json()
-    except Exception as e:
-        typer.echo("Error parsing JSON from response: " + str(e))
+    except Exception:
+        typer.echo("Initialization failed.")
         return False
 
     if data.get("statusCode") == 200:
-        typer.echo("SageMaker access initialization successful.")
+        typer.echo("Initialization succeeded.")
         return True
     else:
-        typer.echo("SageMaker access initialization failed.")
+        typer.echo("Initialization failed.")
         return False
 
 @app.command()
@@ -545,9 +528,9 @@ def train():
     hyperparams_config = Hyperparameters(**hyperparams_conf)
     
     if not initialize_sagemaker_access(sagemaker_config.role_arn, sagemaker_config.region, service_type="trainer"):
-        typer.echo("Error initializing SageMaker access for AgentGPT training.")
+        typer.echo("AgentGPT training failed.")
         raise typer.Exit(code=1)
-
+    
     typer.echo("Submitting training job...")
     estimator = AgentGPT.train(sagemaker_config, hyperparams_config)
     typer.echo(f"Training job submitted: {estimator.latest_training_job.name}")

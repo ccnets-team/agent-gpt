@@ -17,70 +17,70 @@ class K8SManifestConfig:
             self.deployment_name = "agent-gpt-cloud-env-k8s"
 
 @dataclass
-class EnvironmentConfig:
-    env: str = "gym"               # Environment simulator: 'gym', 'unity', or 'custom'
+class SimulatorConfig:
     host_type: str = "cloud"       # Host type: 'local' or 'cloud'
     host_name: str = ""
+    env_type: str = "gym"               # Environment simulator: 'gym', 'unity', or 'custom'
     env_id: Optional[str] = None   # Optional environment identifier
+    env_path: str = ""             # Path to the environment file for docker build
     entry_point: Optional[str] = None
+    
     ports: List[int] = field(default_factory=lambda: [80])  # Local simulation ports
 
-    env_path: str = ""             # Path to the environment file for docker build
     dockerfile: DockerfileConfig = field(default_factory=DockerfileConfig)
     k8s_manifest: K8SManifestConfig = field(default_factory=K8SManifestConfig)
     
     # (You may include create_dockerfile/manifest methods as needed.)
     def create_dockerfile(self):
         from ..utils.deployment import create_dockerfile as _create_dockerfile
-        _create_dockerfile(self.env_path, self.env, self.env_id, self.entry_point, self.dockerfile)
+        _create_dockerfile(self.env_path, self.env_type, self.env_id, self.entry_point, self.dockerfile)
 
     def create_k8s_manifest(self):
         from ..utils.deployment import create_k8s_manifest as _create_k8s_manifest
         _create_k8s_manifest(self.env_path, self.ports, self.k8s_manifest)
 
 @dataclass
-class MultiEnvironmentConfig:
-    # A mapping from environment identifier to its corresponding EnvironmentConfig.
-    envs: Dict[str, EnvironmentConfig] = field(default_factory=dict)
+class SimulatorRegistry:
+    # A mapping from simulator identifier to its corresponding SimulatorConfig.
+    simulators: Dict[str, SimulatorConfig] = field(default_factory=dict)
         
     def __post_init__(self):
         public_ip = get_network_info()['public_ip']
-        if "local" not in self.envs:
-            self.envs["local"] = EnvironmentConfig(
+        if "local" not in self.simulators:
+            self.simulators["local"] = SimulatorConfig(
                 host_type="local", 
                 host_name="http://" + public_ip,  
-                env="gym"
+                env_type="gym"
             )
     
-    def set_env(self, env_identifier: str, host_type: str = "local", host_name: str = None, env: str = "gym") -> None:
+    def set_simulator(self, simulator_id: str, host_type: str = "local", host_name: str = None, env_type: str = "gym") -> None:
         valid_host_types = ["cloud", "remote", "local"]
         
-        if env_identifier in self.envs:
-            print(f"Warning: Environment config already exists for identifier '{env_identifier}'")
+        if simulator_id in self.simulators:
+            print(f"Warning: Simulator config already exists for identifier '{simulator_id}'")
             return
         if host_type not in valid_host_types:
             print(f"Warning: host_type must be one of {valid_host_types}. Given: {host_type}")
             return
-        self.envs[env_identifier] = EnvironmentConfig(
+        self.simulators[simulator_id] = SimulatorConfig(
             host_type=host_type, 
             host_name=host_name, 
-            env=env
+            env_type=env_type
         )
     
-    def del_env(self, env_identifier: str) -> None:
-        if env_identifier in self.envs:
-            del self.envs[env_identifier]
+    def del_simulator(self, simulator_id: str) -> None:
+        if simulator_id in self.simulators:
+            del self.simulators[simulator_id]
         else:
-            print(f"Warning: No environment config found for identifier '{env_identifier}'")
+            print(f"Warning: No simulator config found for identifier '{simulator_id}'")
     
     def to_dict(self) -> dict:
-        # Return a flat dictionary of env configs.
         return asdict(self)
         
     def set_config(self, **kwargs) -> None:
         """
-        Update nested environment configurations.
-        Expects a key "envs" in kwargs whose value is a dict mapping environment
+        Update nested simulator configurations.
+        Expects a key "simulators" in kwargs whose value is a dict mapping simulator
         identifiers to their updates.
         """
         def update_dataclass(instance, updates: dict):
@@ -94,11 +94,10 @@ class MultiEnvironmentConfig:
                 else:
                     print(f"Warning: {instance.__class__.__name__} has no attribute '{key}'")
         
-        envs_data = kwargs.get("envs", {})
-        for env_identifier, env_updates in envs_data.items():
-            # If the environment doesn't exist yet, create a new default instance.
-            if env_identifier not in self.envs:
-                self.envs[env_identifier] = EnvironmentConfig()  # all defaults applied
-                print(f"Created new environment config for identifier '{env_identifier}'")
-            env_config = self.envs.get(env_identifier)
-            update_dataclass(env_config, env_updates)                
+        simulators_data = kwargs.get("simulators", {})
+        for simulator_id, simulator_updates in simulators_data.items():
+            if simulator_id not in self.simulators:
+                self.simulators[simulator_id] = SimulatorConfig()  # all defaults applied
+                print(f"Created new simulator config for identifier '{simulator_id}'")
+            simulator_config = self.simulators.get(simulator_id)
+            update_dataclass(simulator_config, simulator_updates)

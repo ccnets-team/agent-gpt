@@ -1,19 +1,18 @@
 from dataclasses import dataclass, field, asdict
 from typing import Optional
-import re
 
 @dataclass
 class TrainerConfig:
-    image_uri: str = "533267316703.dkr.ecr.ap-northeast-2.amazonaws.com/agent-gpt-trainer:latest"
-    output_path: Optional[str] = "s3://your-bucket/output/"
+    DEFAULT_OUTPUT_PATH = "s3://your-bucket/input/"
+    output_path: Optional[str] = DEFAULT_OUTPUT_PATH
     instance_type: str = "ml.g5.4xlarge"
     instance_count: int = 1
     max_run: int = 3600
 
 @dataclass
 class InferenceConfig:
-    image_uri: str = "533267316703.dkr.ecr.ap-northeast-2.amazonaws.com/agent-gpt-inference:latest"
-    model_data: Optional[str] = "s3://your-bucket/model.tar.gz"
+    DEFAULT_MODEL_DATA = "s3://your-bucket/model.tar.gz"
+    model_data: Optional[str] = DEFAULT_MODEL_DATA
     endpoint_name: Optional[str] = "agent-gpt-inference-endpoint"
     instance_type: str = "ml.t2.medium"
     instance_count: int = 1
@@ -32,18 +31,16 @@ class SageMakerConfig:
             self.trainer = TrainerConfig(**self.trainer)
         if isinstance(self.inference, dict):
             self.inference = InferenceConfig(**self.inference)
-    
-    def set_region(self, region: str) -> None:
-        allowed_regions = ["us-east-1", "ap-northeast-2"]  # ap-northeast-2 corresponds to Seoul
-        if region not in allowed_regions:
-            raise ValueError(f"Region {region} is not allowed. Allowed regions: {allowed_regions}")
+
+    def get_image_uri(self, service_type: str, version: str = "latest") -> str:
+        allowed_regions = ["us-east-1", "ap-northeast-2"]  # Supported regions
+        if self.region not in allowed_regions:
+            raise ValueError(f"Region {self.region} is not allowed. Allowed regions: {allowed_regions}")
+        if service_type not in ("trainer", "inference"):
+            raise ValueError("service_type must be either 'trainer' or 'inference'")
         
-        self.region = region
-        # This regex pattern matches the region between 'dkr.ecr.' and '.amazonaws.com'
-        pattern = r"(dkr\.ecr\.)([\w-]+)(\.amazonaws\.com)"
-        
-        self.trainer.image_uri = re.sub(pattern, rf"\1{region}\3", self.trainer.image_uri)
-        self.inference.image_uri = re.sub(pattern, rf"\1{region}\3", self.inference.image_uri)
+        # Construct the image URI dynamically based on region and service type.
+        return f"533267316703.dkr.ecr.{self.region}.amazonaws.com/agent-gpt-{service_type}:{version}"
 
     def to_dict(self) -> dict:
         """Returns a nested dictionary of the full SageMaker configuration."""

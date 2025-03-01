@@ -1,6 +1,6 @@
 import os
 import logging
-from ..config.environment import DockerfileConfig, K8SManifestConfig
+from ..config.simulator import DockerfileConfig, K8SManifestConfig
 from typing import List
 
 logger = logging.getLogger(__name__)
