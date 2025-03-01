@@ -360,12 +360,12 @@ def get_default(section: str) -> dict:
 def clear_config(
     section: Optional[str] = typer.Argument(
         None,
-        help="Optional configuration section to clear (envrionment, network, hyperparams, sagemaker). If not provided, clears the entire configuration."
+        help="Optional configuration section to clear (environment, network, hyperparams, sagemaker). If not provided, clears the entire configuration."
     )
 ):
     """
     Clear configuration settings. If a section is provided, reset that section to its default.
-    Otherwise, clear all configuration and restore defaults.
+    Otherwise, delete the entire configuration file from disk.
     """
     allowed_sections = {"environment", "network", "hyperparams", "sagemaker"}
     if section:
@@ -379,16 +379,10 @@ def clear_config(
     else:
         if os.path.exists(DEFAULT_CONFIG_PATH):
             os.remove(DEFAULT_CONFIG_PATH)
-            typer.echo("Entire configuration cache deleted.")
-        default_config = {
-            "environment": MultiEnvironmentConfig().to_dict(),
-            "network": NetworkConfig().from_network_info().to_dict(),
-            "hyperparams": Hyperparameters().to_dict(),
-            "sagemaker": SageMakerConfig().to_dict(),
-        }
-        save_config(default_config)
-        typer.echo("Default configuration restored for all sections.")
-
+            typer.echo("Entire configuration file deleted from disk.")
+        else:
+            typer.echo("No configuration file found to delete.")
+    
 @app.command("list")
 def list_config(
     section: Optional[str] = typer.Argument(
@@ -401,6 +395,20 @@ def list_config(
     only that part of the configuration is displayed.
     """
     config_data = load_config()
+    
+    # If no configuration exists, generate defaults and save them.
+    if not config_data:
+        default_environment = MultiEnvironmentConfig().to_dict()
+        default_network = NetworkConfig().from_network_info().to_dict()
+        default_hyperparams = Hyperparameters().to_dict()
+        default_sagemaker = SageMakerConfig().to_dict()
+        config_data = {
+            "environment": default_environment,
+            "network": default_network,
+            "hyperparams": default_hyperparams,
+            "sagemaker": default_sagemaker,
+        }
+        save_config(config_data)
     
     if section:
         # Retrieve the specified section and print its contents directly.
