@@ -1,19 +1,17 @@
 import logging
-logging.getLogger("sagemaker.config").setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.WARNING)
 
 import os
 import yaml
 import typer
 import requests
-import json
-from typing import List
-from .core import AgentGPT
+from typing import Optional, List
 from .config.environment import MultiEnvironmentConfig 
 from .config.network import NetworkConfig
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
 from .env_host.server import EnvServer
-from typing import Optional
+from .core import AgentGPT
 
 app = typer.Typer()
 
@@ -152,57 +150,6 @@ def recursive_update(target, changes: dict, prefix="") -> tuple:
                     diffs.append((current_key, old_val, new_val))
 
     return changed, diffs
-
-@app.command("register")
-def register(
-    account_id: str = typer.Argument(..., help="AWS account ID of the beta tester"),
-    email: Optional[str] = typer.Option(None, help="Optional email address of the beta tester")
-):
-    """
-    Register a new user account.
-    
-    This command sends a POST request to the API endpoint to register the beta tester.
-    The API updates the trust policy of the AgentGPT-BetaTester role.
-    """
-    typer.echo(f"Registering beta tester with account ID: {account_id} ...")
-    
-    # Set the API endpoint URL (using non-custom API for now)
-    url = "https://agentgpt-beta.ccnets.org"
-    # Build the payload data with the required clientAccountId and optional email
-    payload = {
-        "clientAccountId": account_id,
-    }
-    if email:
-        payload["Email"] = email
-    
-    # Set the headers for the POST request
-    headers = {'Content-Type': 'application/json'}
-    
-    try:
-        # Send the POST request to the API Gateway endpoint
-        response = requests.post(url, json=payload, headers=headers)
-        
-        # Print the response status and body
-        typer.echo(f"Status Code: {response.status_code}")
-        typer.echo(f"Response Body: {response.text}")
-        
-        if response.status_code == 200:
-            # Parse the response JSON
-            response_data = response.json()
-            if response_data.get("statusCode") == 200:
-                typer.echo("Registration successful.")
-                stored_overrides = load_config()
-                default_sagemaker = SageMakerConfig()
-                default_sagemaker.set_config(**stored_overrides.get("sagemaker", {}))
-                default_sagemaker.set_account_id(account_id)
-                stored_overrides["sagemaker"] = default_sagemaker.to_dict()
-                save_config(stored_overrides)
-            else:
-                typer.echo("Registration failed.")
-        else:
-            typer.echo("Error registering beta tester connection.")
-    except Exception as e:  
-        typer.echo(f"Error sending request: {e}")
 
 @app.command("config", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def config(ctx: typer.Context):
@@ -382,7 +329,7 @@ def clear_config(
             typer.echo("Entire configuration file deleted from disk.")
         else:
             typer.echo("No configuration file found to delete.")
-    
+
 @app.command("list")
 def list_config(
     section: Optional[str] = typer.Argument(
@@ -498,7 +445,90 @@ def simulate(
             typer.echo(f" - {launcher.public_ip}:{launcher.port}")
     else:
         typer.echo("Other host types are not supported yet.")
-        
+
+def initialize_sagemaker_access(
+    role_arn: str,
+    region: str,
+    service_type: str,  # expected to be "trainer" or "inference"
+    email: Optional[str] = None
+):
+    """
+    Initialize access for Amazon SageMaker by registering your AWS account details.
+    
+    This function sends a POST request to the Beta API endpoint to register your 
+    account and configure the necessary ECR repository policies for SageMaker operations.
+    This registration is required to launch SageMaker training or inference jobs.
+    
+    When executed, it performs the following:
+      - Extracts your AWS account ID from the provided role ARN.
+      - Sends the AWS account ID, region, and service type (trainer or inference) 
+        to the Beta API endpoint.
+      - Optionally includes your email address.
+      - On success, returns True; otherwise, returns False.
+    
+    Parameters:
+        role_arn (str): The ARN of the role associated with your AWS account.
+                        The account ID is extracted from this ARN.
+        region (str): The AWS region (e.g., "us-east-1" or "ap-northeast-2").
+        service_type (str): The service type needed, either "trainer" or "inference".
+        email (Optional[str]): Your email address (optional).
+    
+    Returns:
+        bool: True if initialization is successful, False otherwise.
+    """
+    try:
+        # Extract the AWS account ID from the role ARN (format: arn:aws:iam::<account_id>:role/RoleName)
+        account_id = role_arn.split(":")[4]
+    except IndexError:
+        typer.echo("Invalid role ARN format. Unable to extract account ID.")
+        return False
+
+    typer.echo(f"Initializing SageMaker access with account ID: {account_id} ...")
+    
+    beta_register_url = "https://agentgpt-beta.ccnets.org"  # API endpoint URL
+    
+    # Build the payload data with the required fields.
+    payload = {
+        "clientAccountId": account_id,
+        "region": region,
+        "serviceType": service_type
+    }
+    if email:
+        payload["Email"] = email
+    
+    # Set the headers for the POST request.
+    headers = {'Content-Type': 'application/json'}
+    
+    try:
+        response = requests.post(beta_register_url, json=payload, headers=headers)
+    except Exception as e:
+        typer.echo(f"Error sending request: {e}")
+        return False
+
+    typer.echo(f"Status Code: {response.status_code}")
+    typer.echo(f"Response Body: {response.text}")
+
+    if response.status_code != 200:
+        typer.echo("Error initializing SageMaker access.")
+        return False
+
+    if response.text.strip() in ("", "null"):
+        typer.echo("Received empty JSON response, assuming success.")
+        return True
+
+    try:
+        data = response.json()
+    except Exception as e:
+        typer.echo("Error parsing JSON from response: " + str(e))
+        return False
+
+    if data.get("statusCode") == 200:
+        typer.echo("SageMaker access initialization successful.")
+        return True
+    else:
+        typer.echo("SageMaker access initialization failed.")
+        return False
+
 @app.command()
 def train():
     """
@@ -513,6 +543,10 @@ def train():
 
     sagemaker_config = SageMakerConfig(**sagemaker_conf)
     hyperparams_config = Hyperparameters(**hyperparams_conf)
+    
+    if not initialize_sagemaker_access(sagemaker_config.role_arn, sagemaker_config.region, service_type="trainer"):
+        typer.echo("Error initializing SageMaker access for AgentGPT training.")
+        raise typer.Exit(code=1)
 
     typer.echo("Submitting training job...")
     estimator = AgentGPT.train(sagemaker_config, hyperparams_config)
@@ -528,6 +562,10 @@ def infer():
 
     sagemaker_conf = config_data.get("sagemaker", {})
     sagemaker_config = SageMakerConfig(**sagemaker_conf)
+
+    if not initialize_sagemaker_access(sagemaker_config.role_arn, sagemaker_config.region, service_type="inference"):
+        typer.echo("Error initializing SageMaker access for AgentGPT inference.")
+        raise typer.Exit(code=1)
 
     typer.echo("Deploying inference endpoint...")
     
