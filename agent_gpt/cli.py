@@ -16,17 +16,31 @@ from .core import AgentGPT
 
 app = typer.Typer()
 
+try:    
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:
+    from importlib_metadata import version, PackageNotFoundError
+
+try:
+    CURRENT_AGENT_GPT_VERSION = version("agent-gpt-aws")  # Replace with your package name
+except PackageNotFoundError:
+    CURRENT_AGENT_GPT_VERSION = "unknown"  # Fallback if the package is not installed
+
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.agent_gpt/config.yaml")
 
 def load_config() -> dict:
-    """Load the saved configuration overrides."""
     if os.path.exists(DEFAULT_CONFIG_PATH):
         with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+            config = yaml.safe_load(f) or {}
+        # If the stored version doesn't match, clear the config file
+        if config.get("version") != CURRENT_AGENT_GPT_VERSION:
+            os.remove(DEFAULT_CONFIG_PATH)
+            config = {}  # Start with an empty config
+        return config
     return {}
 
 def save_config(config_data: dict) -> None:
-    """Save configuration overrides to disk."""
+    config_data["version"] = CURRENT_AGENT_GPT_VERSION
     os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
     with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(config_data, f)
