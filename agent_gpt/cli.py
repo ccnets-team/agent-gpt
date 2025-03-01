@@ -403,13 +403,16 @@ def list_config(
     config_data = load_config()
     
     if section:
-        # Use dict.get() to retrieve the specified section with a default empty dict.
+        # Retrieve the specified section and print its contents directly.
         section_data = config_data.get(section, {})
         typer.echo(f"Current configuration for '{section}':")
-        typer.echo(yaml.dump({section: section_data}))
+        typer.echo(yaml.dump(section_data, default_flow_style=False))
     else:
         typer.echo("Current configuration:")
-        typer.echo(yaml.dump(config_data))
+        # Iterate over each top-level section and print them without extra nesting.
+        for sec, sec_data in config_data.items():
+            typer.echo(f"**{sec}**:")
+            typer.echo(yaml.dump(sec_data, default_flow_style=False))
     
 @app.command("simulate")
 def simulate(
