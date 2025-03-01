@@ -15,6 +15,15 @@ Quick-Reference for Key Fields:
 env_id               : (str)    The name or identifier of your environment 
                                 (e.g. 'CartPole-v1', 'Walker-v2', or custom).
 
+entry_point          : (str)    This parameter specifies the entry point for your environment.
+                                It can be a file path or any other reference that allows the 
+                                registration of a custom environment with env_id. 
+                                By providing an entry_point and env_id, the trainer running 
+                                on the cloud can dynamically register and launch any environment hosted in the container. 
+                                This means the simulator does not need to be rebuilt for each specific environment; 
+                                instead, a single container can host multiple environments, and the 
+                                appropriate one is registered at runtime based on the trainer's input.
+                                
 env_hosts            : (dict)   A dictionary of EnvHost objects (keyed by
                                 strings like 'local', 'remote-aws', etc.) 
                                 that define parallel environment endpoints. 
@@ -125,6 +134,7 @@ class Hyperparameters:
 
     # 1) Client / Env
     env_id: Optional[str] = None
+    entry_point: Optional[str] = None
     env_hosts: dict[str, EnvHost] = field(default_factory=dict)
     use_tensorboard: bool = False
     use_cloudwatch: bool = True

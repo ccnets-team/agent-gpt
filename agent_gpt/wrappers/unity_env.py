@@ -11,11 +11,23 @@ class UnityEnv(Env):
     env_id = None
 
     @classmethod
-    def register(cls, id, entry_point):
-        UnityEnv.entry_point = entry_point
-        UnityEnv.env_id = id
-        print(f"Registering environment: {id} with file path: {entry_point}")
-
+    def register(cls, env_id, entry_point):
+        """
+        Register a Unity environment by setting the class-level entry_point and env_id.
+        If the environment is already registered with the same values, skip updating.
+        Otherwise, update the registration with the new values.
+        """
+        if cls.entry_point is not None:
+            if cls.entry_point != entry_point or cls.env_id != env_id:
+                cls.entry_point = entry_point
+                cls.env_id = env_id
+                print(f"Updating registration for Unity environment: {env_id} with file path: {entry_point}")
+            else:
+                print(f"Unity environment {env_id} already registered with the same file path; skipping registration.")
+        else:
+            cls.entry_point = entry_point
+            cls.env_id = env_id
+            print(f"Registering Unity environment: {env_id} with file path: {entry_point}")
     @staticmethod
     def make(env_id, **kwargs):
         return UnityEnv(env_id=env_id, is_vectorized=False, **kwargs)

@@ -54,12 +54,18 @@ class EnvAPI:
         for env_key in self.environments:
             self.environments[env_key].close()
             del self.environments[env_key]
-    
+        
     def run_server(self):
         """Run the FastAPI/Starlette application via uvicorn."""
         uvicorn.run(self.app, host=self.host, port=self.port, 
                     log_level="warning") # Only show warnings and errors
-        
+            
+    def attempt_register_env(self, env_id: str, entry_point: str):
+        # Register the environment only if both env_id and entry_point are provided.
+        if env_id and entry_point:
+            print(f"Registering environment {env_id} with entry_point {entry_point}")
+            self.env_simulator.register(env_id, entry_point)
+
     def _define_endpoints(self):
         """Attach all routes/endpoints to self.app."""
 
@@ -68,21 +74,25 @@ class EnvAPI:
             """
             Equivalent to /make, but receives and returns msgpack.
             Expects:
-              {
+            {
                 "env_key": str,
                 "env_id": str,
+                "entry_point": str,
                 "render_mode": Optional[str]
-              }
+            }
             """
             raw_body = await request.body()
             try:
                 body_data = msgpack.unpackb(raw_body, raw=False)
                 env_key = body_data["env_key"]
                 env_id = body_data["env_id"]
+                entry_point = body_data["entry_point"]
                 render_mode = body_data.get("render_mode", None)
             except Exception as e:
                 raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
-
+            
+            self.attempt_register_env(env_id, entry_point)
+            
             response_dict = self.make(env_key=env_key, env_id=env_id, render_mode=render_mode)
             packed = msgpack.packb(response_dict, use_bin_type=True)
             return Response(content=packed, media_type="application/x-msgpack")
@@ -92,20 +102,23 @@ class EnvAPI:
             """
             Equivalent to /make_vec, but msgpack-based.
             Expects:
-              {
+            {
                 "env_key": str,
                 "env_id": str,
                 "num_envs": int
-              }
+            }
             """
             raw_body = await request.body()
             try:
                 body_data = msgpack.unpackb(raw_body, raw=False)
                 env_key = body_data["env_key"]
                 env_id = body_data["env_id"]
+                entry_point = body_data["entry_point"]
                 num_envs = int(body_data["num_envs"])
             except Exception as e:
                 raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+
+            self.attempt_register_env(env_id, entry_point)
 
             response_dict = self.make_vec(env_key=env_key, env_id=env_id, num_envs=num_envs)
             packed = msgpack.packb(response_dict, use_bin_type=True)

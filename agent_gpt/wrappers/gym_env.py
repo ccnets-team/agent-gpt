@@ -1,6 +1,5 @@
 # env_wrapper/gym_env.py
 import gymnasium as gym
-from gymnasium.envs import registration
 
 class GymEnv:
     def __init__(self, env, **kwargs):
@@ -35,22 +34,22 @@ class GymEnv:
             self.env = None
         
     @classmethod
-    def register(cls, id, entry_point):
-        
-        # Dynamically retrieve module and class name
-        module_path = cls.__module__    
-        class_name = cls.__name__
-        
-        # Handle `None` for env_id naturally
-        if id is None:
-            id = f"{class_name}"  # Use a default name if env_id is None
-
-        # Additional logic to register the environment
-        print(f"Registering environment: {id} with API URL: {entry_point}")
-
-        # Register environment with dynamic module path and class name, and pass env_endpoint via kwargs
-        registration.register(
-            id=id,
-            entry_point=f"{module_path}:{class_name}",
-            kwargs={"entry_point": entry_point, "id": id}  # Add env_id to kwargs
-        )
+    def register(cls, env_id, entry_point):
+        from gymnasium.envs import registration
+        from gymnasium.error import UnregisteredEnv  # For older versions, it might be gym.error.Error
+        import gymnasium
+        try:
+            # If the spec is found, the environment is already registered.
+            gymnasium.spec(env_id)
+            print(f"Environment {env_id} is already registered; skipping registration.")
+        except UnregisteredEnv:
+            print(f"Registering Gym environment: {env_id} with entry_point: {entry_point}")
+            try:
+                registration.register(
+                    id=env_id,
+                    entry_point=entry_point,
+                    kwargs={"entry_point": entry_point, "id": env_id}
+                )        
+            except Exception as e:
+                print(f"Error registering environment {env_id}: {e}")
+                raise e

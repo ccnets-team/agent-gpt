@@ -5,7 +5,7 @@ from typing import List
 
 logger = logging.getLogger(__name__)
 
-def create_dockerfile(env_path: str, env, env_id, entry_point, dockerfile: DockerfileConfig) -> str:
+def create_dockerfile(env_path: str, env_type, dockerfile: DockerfileConfig) -> str:
     """
     Generates a Dockerfile that packages the required application files and environment,
     based on the provided container configuration. The build context is set as the parent
@@ -30,7 +30,7 @@ def create_dockerfile(env_path: str, env, env_id, entry_point, dockerfile: Docke
 
     # Get the build files.
     # Expect build_files to now have relative paths with the prefix "agent_gpt/".
-    build_files = get_build_files(env)    
+    build_files = get_build_files(env_type)    
     
     # Copy build files based on the paths returned by get_build_files.
     # Assume the source agent_gpt files are in the current working directory's "agent_gpt" folder.
@@ -58,7 +58,7 @@ def create_dockerfile(env_path: str, env, env_id, entry_point, dockerfile: Docke
     logger.info(f"Creating Dockerfile at: {dockerfile_path}")
     logger.info(f" - Project root: {project_root}")
     logger.info(f" - Relative environment file path: {rel_env_path}")
-    logger.info(f" - Env: {env}")
+    logger.info(f" - Env: {env_type}")
 
     # Internal container path where environment files are copied.
     cloud_import_path = "/app/env_files"
@@ -91,7 +91,7 @@ def create_dockerfile(env_path: str, env, env_id, entry_point, dockerfile: Docke
         # Final command to run the environment server.
         f.write("# Final command to run the environment server\n")
         f.write(f'CMD ["python", "{build_files["entrypoint.py"]}", ')
-        f.write(f'"{env}", "{env_id}", "{entry_point}"]\n')
+        f.write(f'"{env_type}"]\n')
 
     logger.info(f"Done. Dockerfile written at: {dockerfile_path}")
     return dockerfile_path

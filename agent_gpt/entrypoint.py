@@ -15,9 +15,7 @@ def main():
     signal.signal(signal.SIGINT, handle_shutdown)
 
     # Use command-line arguments (sys.argv[0] is the script name)
-    env = sys.argv[2] if len(sys.argv) > 2 else "gym"
-    env_id = sys.argv[3] if len(sys.argv) > 3 else None
-    entry_point = sys.argv[4] if len(sys.argv) > 4 else None
+    env_type = sys.argv[2] if len(sys.argv) > 2 else "gym"
 
     host_arg = os.getenv("HOST", "0.0.0.0")
     # Expect PORTS as a comma-separated list, e.g., "8000,8001,8002"
@@ -26,7 +24,7 @@ def main():
 
     servers = []
     for port in port_args:
-        servers.append(EnvServer.launch(env, env_id, entry_point, host_arg, port))
+        servers.append(EnvServer.launch(env_type, host_arg, port))
 
     try:
         # Block until all server threads are done or until a shutdown signal occurs.

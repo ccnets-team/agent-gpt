@@ -7,25 +7,37 @@ class EnvServer(EnvAPI):
     It integrates the launching functionality so that you can simply call
     EnvServer.launch(...) to start a server.
     """
-    def __init__(self, env_type="gym", env_id=None, entry_point=None, host="0.0.0.0", port=8000):
-        if env_type.lower() == "unity":
-            from ..wrappers.unity_env import UnityEnv
-            env_cls = UnityEnv
-            print("[serve.py] Using UnityEnv wrapper.")
-        elif env_type.lower() == "gym":
+    def __init__(self, env_type="gym", host="0.0.0.0", port=8000):
+
+        if env_type.lower() == "gym":
             from ..wrappers.gym_env import GymEnv
             env_cls = GymEnv
-            print("[serve.py] Using GymEnv wrapper.")
+            print("[server.py] Using GymEnv wrapper.")
+                   
+        elif env_type.lower() == "unity":
+            try:
+                import mlagents_envs
+                import google.protobuf
+            except ImportError as e:
+                raise ImportError("Required packages for Unity environment are missing: " + str(e))
+            
+            # Check for required versions. Allow minor patch differences if desired.
+            if not mlagents_envs.__version__.startswith("0.30"):
+                raise ImportError(f"mlagents_envs version 0.30 is required, but found {mlagents_envs.__version__}")
+            if not google.protobuf.__version__.startswith("3.20"):
+                raise ImportError(f"protobuf version 3.20 is required, but found {google.protobuf.__version__}")
+            
+            from ..wrappers.unity_env import UnityEnv
+            env_cls = UnityEnv
+            print("[server.py] Using UnityEnv wrapper.")
+
         else:
             raise ValueError(f"Unknown env type '{env_type}'. Choose 'unity' or 'gym'.")
+
 
         # Optionally call the parent's initializer
         super().__init__(env_cls, host, port)
 
-        # Register the environment and create the API instance
-        if env_id and entry_point:
-            env_cls.register(id=env_id, entry_point=entry_point)
-            
         self.api = EnvAPI(env_simulator=env_cls, host=host, port=port)
                 
         self.public_ip = None
@@ -47,12 +59,12 @@ class EnvServer(EnvAPI):
         # Additional logic would be needed here to stop the uvicorn server, etc.
 
     @classmethod
-    def launch(cls, env_type: str, env_id: str = None, entry_point: str = None, ip: str = None, host: str = "0.0.0.0", port: int = 8000) -> "EnvServer":
+    def launch(cls, env_type: str, ip: str = None, host: str = "0.0.0.0", port: int = 8000) -> "EnvServer":
         """
         Create an EnvServer instance, launch its server in a separate thread,
         and set the public URL (defaulting to http://host:port).
         """
-        instance = cls(env_type, env_id, entry_point, host, port)
+        instance = cls(env_type, host, port)
         instance.run_thread_server()
         # Default ip to host if not provided
         if ip is None:

@@ -420,19 +420,13 @@ def simulate(
     env_id = environment_conf.get("env_id")
     entry_point = environment_conf.get("entry_point")
     host_type = environment_conf.get("host_type")
-    
-    if env_type == "unity" and not entry_point:
-        typer.echo("Unity environment requires an entry point to launch the simulation.")
-        raise typer.Exit(code=1)
-    
+ 
     if host_type == "local":
         launchers = []
         # Get the port mappings; if a port is not mapped, use the provided port directly.
         for port in ports:
             launcher = EnvServer.launch(
                 env_type=env_type,
-                env_id=env_id,
-                entry_point=entry_point,
                 ip=ip,
                 host=host,
                 port=port

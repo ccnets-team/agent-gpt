@@ -206,5 +206,9 @@ def _validate_hyperparams(params: Hyperparameters):
     if params.env_id is None:
         raise ValueError("Environment ID must be provided.")
     if not params.env_hosts:
-        raise ValueError("No environment hosts specified in 'env_hosts'. \
-            Please run 'agent-gpt simulate ...' first to set up an environment.")
+        raise ValueError("No environment hosts specified in 'env_hosts'. "
+                         "Please run 'agent-gpt simulate ...' first to set up an environment.")
+    # If entry_point is provided, normalize it.
+    if params.entry_point:
+        import os
+        params.entry_point = os.path.dirname(os.path.abspath(params.entry_point)).replace(os.sep, "/")

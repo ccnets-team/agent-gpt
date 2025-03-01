@@ -21,9 +21,7 @@ class SimulatorConfig:
     host_type: str = "cloud"       # Host type: 'local' or 'cloud'
     host_name: str = ""
     env_type: str = "gym"               # Environment simulator: 'gym', 'unity', or 'custom'
-    env_id: Optional[str] = None   # Optional environment identifier
     env_path: str = ""             # Path to the environment file for docker build
-    entry_point: Optional[str] = None
     
     ports: List[int] = field(default_factory=lambda: [80])  # Local simulation ports
 
@@ -33,7 +31,7 @@ class SimulatorConfig:
     # (You may include create_dockerfile/manifest methods as needed.)
     def create_dockerfile(self):
         from ..utils.deployment import create_dockerfile as _create_dockerfile
-        _create_dockerfile(self.env_path, self.env_type, self.env_id, self.entry_point, self.dockerfile)
+        _create_dockerfile(self.env_path, self.env_type, self.dockerfile)
 
     def create_k8s_manifest(self):
         from ..utils.deployment import create_k8s_manifest as _create_k8s_manifest
