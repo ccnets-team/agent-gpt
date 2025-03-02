@@ -1,4 +1,4 @@
-# Local Environment Hosting for Cloud Training: Port Forwarding & Tunneling
+# Local Environment Hosting for Cloud Training - Port Forwarding & Tunneling
 
 If you choose to host your environment locally, your local machine will communicate with the AWS cloud trainer. In this guide, we explain how to expose your local simulation to the cloud using two primary techniques—port forwarding and tunneling—with an emphasis on keeping local hosting as simple as possible.
 
