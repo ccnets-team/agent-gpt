@@ -12,7 +12,7 @@ class EnvServer(EnvAPI):
         if env_type.lower() == "gym":
             from ..wrappers.gym_env import GymEnv
             env_wrapper = GymEnv
-            print("[server.py] Using GymEnv wrapper.")
+            # print("[server.py] Using GymEnv wrapper.")
                    
         elif env_type.lower() == "unity":
             try:
@@ -29,7 +29,7 @@ class EnvServer(EnvAPI):
             
             from ..wrappers.unity_env import UnityEnv
             env_wrapper = UnityEnv
-            print("[server.py] Using UnityEnv wrapper.")
+            # print("[server.py] Using UnityEnv wrapper.")
 
         else:
             raise ValueError(f"Unknown env type '{env_type}'. Choose 'unity' or 'gym'.")
@@ -67,7 +67,7 @@ class EnvServer(EnvAPI):
         instance = cls(env_type, host, port)
         instance.run_thread_server()
         # Default ip to host if not provided
-        print(f"[AgentGPTTrainer] Launching environment at {url}:{port}")
+        # print(f"[AgentGPTTrainer] Launching environment at {url}:{port}")
         instance.endpoint = f"{url}:{port}"
         instance.port = port
         return instance

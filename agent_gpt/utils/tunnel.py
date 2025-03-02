@@ -5,16 +5,23 @@ import os
 import yaml
 import subprocess
 import typer
+from typing import Optional
 from pyngrok import ngrok
 
-def get_stored_ngrok_token() -> str:
+def get_stored_ngrok_token() -> Optional[str]:
     """
     Attempts to read the stored ngrok authtoken from common configuration file paths.
-    Expects a YAML config with structure similar to:
+    Supports configuration files with either of the following structures:
     
-        version: "3"
-        agent:
-            authtoken: YOUR_TOKEN
+      1. Nested under "agent":
+         version: "3"
+         agent:
+             authtoken: YOUR_TOKEN
+
+      2. Flat structure:
+         version: "2"
+         region: uus
+         authtoken: YOUR_TOKEN
 
     Returns the token if found; otherwise, returns None.
     """
@@ -36,8 +43,10 @@ def get_stored_ngrok_token() -> str:
             try:
                 with open(path, "r") as f:
                     config = yaml.safe_load(f)
-                    # Look for the token under the "agent" key
+                    # Try to read the token from nested "agent" key first, then from top-level
                     token = config.get("agent", {}).get("authtoken")
+                    if not token:
+                        token = config.get("authtoken")
                     if token:
                         return token
             except Exception as e:

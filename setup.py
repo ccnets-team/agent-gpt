@@ -23,7 +23,7 @@ install_requires = env_requirements + cli_dependencies
 
 setup(
     name="agent-gpt-aws",
-    version="0.3.5",
+    version="0.3.6",
     packages=find_packages(), 
     entry_points={
         "console_scripts": [
