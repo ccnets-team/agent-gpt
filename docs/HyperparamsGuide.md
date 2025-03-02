@@ -6,6 +6,17 @@
   *Unique identifier for the environment.*  
   - Used to instantiate the corresponding environment configuration and load the appropriate observation and action spaces.
 
+- **env_entry_point**  
+  *Specifies the environment entry point for dynamic registration.*  
+  - Defines the Python module and class (e.g., "my_module:MyCustomEnv") that should be used to instantiate the environment.
+  - Key Innovation: This allows the system not only to register and create custom environments that aren’t pre-registered with Gym but also to support simulators that host multiple environments.
+  - By selectively submitting one or more of these environments—via hyperparameters—to the trainer, users can control which environments participate in a training job, offering a flexible and scalable setup.
+
+- **env_dir**  
+  *Indicates the directory containing the environment’s source code and assets.*  
+  - During development and testing, environments may not be packaged into containers yet.
+  - Specifying env_dir tells the trainer exactly where to find and run the environment’s code and assets.
+
 - **env_hosts**  
   *Mapping of host identifiers to environment configurations.*  
   - Enables distributed training by assigning endpoints (e.g., IP addresses, URLs, or AWS EC2 endpoints) and specifying the number of agents per host.  
