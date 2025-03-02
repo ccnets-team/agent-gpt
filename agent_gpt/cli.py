@@ -445,13 +445,13 @@ def simulate(
         "local",
         help="Environment identifier to simulate. Default: 'local'."
     ),
-    ports: List[int] = typer.Argument(
-        ..., 
-        help="One or more container port numbers on which to run the simulation server. Example: 80"
+    ports: Optional[List[int]] = typer.Argument(
+        None,
+        help="One or more container port numbers on which to run the simulation server. Example: 80. If not provided, the simulator's default ports will be used."
     )
 ):
     """
-    Launch an environment simulation either on a local or cloud using the configured simulator settings or specified port numbers.
+    Launch an environment simulation using the configured simulator settings or specified port numbers.
 
     Steps:
       1. Retrieve Simulator Configuration:
