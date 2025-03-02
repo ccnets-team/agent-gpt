@@ -7,7 +7,7 @@ import yaml
 import typer
 import requests
 from typing import Optional, List
-from .config.simulator import SimulatorRegistry 
+from .config.simulator import SimulatorRegistry, SimulatorConfig 
 from .config.network import NetworkConfig
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
@@ -385,7 +385,60 @@ def list_config(
             if sec in config_data:
                 typer.echo(f"**{sec}**:")
                 typer.echo(yaml.dump(config_data[sec], default_flow_style=False, sort_keys=False))
+
+@app.command("upload")
+def upload(
+    simulator_id: str = typer.Argument(
+        help="Simulator ID to upload for cloud hosting."
+    )
+):
+    """
+    Upload a simulator for cloud deployment.
+
+    Steps:
+      1. Validate & Retrieve Simulator:
+         - Load the configuration and retrieve the simulator settings from the Simulator Registry.
+      2. Create Dockerfile & Upload:
+         - Generate a Dockerfile based on the simulator configuration.
+         - Build and push a Docker image to your ECR account.
+      3. Update Simulator Registry:
+         - Update the Simulator configuration with the new image URI after a successful upload.
     
+    Example:
+      agent-gpt upload my_simulator
+    """
+    config_data = load_config()
+    region = config_data.get("sagemaker", {}).get("region")
+    if not region:
+        typer.echo("Error: AWS region not set in the configuration.")
+        raise typer.Exit(code=1)
+
+    simulator_registry_data = config_data.get("simulator_registry", {})
+    simulators = simulator_registry_data.get("simulators", {})
+    simulator_data = simulators.get(simulator_id)
+    if not simulator_data:
+        typer.echo(f"Warning: No simulator config found for identifier '{simulator_id}'")
+        raise typer.Exit(code=1)
+    hosting = simulator_data.get("hosting")
+    if hosting != "cloud":
+        typer.echo(f"Error: Simulator '{simulator_id}' is not set up for cloud deployment.")
+        raise typer.Exit(code=1)
+
+    simulator_config = SimulatorConfig()
+    simulator_config.set_config(**simulator_data)
+    from .env_host.upload import upload_simulator
+    
+    try: 
+        upload_simulator(region, simulator_config)
+        typer.echo(f"Simulator '{simulator_id}' uploaded successfully.")
+    except Exception as e:
+        typer.echo(f"Error uploading simulator '{simulator_id}': {e}")
+        raise typer.Exit(code=1)
+    
+    simulator_registry_data["simulators"][simulator_id] = simulator_config.to_dict()
+    config_data["simulator_registry"] = simulator_registry_data
+    save_config(config_data)
+
 @app.command("simulate")
 def simulate(
     simulator_id: str = typer.Argument(
@@ -398,34 +451,50 @@ def simulate(
     )
 ):
     """
-    Launch an environment simulation locally using the specified simulator and ports.
+    Launch an environment simulation either on a local or cloud using the configured simulator settings or specified port numbers.
+
+    Steps:
+      1. Retrieve Simulator Configuration:
+           - Load the simulator settings from the local configuration file.
+           - Use default ports from the configuration if no port numbers are provided.
+      2. Launch Simulation Server:
+           - Start a simulation server on each provided port based on the simulator's hosting type.
+             * Local: Runs the simulation server locally.
+             * Remote: Not supported on this machine; run the simulation directly on the remote simulator.
+             * Cloud: Cloud-based simulation is not supported yet.
+      3. Monitor & Terminate:
+           - The simulation runs in the current terminal.
+           - Press Ctrl+C to gracefully terminate the simulation.
 
     Examples:
-      agent-gpt simulate gym 5000
+      agent-gpt simulate local
       agent-gpt simulate local 8080, 8081
-      agent-gpt simulate unity 80, 81, 82, 83
-
-    This command starts a simulation server for the specified environment on each provided port.
-    Press Ctrl+C (or CTRL+C on Windows) to terminate the simulation.
+      agent-gpt simulate my_simulator 80, 81, 82, 83
     """
     # Load configuration to get the network settings.
     config_data = load_config()
-    network_conf = config_data.get("network", {})
-    host = network_conf.get("host", "localhost")
-    ip = network_conf.get("public_ip", network_conf.get("internal_ip", "127.0.0.1"))
 
-    simulator_conf = config_data.get("simulator_registry", {}).get("simulators", {})
-    environment_conf = simulator_conf.get(simulator_id, {})
-    env_type = environment_conf.get("env_type")
-    hosting = environment_conf.get("hosting")
- 
+    multi_simulators_conf = config_data.get("simulator_registry", {}).get("simulators", {})
+    simulator_conf = multi_simulators_conf.get(simulator_id, {})
+    env_type = simulator_conf.get("env_type")
+    hosting = simulator_conf.get("hosting")
+    url = simulator_conf.get("url")
+    host = simulator_conf.get("host")
+    
+    if not ports:
+        typer.echo("No port numbers provided. Attempting to retrieve ports from the simulator configuration.")
+        ports = simulator_conf.get('ports', [])
+    if not ports:
+        typer.echo("Error: No available ports found. Please specify one or more port numbers.")
+        raise typer.Exit(code=1)
+    
     if hosting == "local":
         launchers = []
         # Get the port mappings; if a port is not mapped, use the provided port directly.
         for port in ports:
             launcher = EnvServer.launch(
                 env_type=env_type,
-                ip=ip,
+                url=url,
                 host=host,
                 port=port
             )
@@ -449,8 +518,16 @@ def simulate(
         typer.echo("Local environments launched on:")
         for launcher in launchers:
             typer.echo(f" - {launcher.public_ip}:{launcher.port}")
+    elif hosting == "remote":
+        typer.echo(
+            "Remote simulation mode selected. This machine does not support launching remote simulations. "
+            "Please run the simulation command directly on the simulator, which hosts the simulation locally."
+        )
+    elif hosting == "cloud":
+        typer.echo("Cloud-based simulation is not supported yet.")
+        
     else:
-        typer.echo("Other host types are not supported yet.")
+        typer.echo("Other hosting modes are not supported yet.")
 
 def initialize_sagemaker_access(
     role_arn: str,

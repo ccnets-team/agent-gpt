@@ -5,18 +5,34 @@ with open("README.md", encoding="utf-8") as fh:
 
 # Read the dependencies from requirements.txt
 with open("requirements.txt", encoding="utf-8") as f:
-    requirements = f.read().splitlines()
-    
+    env_requirements = f.read().splitlines()
+
+# Additional dependencies not in the file
+cli_dependencies = [
+    "typer>=0.15.1",
+    "pyyaml>=6.0",
+    "requests>=2.32.3",
+    "boto3>=1.36.5",
+    "sagemaker>=2.237.3",
+    "kubernetes"
+]
+
+# Combine the two lists
+install_requires = env_requirements + cli_dependencies 
+
 setup(
     name="agent-gpt-aws",
-    version="0.3.4",
+    version="0.3.5",
     packages=find_packages(), 
     entry_points={
         "console_scripts": [
             "agent-gpt=agent_gpt.cli:app",
         ],
     },
-    install_requires=requirements,    
+    install_requires=install_requires,
+    extras_require={
+         "unity": ["mlagents_envs==0.30.0", "protobuf==3.20.0"],
+    },        
     author="JunHo Park",
     author_email="junho@ccnets.org",
     url="https://github.com/ccnets-team/agent-gpt",

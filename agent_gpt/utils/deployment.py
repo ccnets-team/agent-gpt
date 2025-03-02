@@ -33,12 +33,20 @@ def create_dockerfile(env_type: str, env_path: str, additional_dependencies: Lis
     # Assume the source agent_gpt files are in the current working directory's "agent_gpt" folder.
     # They will be copied to the build context under "agent_gpt" (i.e. project_root/agent_gpt/).
 
+    # If using Unity, ensure the required Unity-specific dependencies are included.
+    if env_type.lower() == "unity":
+        required_unity_deps = ["mlagents_envs==0.30.0", "protobuf==3.20.0"]
+        for dep in required_unity_deps:
+            if dep not in additional_dependencies:
+                logger.warning(f"Unity required dependency '{dep}' is missing. Adding it automatically.")
+                additional_dependencies.append(dep)
+
     source_base = os.path.join(os.getcwd(), "agent_gpt")
     dest_base = os.path.join(project_root, "agent_gpt")
-
+                
     for base_name, rel_path in build_files.items():
-        src = os.path.join(source_base, rel_path)
-        dest = os.path.join(dest_base, rel_path)
+        src = os.path.join(source_base, rel_path).replace(os.sep, "/")
+        dest = os.path.join(dest_base, rel_path).replace(os.sep, "/")
         # Ensure the destination directory exists.
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         if os.path.exists(src):
@@ -50,12 +58,20 @@ def create_dockerfile(env_type: str, env_path: str, additional_dependencies: Lis
         else:
             logger.warning(f"Source file {src} does not exist and cannot be copied.")
 
+    requirements_src = os.path.join(os.getcwd(), "requirements.txt").replace(os.sep, "/")
+    requirements_dest = os.path.join(project_root, "requirements.txt").replace(os.sep, "/")
+    if os.path.exists(requirements_src):
+        shutil.copy2(requirements_src, requirements_dest)
+        logger.info(f"Copied {requirements_src} to {requirements_dest}")
+    else:
+        logger.warning(f"requirements.txt not found at {requirements_src}")
+        
     # Place the Dockerfile in the build context (project_root).
     dockerfile_path = f"{project_root}/Dockerfile"
     logger.info(f"Creating Dockerfile at: {dockerfile_path}")
     logger.info(f" - Project root: {project_root}")
     logger.info(f" - Relative environment file path: {rel_env_path}")
-    logger.info(f" - Env: {env_type}")
+    logger.info(f" - Env Type: {env_type}")
 
     # Internal container path where environment files are copied.
     cloud_import_path = "/app/env_files"
@@ -77,7 +93,7 @@ def create_dockerfile(env_type: str, env_path: str, additional_dependencies: Lis
         # Copy requirements and install dependencies.
         f.write("# Copy requirements.txt and install dependencies\n")
         # Assuming requirements.txt is inside the copied agent_gpt folder.
-        f.write("COPY agent_gpt/requirements.txt /app/requirements.txt\n")
+        f.write("COPY requirements.txt /app/requirements.txt\n")
         f.write("RUN pip install --no-cache-dir --upgrade pip\n")
         f.write("RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi\n\n")
 
@@ -87,78 +103,11 @@ def create_dockerfile(env_type: str, env_path: str, additional_dependencies: Lis
 
         # Final command to run the environment server.
         f.write("# Final command to run the environment server\n")
-        f.write(f'CMD ["python", "{build_files["entrypoint.py"]}", ')
+        f.write(f'CMD ["python", "agent_gpt/{build_files["entrypoint.py"]}", ')
         f.write(f'"{env_type}"]\n')
 
     logger.info(f"Done. Dockerfile written at: {dockerfile_path}")
     return dockerfile_path
-
-def create_k8s_manifest(env_dir: str, available_ports: List[int], 
-                        image_name: str, deployment_name: str) -> str:
-    """
-    Generates a Kubernetes manifest YAML file for deploying the environment on EKS using PyYAML,
-    based on the provided container configuration. The manifest is written into the build context,
-    defined as the parent directory of the given env_path.
-    
-    :param env_path: The path to the environment files directory.
-    :param k8s_config: K8SManifestConfig object containing all deployment settings.
-    :return: The file path of the generated YAML manifest.
-    """
-    import os
-    import yaml
-
-    # Define the Deployment spec.
-    deployment = {
-        "apiVersion": "apps/v1",
-        "kind": "Deployment",
-        "metadata": {"name": deployment_name},
-        "spec": {
-            "replicas": 1,
-            "selector": {"matchLabels": {"app": deployment_name}},
-            "template": {
-                "metadata": {"labels": {"app": deployment_name}},
-                "spec": {
-                    "containers": [{
-                        "name": deployment_name,
-                        "image": image_name,
-                        "ports": [{"containerPort": port} for port in available_ports]
-                    }]
-                }
-            }
-        }
-    }
-
-    # Define the Service spec.
-    service = {
-        "apiVersion": "v1",
-        "kind": "Service",
-        "metadata": {"name": f"{deployment_name}-svc"},
-        "spec": {
-            "type": "LoadBalancer",
-            "selector": {"app": deployment_name},
-            "ports": [
-                {
-                    "protocol": "TCP",
-                    "port": port,
-                    "targetPort": port
-                } for port in available_ports
-            ]
-        }
-    }
-
-    manifest_yaml = f"{yaml.dump(deployment, sort_keys=False)}---\n{yaml.dump(service, sort_keys=False)}"
-
-    # Use the parent directory of env_path as the build context.
-    project_root = os.path.dirname(os.path.abspath(env_dir)).replace(os.sep, "/")
-    file_path = f"{project_root}/{deployment_name}.yaml"
-    
-    with open(file_path, "w") as f:
-        f.write(manifest_yaml)
-
-    logger.info(f"Kubernetes manifest written to: {file_path}")
-    return file_path
-
-# ---------------- Helper Functions ----------------
 
 def get_build_files(env: str) -> dict:
     """
@@ -168,7 +117,7 @@ def get_build_files(env: str) -> dict:
     :return: A dictionary of file paths needed for deployment.
     """
     entrypoint_file = "entrypoint.py"
-    api_file = "env_host/api.py"
+    api_file = "env_host/env_api.py"
     data_converters_file = "utils/conversion_utils.py"
 
     if env == "gym":
@@ -195,4 +144,89 @@ def write_code_copy_instructions(f, build_files: dict):
         dir_part = os.path.dirname(rel_path.rstrip("/"))
         if dir_part:
             f.write(f"RUN mkdir -p /app/{dir_part}\n")
-        f.write(f"COPY {rel_path} /app/{rel_path}\n\n")
+        f.write(f"COPY agent_gpt/{rel_path} /app/agent_gpt/{rel_path}\n\n")            
+        
+# ---------------- Kerbernetes Deployment & Service ----------------
+from kubernetes import client
+
+def deploy_simulator(deployment_name, image_uri, ports, namespace="default"):
+    """
+    Create a Kubernetes Deployment with the given parameters.
+    
+    :param deployment_name: Name of the Deployment.
+    :param image_uri: Fully qualified image URI (e.g., from ECR).
+    :param ports: List of container ports to expose.
+    :param namespace: Kubernetes namespace (default is "default").
+    """
+    # Define container ports based on the provided list
+    container_ports = [client.V1ContainerPort(container_port=p) for p in ports]
+
+    # Define the container with the image and ports
+    container = client.V1Container(
+        name=deployment_name,
+        image=image_uri,
+        ports=container_ports
+    )
+
+    # Create the pod template with a label matching the deployment name
+    template = client.V1PodTemplateSpec(
+        metadata=client.V1ObjectMeta(labels={"app": deployment_name}),
+        spec=client.V1PodSpec(containers=[container])
+    )
+
+    # Define the deployment spec with one replica
+    spec = client.V1DeploymentSpec(
+        replicas=1,
+        selector=client.V1LabelSelector(match_labels={"app": deployment_name}),
+        template=template
+    )
+
+    # Create the Deployment object
+    deployment = client.V1Deployment(
+        api_version="apps/v1",
+        kind="Deployment",
+        metadata=client.V1ObjectMeta(name=deployment_name),
+        spec=spec
+    )
+
+    # Use the AppsV1Api to create the deployment in the specified namespace
+    apps_v1 = client.AppsV1Api()
+    resp = apps_v1.create_namespaced_deployment(
+        body=deployment,
+        namespace=namespace
+    )
+    print(f"Deployment '{resp.metadata.name}' created.")
+
+def service_simulator(deployment_name, ports, namespace="default"):
+    """
+    Create a Kubernetes Service that maps external ports to container ports.
+    
+    :param deployment_name: Name of the associated deployment.
+    :param ports: List of ports to expose.
+    :param namespace: Kubernetes namespace (default is "default").
+    """
+    # Define a list of ServicePort objects mapping each port directly
+    service_ports = [client.V1ServicePort(protocol="TCP", port=p, target_port=p) for p in ports]
+
+    # Create a Service spec with type LoadBalancer
+    service_spec = client.V1ServiceSpec(
+        selector={"app": deployment_name},
+        ports=service_ports,
+        type="LoadBalancer"
+    )
+
+    # Create the Service object with a name derived from the deployment
+    service = client.V1Service(
+        api_version="v1",
+        kind="Service",
+        metadata=client.V1ObjectMeta(name=f"{deployment_name}-service"),
+        spec=service_spec
+    )
+
+    # Use the CoreV1Api to create the service in the specified namespace
+    core_v1 = client.CoreV1Api()
+    resp = core_v1.create_namespaced_service(
+        body=service,
+        namespace=namespace
+    )
+    print(f"Service '{resp.metadata.name}' created.")

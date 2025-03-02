@@ -59,7 +59,7 @@ class EnvServer(EnvAPI):
         # Additional logic would be needed here to stop the uvicorn server, etc.
 
     @classmethod
-    def launch(cls, env_type: str, ip: str = None, host: str = "0.0.0.0", port: int = 8000) -> "EnvServer":
+    def launch(cls, env_type: str, url: str, host: str = "0.0.0.0", port: int = 8000) -> "EnvServer":
         """
         Create an EnvServer instance, launch its server in a separate thread,
         and set the public URL (defaulting to http://host:port).
@@ -67,8 +67,6 @@ class EnvServer(EnvAPI):
         instance = cls(env_type, host, port)
         instance.run_thread_server()
         # Default ip to host if not provided
-        if ip is None:
-            ip = host
-        print(f"[AgentGPTTrainer] Launching environment at http://{ip}:{port}")
-        instance.public_ip = f"http://{ip}:{port}"
+        print(f"[AgentGPTTrainer] Launching environment at {url}:{port}")
+        instance.public_ip = f"{url}:{port}"
         return instance

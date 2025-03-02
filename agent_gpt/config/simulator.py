@@ -4,62 +4,79 @@ from .network import get_network_info
 
 @dataclass
 class ContainerDeploymentConfig:
-    deployment_name: str = ""
-    image_name: str = ""
+    deployment_name: str = "cloud-env-k8s"
+    image_uri: str = "533267316703.dkr.ecr.us-east-1.amazonaws.com/cloud_3dballhard:latest"
     additional_dependencies: List[str] = field(default_factory=list)
-    
-    def __post_init__(self):
-        if not self.deployment_name:
-            self.deployment_name = "cloud-env-k8s"
-        if not self.image_name:
-            self.image_name = "cloud-env-k8s:latest"
-
+ 
 @dataclass
 class SimulatorConfig:
     env_type: str = "gym"               # Environment simulator: 'gym', 'unity', or 'custom'
     hosting: str = "cloud"       # Host type: 'local' or 'cloud'
     url: str = ""
+    host: str = "0.0.0.0"
     env_dir: str = None  # Path to the environment files directory
-    available_ports: List[int] = field(default_factory=lambda: [34560, 34561, 34562, 34563])  # Local simulation ports
+    ports: List[int] = field(default_factory=lambda: [34560, 34561, 34562, 34563])  # Local simulation ports
     container: ContainerDeploymentConfig = field(default_factory=ContainerDeploymentConfig)
+    
+    def set_config(self, **kwargs):
+        for k, v in kwargs.items():
+            if k == "container" and isinstance(v, dict):
+                for sub_key, sub_value in v.items():
+                    if hasattr(self.container, sub_key):
+                        setattr(self.container, sub_key, sub_value)
+                    else:
+                        print(f"Warning: SimulatorConfig has no attribute '{sub_key}'")
+            elif hasattr(self, k):
+                setattr(self, k, v)
+            else:
+                print(f"Warning: No attribute '{k}' in SimulatorConfig")
 
+    def to_dict(self) -> dict:
+        return asdict(self)
+                        
 @dataclass
 class SimulatorRegistry:
     # A mapping from simulator identifier to its corresponding SimulatorConfig.
     simulators: Dict[str, SimulatorConfig] = field(default_factory=dict)
         
     def __post_init__(self):
-        public_ip = get_network_info()['public_ip']
+        network_info = get_network_info()
+        ip = network_info['public_ip']
         if "local" not in self.simulators:
             self.simulators["local"] = SimulatorConfig(
                 hosting="local", 
-                url="http://" + public_ip,  
-                env_type="gym"
+                url="http://" + ip,  
+                env_type="gym",
             )
             from pathlib import Path
             project_root = Path(__file__).resolve().parents[2]  # Adjust the index as needed
             self.simulators["local"].env_dir = str(project_root)
+            self.simulators["local"].container.deployment_name = None
             
-            
+    # set dockerfile will be renamed to upload to cloud 
+    # and the command will be named as "upload"
     def set_dockerfile(self, simulator_id: str) -> None:
         if simulator_id in self.simulators:
-            from ..utils.deployment import create_dockerfile as _create_dockerfile
+            from ..utils.deployment import create_dockerfile
             env_type = self.simulators[simulator_id].env_type
             env_dir = self.simulators[simulator_id].env_dir
             additional_dependencies = self.simulators[simulator_id].container.additional_dependencies
-            _create_dockerfile(env_type, env_dir, additional_dependencies)
+            create_dockerfile(env_type, env_dir, additional_dependencies)
         else:
             print(f"Warning: No simulator config found for identifier '{simulator_id}'")
     
-    def set_k8s_manifest(self, simulator_id: str) -> None:
+    # command will be renamed to "simulate"
+    def simulate_on_cloud(self, simulator_id: str) -> None:
         if simulator_id in self.simulators:
-            from ..utils.deployment import create_k8s_manifest as _create_k8s_manifest
+            from ..utils.deployment import deploy_simulator, service_simulator
             simulator = self.simulators[simulator_id]
-            env_dir = simulator.env_dir
-            available_ports = simulator.available_ports
-            image_name = simulator.container.image_name
+            ports = simulator.ports
+            image_uri = simulator.container.image_uri
             deployment_name = simulator.container.deployment_name
-            _create_k8s_manifest(env_dir, available_ports, image_name, deployment_name)
+            deploy_simulator(deployment_name, image_uri, ports)
+            service_simulator(deployment_name, ports)
+        else:
+            print(f"Warning: No simulator config found for identifier '{simulator_id}'")
             
     def set_simulator(self, simulator_id: str, env_type: str = "gym", hosting: str = "cloud", url: str = None) -> None:
         valid_hosting_types = ["cloud", "remote", "local"]
