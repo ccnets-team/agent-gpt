@@ -474,23 +474,34 @@ def simulate(
     # Load configuration to get the network settings.
     config_data = load_config()
 
-    multi_simulators_conf = config_data.get("simulator_registry", {}).get("simulators", {})
-    simulator_conf = multi_simulators_conf.get(simulator_id, {})
-    env_type = simulator_conf.get("env_type")
-    hosting = simulator_conf.get("hosting")
-    url = simulator_conf.get("url")
-    host = simulator_conf.get("host")
+    simulator_registry_data = config_data.get("simulator_registry", {})
+    simulators = simulator_registry_data.get("simulators", {})
+    simulator_data = simulators.get(simulator_id)
+    
+    simulator_config = SimulatorConfig()
+    simulator_config.set_config(**simulator_data)
+        
+    env_type = simulator_config.env_type
+    hosting = simulator_config.hosting
+    url = simulator_config.url
+    host = simulator_config.host
+    connection = simulator_config.connection
+    total_agents = simulator_config.total_agents
     
     if not ports:
         typer.echo("No port numbers provided. Attempting to retrieve ports from the simulator configuration.")
-        ports = simulator_conf.get('ports', [])
+        ports = simulator_config.ports
     if not ports:
         typer.echo("Error: No available ports found. Please specify one or more port numbers.")
         raise typer.Exit(code=1)
     
+
     if hosting == "local":
+        if connection == "tunnel":
+            from .utils.tunnel import create_tunnel
+            url = create_tunnel(ports)
+            
         launchers = []
-        # Get the port mappings; if a port is not mapped, use the provided port directly.
         for port in ports:
             launcher = EnvServer.launch(
                 env_type=env_type,
@@ -500,10 +511,29 @@ def simulate(
             )
             launchers.append(launcher)
 
+        hyperparams = config_data.get("hyperparams", {})
+        num_launcers = len(launchers)
+        base_agents = total_agents // num_launcers
+        remainder = total_agents % num_launcers
+        agents_array = [base_agents] * num_launcers
+        for i in range(remainder):
+            agents_array[i] += 1
+        
+        # Store simulation host info in hyperparams using a key like f"{simulator_id}:{port}"
+        for i, launcher in enumerate(launchers):
+            key = f"{simulator_id}:{launcher.port}"
+            env_endpoint = launcher.endpoint
+            # Store the endpoint and agent count (here, 32) as a dictionary or tuple.
+            hyperparams["env_hosts"][key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
+            typer.echo(f" - {env_endpoint}")
+
+        config_data["hyperparams"] = hyperparams
+        save_config(config_data)
+
         # Inform the user that the simulation command will block this terminal.
         typer.echo("Simulation running. This terminal is now dedicated to simulation; open another terminal for AgentGPT training.") 
         typer.echo("Press Ctrl+C to terminate the simulation.")
-
+        
         try:
             while any(launcher.server_thread.is_alive() for launcher in launchers):
                 for launcher in launchers:
@@ -515,9 +545,19 @@ def simulate(
             for launcher in launchers:
                 launcher.server_thread.join(timeout=2)
 
-        typer.echo("Local environments launched on:")
-        for launcher in launchers:
-            typer.echo(f" - {launcher.public_ip}:{launcher.port}")
+        if "env_hosts" not in hyperparams:
+            hyperparams["env_hosts"] = {}
+        # After simulation ends, auto-remove the env_hosts entries for this simulator.
+        keys_to_remove = [key for key in hyperparams["env_hosts"] if key.startswith(f"{simulator_id}:")]
+        for key in keys_to_remove:
+            del hyperparams["env_hosts"][key]
+        config_data["hyperparams"] = hyperparams
+        save_config(config_data)
+
+        if connection == "tunnel":
+            from pyngrok import ngrok
+            ngrok.disconnect(url)
+        
     elif hosting == "remote":
         typer.echo(
             "Remote simulation mode selected. This machine does not support launching remote simulations. "
@@ -525,7 +565,7 @@ def simulate(
         )
     elif hosting == "cloud":
         typer.echo("Cloud-based simulation is not supported yet.")
-        
+        raise typer.Exit(code=0)
     else:
         typer.echo("Other hosting modes are not supported yet.")
 

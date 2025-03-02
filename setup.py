@@ -14,7 +14,8 @@ cli_dependencies = [
     "requests>=2.32.3",
     "boto3>=1.36.5",
     "sagemaker>=2.237.3",
-    "kubernetes"
+    "kubernetes",
+    "pyngrok",
 ]
 
 # Combine the two lists

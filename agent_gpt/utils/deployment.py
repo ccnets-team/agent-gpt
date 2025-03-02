@@ -149,7 +149,7 @@ def write_code_copy_instructions(f, build_files: dict):
 # ---------------- Kerbernetes Deployment & Service ----------------
 from kubernetes import client
 
-def deploy_simulator(deployment_name, image_uri, ports, namespace="default"):
+def deploy_eks_simulator(deployment_name, image_uri, ports, namespace="default"):
     """
     Create a Kubernetes Deployment with the given parameters.
     
@@ -197,7 +197,7 @@ def deploy_simulator(deployment_name, image_uri, ports, namespace="default"):
     )
     print(f"Deployment '{resp.metadata.name}' created.")
 
-def service_simulator(deployment_name, ports, namespace="default"):
+def service_eks_simulator(deployment_name, ports, namespace="default"):
     """
     Create a Kubernetes Service that maps external ports to container ports.
     
@@ -230,3 +230,50 @@ def service_simulator(deployment_name, ports, namespace="default"):
         namespace=namespace
     )
     print(f"Service '{resp.metadata.name}' created.")
+    
+# ---------------- App Runner Deployment ----------------    
+    
+import boto3
+from ..config.simulator import SimulatorConfig
+
+
+def simulate_app_runner(simulator_config: SimulatorConfig, region, cpu='1024', memory='2048'):
+    service_name = simulator_config.container.deployment_name
+    image_uri = simulator_config.container.image_uri
+    # Use the first port since App Runner supports a single port.
+    port = simulator_config.ports[0] if simulator_config.ports else 80
+
+    # Ensure you are using the correct region where your ECR image resides.
+    apprunner = boto3.client('apprunner', region_name=region)
+    
+    try:
+        response = apprunner.create_service(
+            ServiceName=service_name,
+            SourceConfiguration={
+                'ImageRepository': {
+                    'ImageIdentifier': image_uri,
+                    'ImageRepositoryType': 'ECR',
+                    'ImageConfiguration': {
+                        'Port': str(port)
+                    }
+                },
+                'AutoDeploymentsEnabled': True
+            },
+            InstanceConfiguration={
+                'Cpu': cpu,
+                'Memory': memory
+            },
+            HealthCheckConfiguration={
+                'Protocol': 'HTTP',
+                'Path': '/',
+                'Interval': 10,
+                'Timeout': 5,
+                'HealthyThreshold': 1,
+                'UnhealthyThreshold': 5,
+            }
+        )
+        logger.info(f"App Runner service '{service_name}' created successfully.")
+    except Exception as e:
+        logger.error(f"Error creating App Runner service '{service_name}': {e}")
+        raise
+    return response

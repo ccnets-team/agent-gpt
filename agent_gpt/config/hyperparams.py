@@ -137,7 +137,7 @@ class Exploration:
 class Hyperparameters:
 
     # 1) Client / Env
-    env_id: Optional[str] = "Humanoid-v5"
+    env_id: Optional[str] = "Walker2d-v5"
     env_entry_point: Optional[str] = None
     env_dir: Optional[str] = None
     

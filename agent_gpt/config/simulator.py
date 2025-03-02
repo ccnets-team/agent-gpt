@@ -1,3 +1,4 @@
+from pathlib import Path                        
 from dataclasses import dataclass, field, asdict, is_dataclass
 from typing import List, Dict
 from .network import get_network_info
@@ -5,7 +6,7 @@ from .network import get_network_info
 @dataclass
 class ContainerDeploymentConfig:
     deployment_name: str = "cloud-env-k8s"
-    image_uri: str = "533267316703.dkr.ecr.us-east-1.amazonaws.com/cloud_3dballhard:latest"
+    image_uri: str = None
     additional_dependencies: List[str] = field(default_factory=list)
  
 @dataclass
@@ -14,10 +15,12 @@ class SimulatorConfig:
     hosting: str = "cloud"       # Host type: 'local' or 'cloud'
     url: str = ""
     host: str = "0.0.0.0"
+    connection: str = "tunnel"  # local: ip, tunnel(ngrok); cloud(aws): ec2, eks, app_runner
+    total_agents: int = 128
     env_dir: str = None  # Path to the environment files directory
     ports: List[int] = field(default_factory=lambda: [34560, 34561, 34562, 34563])  # Local simulation ports
     container: ContainerDeploymentConfig = field(default_factory=ContainerDeploymentConfig)
-    
+        
     def set_config(self, **kwargs):
         for k, v in kwargs.items():
             if k == "container" and isinstance(v, dict):
@@ -33,23 +36,24 @@ class SimulatorConfig:
 
     def to_dict(self) -> dict:
         return asdict(self)
-                        
+    
 @dataclass
 class SimulatorRegistry:
     # A mapping from simulator identifier to its corresponding SimulatorConfig.
     simulators: Dict[str, SimulatorConfig] = field(default_factory=dict)
         
     def __post_init__(self):
-        network_info = get_network_info()
-        ip = network_info['public_ip']
+        # Local simulator for direct connection
         if "local" not in self.simulators:
+            network_info = get_network_info()
+            ip = network_info['public_ip']
             self.simulators["local"] = SimulatorConfig(
                 hosting="local", 
                 url="http://" + ip,  
                 env_type="gym",
+                connection="tunnel",
             )
-            from pathlib import Path
-            project_root = Path(__file__).resolve().parents[2]  # Adjust the index as needed
+            project_root = Path(__file__).resolve().parents[2]  # Adjust as needed
             self.simulators["local"].env_dir = str(project_root)
             self.simulators["local"].container.deployment_name = None
             
@@ -68,13 +72,13 @@ class SimulatorRegistry:
     # command will be renamed to "simulate"
     def simulate_on_cloud(self, simulator_id: str) -> None:
         if simulator_id in self.simulators:
-            from ..utils.deployment import deploy_simulator, service_simulator
+            from ..utils.deployment import deploy_eks_simulator, service_eks_simulator
             simulator = self.simulators[simulator_id]
             ports = simulator.ports
             image_uri = simulator.container.image_uri
             deployment_name = simulator.container.deployment_name
-            deploy_simulator(deployment_name, image_uri, ports)
-            service_simulator(deployment_name, ports)
+            deploy_eks_simulator(deployment_name, image_uri, ports)
+            service_eks_simulator(deployment_name, ports)
         else:
             print(f"Warning: No simulator config found for identifier '{simulator_id}'")
             
