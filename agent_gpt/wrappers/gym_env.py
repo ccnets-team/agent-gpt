@@ -34,7 +34,7 @@ class GymEnv:
             self.env = None
         
     @classmethod
-    def register(cls, env_id, entry_point):
+    def register(cls, env_id, env_entry_point, env_dir):
         from gymnasium.envs import registration
         from gymnasium.error import UnregisteredEnv  # For older versions, it might be gym.error.Error
         import gymnasium
@@ -43,12 +43,12 @@ class GymEnv:
             gymnasium.spec(env_id)
             print(f"Environment {env_id} is already registered; skipping registration.")
         except UnregisteredEnv:
-            print(f"Registering Gym environment: {env_id} with entry_point: {entry_point}")
+            print(f"Registering Gym environment: {env_id} with entry_point: {env_entry_point}")
             try:
                 registration.register(
                     id=env_id,
-                    entry_point=entry_point,
-                    kwargs={"entry_point": entry_point, "id": env_id}
+                    entry_point=env_entry_point,
+                    kwargs={"entry_point": env_entry_point, "id": env_id}
                 )        
             except Exception as e:
                 print(f"Error registering environment {env_id}: {e}")

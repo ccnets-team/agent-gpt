@@ -4,9 +4,9 @@ import requests
 
 @dataclass
 class NetworkConfig:
+    host: str = "0.0.0.0"  # Defaults to 0.0.0.0; can be overridden by public_ip if available
     public_ip: str = ""
     internal_ip: str = ""
-    host: str = "0.0.0.0"  # Defaults to 0.0.0.0; can be overridden by public_ip if available
 
     def to_dict(self) -> dict:
         """Returns a dictionary of all Network configuration fields."""

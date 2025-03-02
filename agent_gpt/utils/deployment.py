@@ -1,11 +1,10 @@
 import os
 import logging
-from ..config.simulator import DockerfileConfig, K8SManifestConfig
 from typing import List
 
 logger = logging.getLogger(__name__)
 
-def create_dockerfile(env_path: str, env_type, dockerfile: DockerfileConfig) -> str:
+def create_dockerfile(env_type: str, env_path: str, additional_dependencies: List) -> str:
     """
     Generates a Dockerfile that packages the required application files and environment,
     based on the provided container configuration. The build context is set as the parent
@@ -19,11 +18,9 @@ def create_dockerfile(env_path: str, env_type, dockerfile: DockerfileConfig) -> 
 
     # Normalize env_path to use forward slashes.
     env_path = env_path.replace(os.sep, "/")
-    additional_dependencies = dockerfile.additional_dependencies
 
     # Use the parent directory of env_path as the build context.
     # For example, if env_path is "C:/.../3DBallHard", then project_root becomes
-    # "C:/.../unity_environments"
     project_root = os.path.dirname(os.path.abspath(env_path)).replace(os.sep, "/")
     # Compute the relative path from the project root to env_path.
     rel_env_path = os.path.relpath(env_path, project_root).replace(os.sep, "/")
@@ -95,9 +92,9 @@ def create_dockerfile(env_path: str, env_type, dockerfile: DockerfileConfig) -> 
 
     logger.info(f"Done. Dockerfile written at: {dockerfile_path}")
     return dockerfile_path
-        
-def create_k8s_manifest(env_path: str, ports: List[int], 
-                        k8s_config: K8SManifestConfig) -> str:
+
+def create_k8s_manifest(env_dir: str, available_ports: List[int], 
+                        image_name: str, deployment_name: str) -> str:
     """
     Generates a Kubernetes manifest YAML file for deploying the environment on EKS using PyYAML,
     based on the provided container configuration. The manifest is written into the build context,
@@ -109,11 +106,6 @@ def create_k8s_manifest(env_path: str, ports: List[int],
     """
     import os
     import yaml
-
-    # Extract configuration values.
-    image_name = k8s_config.image_name
-    deployment_name = k8s_config.deployment_name
-    container_ports = ports
 
     # Define the Deployment spec.
     deployment = {
@@ -129,7 +121,7 @@ def create_k8s_manifest(env_path: str, ports: List[int],
                     "containers": [{
                         "name": deployment_name,
                         "image": image_name,
-                        "ports": [{"containerPort": port} for port in container_ports]
+                        "ports": [{"containerPort": port} for port in available_ports]
                     }]
                 }
             }
@@ -149,7 +141,7 @@ def create_k8s_manifest(env_path: str, ports: List[int],
                     "protocol": "TCP",
                     "port": port,
                     "targetPort": port
-                } for port in container_ports
+                } for port in available_ports
             ]
         }
     }
@@ -157,7 +149,7 @@ def create_k8s_manifest(env_path: str, ports: List[int],
     manifest_yaml = f"{yaml.dump(deployment, sort_keys=False)}---\n{yaml.dump(service, sort_keys=False)}"
 
     # Use the parent directory of env_path as the build context.
-    project_root = os.path.dirname(os.path.abspath(env_path)).replace(os.sep, "/")
+    project_root = os.path.dirname(os.path.abspath(env_dir)).replace(os.sep, "/")
     file_path = f"{project_root}/{deployment_name}.yaml"
     
     with open(file_path, "w") as f:
@@ -177,8 +169,7 @@ def get_build_files(env: str) -> dict:
     """
     entrypoint_file = "entrypoint.py"
     api_file = "env_host/api.py"
-    gym_space_file = "utils/gym_space.py"
-    data_converters_file = "utils/data_converters.py"
+    data_converters_file = "utils/conversion_utils.py"
 
     if env == "gym":
         env_wrapper_file = "wrappers/gym_env.py"
@@ -189,7 +180,7 @@ def get_build_files(env: str) -> dict:
     else:
         raise ValueError(f"Unknown simulator '{env}'. Choose 'gym', 'unity', or 'custom'.")
 
-    files = [entrypoint_file, api_file, gym_space_file, data_converters_file, env_wrapper_file]
+    files = [entrypoint_file, api_file, data_converters_file, env_wrapper_file]
     return {os.path.basename(p.rstrip("/")): p for p in files}
 
 def write_code_copy_instructions(f, build_files: dict):

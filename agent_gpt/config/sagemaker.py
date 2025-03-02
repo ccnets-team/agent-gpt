@@ -4,19 +4,19 @@ from typing import Optional
 @dataclass
 class TrainerConfig:
     DEFAULT_OUTPUT_PATH = "s3://your-bucket/input/"
-    output_path: Optional[str] = DEFAULT_OUTPUT_PATH
     instance_type: str = "ml.g5.4xlarge"
     instance_count: int = 1
     max_run: int = 3600
+    output_path: Optional[str] = DEFAULT_OUTPUT_PATH
 
 @dataclass
 class InferenceConfig:
     DEFAULT_MODEL_DATA = "s3://your-bucket/model.tar.gz"
-    model_data: Optional[str] = DEFAULT_MODEL_DATA
     endpoint_name: Optional[str] = "agent-gpt-inference-endpoint"
     instance_type: str = "ml.t2.medium"
     instance_count: int = 1
     max_run: int = 3600
+    model_data: Optional[str] = DEFAULT_MODEL_DATA
 
 @dataclass
 class SageMakerConfig:
@@ -33,7 +33,7 @@ class SageMakerConfig:
             self.inference = InferenceConfig(**self.inference)
 
     def get_image_uri(self, service_type: str, version: str = "latest") -> str:
-        allowed_regions = ["us-east-1", "ap-northeast-2"]  # Supported regions
+        allowed_regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-2"]  # Supported regions
         if self.region not in allowed_regions:
             raise ValueError(f"Region {self.region} is not allowed. Allowed regions: {allowed_regions}")
         if service_type not in ("trainer", "inference"):

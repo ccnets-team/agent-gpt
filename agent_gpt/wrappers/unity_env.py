@@ -7,27 +7,28 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 class UnityEnv(Env):
     # Class-level attribute to track instance count
     _instance_count = 0    
-    entry_point = None
+    env_dir = None
     env_id = None
 
     @classmethod
-    def register(cls, env_id, entry_point):
+    def register(cls, env_id, env_entry_point, env_dir):
         """
         Register a Unity environment by setting the class-level entry_point and env_id.
         If the environment is already registered with the same values, skip updating.
         Otherwise, update the registration with the new values.
         """
-        if cls.entry_point is not None:
-            if cls.entry_point != entry_point or cls.env_id != env_id:
-                cls.entry_point = entry_point
+        if cls.env_dir:
+            if cls.env_dir != env_dir or cls.env_id != env_id:
+                cls.env_dir = env_dir
                 cls.env_id = env_id
-                print(f"Updating registration for Unity environment: {env_id} with file path: {entry_point}")
+                print(f"Updating registration for Unity environment: {env_id} with file path: {env_dir}")
             else:
                 print(f"Unity environment {env_id} already registered with the same file path; skipping registration.")
         else:
-            cls.entry_point = entry_point
+            cls.env_dir = env_dir
             cls.env_id = env_id
-            print(f"Registering Unity environment: {env_id} with file path: {entry_point}")
+            print(f"Registering Unity environment: {env_id} with file path: {env_dir}")
+            
     @staticmethod
     def make(env_id, **kwargs):
         return UnityEnv(env_id=env_id, is_vectorized=False, **kwargs)
@@ -54,7 +55,7 @@ class UnityEnv(Env):
         
         use_graphics = kwargs.get("use_graphics", False)
         time_scale = kwargs.get("time_scale", 4)
-        if UnityEnv.entry_point is None:
+        if UnityEnv.env_dir is None:
             raise ValueError("Unity environment not registered. Use UnityEnv.register() to register the environment.")
         else:
             if env_id != UnityEnv.env_id:
@@ -101,7 +102,7 @@ class UnityEnv(Env):
     def create_unity_env(channel, no_graphics, seed, worker_id):
         base_port = UnityEnvironment.BASE_ENVIRONMENT_PORT
         env = UnityEnvironment(
-            file_name=UnityEnv.entry_point,
+            file_name=UnityEnv.env_dir,
             base_port=base_port,
             no_graphics=no_graphics,
             seed=seed,

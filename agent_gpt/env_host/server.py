@@ -1,5 +1,5 @@
 from threading import Thread, Event
-from .api import EnvAPI
+from .env_api import EnvAPI
 
 class EnvServer(EnvAPI):
     """
@@ -11,7 +11,7 @@ class EnvServer(EnvAPI):
 
         if env_type.lower() == "gym":
             from ..wrappers.gym_env import GymEnv
-            env_cls = GymEnv
+            env_wrapper = GymEnv
             print("[server.py] Using GymEnv wrapper.")
                    
         elif env_type.lower() == "unity":
@@ -28,7 +28,7 @@ class EnvServer(EnvAPI):
                 raise ImportError(f"protobuf version 3.20 is required, but found {google.protobuf.__version__}")
             
             from ..wrappers.unity_env import UnityEnv
-            env_cls = UnityEnv
+            env_wrapper = UnityEnv
             print("[server.py] Using UnityEnv wrapper.")
 
         else:
@@ -36,9 +36,9 @@ class EnvServer(EnvAPI):
 
 
         # Optionally call the parent's initializer
-        super().__init__(env_cls, host, port)
+        super().__init__(env_wrapper, host, port)
 
-        self.api = EnvAPI(env_simulator=env_cls, host=host, port=port)
+        self.api = EnvAPI(env_wrapper=env_wrapper, host=host, port=port)
                 
         self.public_ip = None
         self.host = host

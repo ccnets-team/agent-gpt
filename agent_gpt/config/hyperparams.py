@@ -14,15 +14,19 @@ Quick-Reference for Key Fields:
 -------------------------------------------------------------------
 env_id               : (str)    The name or identifier of your environment 
                                 (e.g. 'CartPole-v1', 'Walker-v2', or custom).
+                                
+env_entry_point      : (str)    env_entry_point (entry_point in Gym) Specifies the entry point for your Gym custom environment.
+                                This is typically provided as a Python module reference (e.g., "my_module:MyEnv")
+                                to dynamically register and instantiate the environment. For Gym environments that are 
+                                not pre-registered, combining env_id with entry_point allows the cloud trainer to 
+                                register and launch the appropriate environment without requiring a container rebuild.
 
-entry_point          : (str)    This parameter specifies the entry point for your environment.
-                                It can be a file path or any other reference that allows the 
-                                registration of a custom environment with env_id. 
-                                By providing an entry_point and env_id, the trainer running 
-                                on the cloud can dynamically register and launch any environment hosted in the container. 
-                                This means the simulator does not need to be rebuilt for each specific environment; 
-                                instead, a single container can host multiple environments, and the 
-                                appropriate one is registered at runtime based on the trainer's input.
+env_dir              : (str)    Indicates the directory where the environment's source code, assets, or binaries are located.
+                                This parameter is used by the cloud trainer to run an executable file from this directory.
+                                For example, if a simulator in "projects/.../unity_environment/" contains multiple environments 
+                                and you want to specifically run "3DBall", then env_dir is used to select that environment.
+                                Note that env_dir may not be used for Gym environments, as they are generally registered 
+                                solely via entry_point.
                                 
 env_hosts            : (dict)   A dictionary of EnvHost objects (keyed by
                                 strings like 'local', 'remote-aws', etc.) 
@@ -133,8 +137,10 @@ class Exploration:
 class Hyperparameters:
 
     # 1) Client / Env
-    env_id: Optional[str] = None
-    entry_point: Optional[str] = None
+    env_id: Optional[str] = "Humanoid-v5"
+    env_entry_point: Optional[str] = None
+    env_dir: Optional[str] = None
+    
     env_hosts: dict[str, EnvHost] = field(default_factory=dict)
     use_tensorboard: bool = False
     use_cloudwatch: bool = True
@@ -223,6 +229,9 @@ class Hyperparameters:
         including nested dataclasses, by leveraging asdict().
         """
         return asdict(self)
+    
+    def __post_init__(self):
+        self.set_exploration("continuous")
     
 def main():
     # 1) Instantiate hyperparameters with defaults

@@ -9,12 +9,12 @@ from typing import Optional, Any
 # ------------------------------------------------
 # Utility imports
 # ------------------------------------------------
-from ..utils.data_converters import (
+from ..utils.conversion_utils import (
     convert_ndarrays_to_nested_lists,
     convert_nested_lists_to_ndarrays,
     replace_nans_infs,
+    space_to_dict,
 )
-from ..utils.gym_space import space_to_dict
 
 HTTP_BAD_REQUEST = 400
 HTTP_OK = 200
@@ -35,11 +35,11 @@ class EnvAPI:
          communication methods for flexible, safer usage—whether hosted locally
          or in the cloud.
     """    
-    def __init__(self, env_simulator, host: str = "0.0.0.0", port: int = 80):
+    def __init__(self, env_wrapper, host: str = "0.0.0.0", port: int = 80):
         """
         env_simulator: an object that must have .make(...) and .make_vec(...)
         """
-        self.env_simulator = env_simulator
+        self.env_wrapper = env_wrapper
         self.environments = {}
         self.host = host
         self.port = port
@@ -60,11 +60,11 @@ class EnvAPI:
         uvicorn.run(self.app, host=self.host, port=self.port, 
                     log_level="warning") # Only show warnings and errors
             
-    def attempt_register_env(self, env_id: str, entry_point: str):
+    def attempt_register_env(self, env_id: str, env_entry_point: str, env_dir: str):
         # Register the environment only if both env_id and entry_point are provided.
-        if env_id and entry_point:
-            print(f"Registering environment {env_id} with entry_point {entry_point}")
-            self.env_simulator.register(env_id, entry_point)
+        if env_id and (env_entry_point or env_dir):
+            print(f"Registering environment {env_id} with entry_point {env_entry_point}")
+            self.env_wrapper.register(env_id = env_id, env_entry_point = env_entry_point, env_dir = env_dir)
 
     def _define_endpoints(self):
         """Attach all routes/endpoints to self.app."""
@@ -86,12 +86,13 @@ class EnvAPI:
                 body_data = msgpack.unpackb(raw_body, raw=False)
                 env_key = body_data["env_key"]
                 env_id = body_data["env_id"]
-                entry_point = body_data["entry_point"]
+                env_entry_point = body_data["env_entry_point"]
+                env_dir = body_data["env_dir"]
                 render_mode = body_data.get("render_mode", None)
             except Exception as e:
                 raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
             
-            self.attempt_register_env(env_id, entry_point)
+            self.attempt_register_env(env_id, env_entry_point, env_dir)
             
             response_dict = self.make(env_key=env_key, env_id=env_id, render_mode=render_mode)
             packed = msgpack.packb(response_dict, use_bin_type=True)
@@ -113,12 +114,13 @@ class EnvAPI:
                 body_data = msgpack.unpackb(raw_body, raw=False)
                 env_key = body_data["env_key"]
                 env_id = body_data["env_id"]
-                entry_point = body_data["entry_point"]
+                env_entry_point = body_data["entry_point"]
+                env_dir = body_data["env_dir"]
                 num_envs = int(body_data["num_envs"])
             except Exception as e:
                 raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
 
-            self.attempt_register_env(env_id, entry_point)
+            self.attempt_register_env(env_id, env_entry_point, env_dir)
 
             response_dict = self.make_vec(env_key=env_key, env_id=env_id, num_envs=num_envs)
             packed = msgpack.packb(response_dict, use_bin_type=True)
@@ -210,10 +212,10 @@ class EnvAPI:
     # The methods each endpoint calls (same logic, but returning Python dicts)
     # ------------------------------------------------
     def make(self, env_key: str, env_id: str, render_mode: Optional[str] = None):
-        if not self.env_simulator or not hasattr(self.env_simulator, "make"):
+        if not self.env_wrapper or not hasattr(self.env_wrapper, "make"):
             raise HTTPException(status_code=HTTP_BAD_REQUEST,
                                 detail="Backend not properly registered.")
-        env_instance = self.env_simulator.make(env_id, render_mode=render_mode)
+        env_instance = self.env_wrapper.make(env_id, render_mode=render_mode)
         self.environments[env_key] = env_instance
         logging.info(f"Environment {env_id} created with key {env_key}.")
         return {
@@ -222,10 +224,10 @@ class EnvAPI:
         }
 
     def make_vec(self, env_key: str, env_id: str, num_envs: int):
-        if not self.env_simulator or not hasattr(self.env_simulator, "make_vec"):
+        if not self.env_wrapper or not hasattr(self.env_wrapper, "make_vec"):
             raise HTTPException(status_code=HTTP_BAD_REQUEST,
                                 detail="Backend not properly registered.")
-        env_instance = self.env_simulator.make_vec(env_id, num_envs=num_envs)
+        env_instance = self.env_wrapper.make_vec(env_id, num_envs=num_envs)
         self.environments[env_key] = env_instance
         logging.info(f"Vectorized env {env_id} with {num_envs} instance(s), key {env_key}.")
         return {

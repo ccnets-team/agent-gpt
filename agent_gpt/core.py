@@ -209,6 +209,6 @@ def _validate_hyperparams(params: Hyperparameters):
         raise ValueError("No environment hosts specified in 'env_hosts'. "
                          "Please run 'agent-gpt simulate ...' first to set up an environment.")
     # If entry_point is provided, normalize it.
-    if params.entry_point:
+    if params.env_entry_point:
         import os
-        params.entry_point = os.path.dirname(os.path.abspath(params.entry_point)).replace(os.sep, "/")
+        params.env_entry_point = os.path.dirname(os.path.abspath(params.env_entry_point)).replace(os.sep, "/")

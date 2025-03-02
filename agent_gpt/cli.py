@@ -43,7 +43,7 @@ def save_config(config_data: dict) -> None:
     config_data["version"] = CURRENT_AGENT_GPT_VERSION
     os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
     with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.dump(config_data, f)
+        yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
 
 def parse_value(value: str):
     """
@@ -376,7 +376,7 @@ def list_config(
         # Retrieve the specified section and print its contents directly.
         section_data = config_data.get(section, {})
         typer.echo(f"Current configuration for '{section}':")
-        typer.echo(yaml.dump(section_data, default_flow_style=False))
+        typer.echo(yaml.dump(section_data, default_flow_style=False, sort_keys=False))
     else:
         typer.echo("Current configuration:")
         # Define the desired order.
@@ -384,7 +384,7 @@ def list_config(
         for sec in ordered_sections:
             if sec in config_data:
                 typer.echo(f"**{sec}**:")
-                typer.echo(yaml.dump(config_data[sec], default_flow_style=False))
+                typer.echo(yaml.dump(config_data[sec], default_flow_style=False, sort_keys=False))
     
 @app.command("simulate")
 def simulate(
@@ -417,8 +417,6 @@ def simulate(
     simulator_conf = config_data.get("simulator_registry", {}).get("simulators", {})
     environment_conf = simulator_conf.get(simulator_id, {})
     env_type = environment_conf.get("env_type")
-    env_id = environment_conf.get("env_id")
-    entry_point = environment_conf.get("entry_point")
     host_type = environment_conf.get("host_type")
  
     if host_type == "local":
