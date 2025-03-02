@@ -77,7 +77,7 @@ class EnvAPI:
             {
                 "env_key": str,
                 "env_id": str,
-                "entry_point": str,
+                "env_entry_point": str,
                 "render_mode": Optional[str]
             }
             """
@@ -114,7 +114,7 @@ class EnvAPI:
                 body_data = msgpack.unpackb(raw_body, raw=False)
                 env_key = body_data["env_key"]
                 env_id = body_data["env_id"]
-                env_entry_point = body_data["entry_point"]
+                env_entry_point = body_data["env_entry_point"]
                 env_dir = body_data["env_dir"]
                 num_envs = int(body_data["num_envs"])
             except Exception as e:

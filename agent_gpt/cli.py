@@ -417,9 +417,9 @@ def simulate(
     simulator_conf = config_data.get("simulator_registry", {}).get("simulators", {})
     environment_conf = simulator_conf.get(simulator_id, {})
     env_type = environment_conf.get("env_type")
-    host_type = environment_conf.get("host_type")
+    hosting = environment_conf.get("hosting")
  
-    if host_type == "local":
+    if hosting == "local":
         launchers = []
         # Get the port mappings; if a port is not mapped, use the provided port directly.
         for port in ports:
