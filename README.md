@@ -1,4 +1,4 @@
-# AgentGPT: Cloud RL Training with Local Env Simulators
+# AgentGPT: Remote Env Integrated Cloud RL Training
 
 **W&B Humanoid-v5 Benchmark (via Internet):** [Weights & Biases Dashboard](https://wandb.ai/junhopark/agentgpt-beta)
 
@@ -31,20 +31,12 @@ pip install agent-gpt-aws --upgrade
 ### Simulation
 
 - **Run your environment (gym/unity/unreal, etc.) before training starts:**   
-  Replace `port1 port2 ...` with actual port values for local environment hosting.
   ```bash
-   agent-gpt simulate local port1 port2 ...
+   agent-gpt simulate local
+   agent-gpt simulate cloud
   ```
 
 ### Training & Inference
-
-- **Set local and cloud environment hosts:**  
-  Here, the number at the end indicates the number of agents to run in that environment.
-  ```bash
-  agent-gpt config --set_env_host local1 http://your_local_ip:port num_agents
-  agent-gpt config --set_env_host cloud1 your_endpoint_on_cloud 32
-  agent-gpt config --set_env_host cloud2 your_endpoint_on_cloud 64
-  ```
 
 - **Train a gpt model on AWS:**
   ```bash
