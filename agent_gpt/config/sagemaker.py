@@ -1,6 +1,17 @@
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
+ACCESIBLE_REGIONS = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-2"]  # Supported regions
+
+# try:    
+#     from importlib.metadata import version, PackageNotFoundError
+# except ImportError:
+#     from importlib_metadata import version, PackageNotFoundError
+# try:
+#     CURRENT_AGENT_GPT_VERSION = version("agent-gpt-aws")  # Replace with your package name
+# except PackageNotFoundError:
+CURRENT_AGENT_GPT_VERSION = "v0.3.9"  # Current Image Tag in ACCESIBLE_REGIONS
+
 @dataclass
 class TrainerConfig:
     DEFAULT_OUTPUT_PATH = "s3://your-bucket/input/"
@@ -17,7 +28,6 @@ class InferenceConfig:
     instance_count: int = 1
     max_run: int = 3600
     model_data: Optional[str] = DEFAULT_MODEL_DATA
-
 @dataclass
 class SageMakerConfig:
     role_arn: Optional[str] = "arn:aws:iam::<your-aws-account-id>:role/SageMakerExecutionRole"
@@ -32,15 +42,14 @@ class SageMakerConfig:
         if isinstance(self.inference, dict):
             self.inference = InferenceConfig(**self.inference)
 
-    def get_image_uri(self, service_type: str, version: str = "latest") -> str:
-        allowed_regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-2"]  # Supported regions
-        if self.region not in allowed_regions:
-            raise ValueError(f"Region {self.region} is not allowed. Allowed regions: {allowed_regions}")
+    def get_image_uri(self, service_type: str) -> str:
+        if self.region not in ACCESIBLE_REGIONS:
+            raise ValueError(f"Region {self.region} is not allowed. Allowed regions: {ACCESIBLE_REGIONS}")
         if service_type not in ("trainer", "inference"):
             raise ValueError("service_type must be either 'trainer' or 'inference'")
         
         # Construct the image URI dynamically based on region and service type.
-        return f"533267316703.dkr.ecr.{self.region}.amazonaws.com/agent-gpt-{service_type}:{version}"
+        return f"533267316703.dkr.ecr.{self.region}.amazonaws.com/agent-gpt-{service_type}:{CURRENT_AGENT_GPT_VERSION}"
 
     def to_dict(self) -> dict:
         """Returns a nested dictionary of the full SageMaker configuration."""
