@@ -1,4 +1,4 @@
-# src/agent_gpt.py
+# agent_gpt/core.py
 ###############################################################################
 # AgentGPT: the main class for training and running an RL environment in SageMaker
 ###############################################################################

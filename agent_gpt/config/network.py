@@ -7,6 +7,12 @@ class NetworkConfig:
     host: str = "0.0.0.0"  # Defaults to 0.0.0.0; can be overridden by public_ip if available
     public_ip: str = ""
     internal_ip: str = ""
+    
+    def __post_init__(self):
+        # Fetch network info and update fields accordingly.
+        info = get_network_info()  # Assumes get_network_info() is defined elsewhere.
+        self.public_ip = info.get("public_ip", self.public_ip)
+        self.internal_ip = info.get("internal_ip", self.internal_ip) or "127.0.0.1"
 
     def to_dict(self) -> dict:
         """Returns a dictionary of all Network configuration fields."""
@@ -26,15 +32,10 @@ class NetworkConfig:
     @classmethod
     def from_network_info(cls) -> "NetworkConfig":
         """
-        Creates a NetworkConfig instance by fetching network information.
-        If a public IP is available, it will be used as the public_ip and host.
+        Convenience method that creates an instance.
+        __post_init__ automatically fetches network info.
         """
-        info = get_network_info()
-        public_ip = info.get("public_ip") or ""
-        internal_ip = info.get("internal_ip") or "127.0.0.1"
-        # Use public_ip as host if available; otherwise, default to "0.0.0.0"
-        host = "0.0.0.0"
-        return cls(public_ip=public_ip, internal_ip=internal_ip, host=host)
+        return cls()
     
                 
 def get_network_info() -> dict:

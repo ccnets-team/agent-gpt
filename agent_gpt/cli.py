@@ -18,164 +18,16 @@ import re
 import yaml
 import requests
 from typing import Optional, List
-from .config.simulator import SimulatorRegistry, SimulatorConfig 
-from .config.network import NetworkConfig
+from .config.simulator import SimulatorConfig 
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
 from .env_host.server import EnvServer
 from .core import AgentGPT
+from .utils.config_utils import load_config, save_config, generate_section_config
+from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, apply_config_updates
+from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
-
-try:    
-    from importlib.metadata import version, PackageNotFoundError
-except ImportError:
-    from importlib_metadata import version, PackageNotFoundError
-
-try:
-    CURRENT_AGENT_GPT_VERSION = version("agent-gpt-aws")  # Replace with your package name
-except PackageNotFoundError:
-    CURRENT_AGENT_GPT_VERSION = "unknown"  # Fallback if the package is not installed
-
-DEFAULT_CONFIG_PATH = os.path.expanduser("~/.agent_gpt/config.yaml")
-
-def load_config() -> dict:
-    if os.path.exists(DEFAULT_CONFIG_PATH):
-        with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-        # If the stored version doesn't match, clear the config file
-        if config.get("version") != CURRENT_AGENT_GPT_VERSION:
-            os.remove(DEFAULT_CONFIG_PATH)
-            config = {}  # Start with an empty config
-        return config
-    return {}
-
-def save_config(config_data: dict) -> None:
-    config_data["version"] = CURRENT_AGENT_GPT_VERSION
-    os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
-    with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
-
-def parse_value(value: str):
-    """
-    Try converting the string to int, float, or bool.
-    If all conversions fail, return the string.
-    """
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        pass
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        pass
-    if value is not None:
-        lower = value.lower()
-        if lower in ["true", "false"]:
-            return lower == "true"
-    return value
-
-def deep_merge(default: dict, override: dict) -> dict:
-    """
-    Recursively merge two dictionaries.
-    Values in 'override' update those in 'default'.
-    """
-    merged = default.copy()
-    for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = deep_merge(merged[key], value)
-        else:
-            merged[key] = value
-    return merged
-
-def parse_extra_args(args: list[str]) -> dict:
-    """
-    Parses extra CLI arguments provided in the form:
-      --key value [value ...]
-    Supports nested keys via dot notation, e.g.:
-      --env_hosts.local1.env_endpoint "http://example.com:8500"
-    Returns a nested dictionary of the parsed values.
-    """
-    new_changes = {}
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        if arg.startswith("--"):
-            key = arg[2:]  # remove the leading "--"
-            i += 1
-            # Gather all subsequent arguments that do not start with '--'
-            values = []
-            while i < len(args) and not args[i].startswith("--"):
-                values.append(args[i])
-                i += 1
-
-            # Determine if we have no values, a single value, or multiple values.
-            if not values:
-                parsed_value = None
-            elif len(values) == 1:
-                parsed_value = parse_value(values[0])
-            else:
-                parsed_value = [parse_value(val) for val in values]
-
-            # Build a nested dictionary using dot notation.
-            keys = key.split(".")
-            d = new_changes
-            for sub_key in keys[:-1]:
-                d = d.setdefault(sub_key, {})
-            d[keys[-1]] = parsed_value
-        else:
-            i += 1
-    return new_changes
-
-def recursive_update(target, changes: dict, prefix="") -> tuple:
-    """
-    Recursively update attributes of an object (or dictionary) using a nested changes dict.
-    Only updates existing attributes/keys.
-
-    Returns:
-        tuple: (changed, diffs)
-            changed (bool): True if any update was made, False otherwise.
-            diffs (list): A list of differences in the form (full_key, old_value, new_value)
-    """
-    changed = False
-    diffs = []
-
-    if isinstance(target, dict):
-        for k, v in changes.items():
-            if k in target:
-                current_key = f"{prefix}.{k}" if prefix else k
-                if isinstance(v, dict):
-                    sub_changed, sub_diffs = recursive_update(target[k], v, prefix=current_key)
-                    if sub_changed:
-                        changed = True
-                        diffs.extend(sub_diffs)
-                else:
-                    if target[k] != v:
-                        old_val = target[k]
-                        target[k] = v
-                        changed = True
-                        diffs.append((current_key, old_val, v))
-            # Do not add new keys.
-    else:
-        for attr, new_val in changes.items():
-            if not hasattr(target, attr):
-                continue
-            current_val = getattr(target, attr)
-            current_key = f"{prefix}.{attr}" if prefix else attr
-            # If the new value is a dict, try to update the inner attributes.
-            if isinstance(new_val, dict):
-                sub_changed, sub_diffs = recursive_update(current_val, new_val, prefix=current_key)
-                if sub_changed:
-                    changed = True
-                    diffs.extend(sub_diffs)
-            else:
-                if current_val != new_val:
-                    old_val = current_val
-                    setattr(target, attr, new_val)
-                    changed = True
-                    diffs.append((current_key, old_val, new_val))
-
-    return changed, diffs
 
 @app.command("config", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def config(ctx: typer.Context):
@@ -224,70 +76,8 @@ def config(ctx: typer.Context):
 
     # Load stored configuration overrides.
     stored_overrides = load_config()
-
-    # Instantiate default configuration objects.
-    default_simulator_registry = SimulatorRegistry()
-    default_network = NetworkConfig().from_network_info()
-    default_hyperparams = Hyperparameters()
-    default_sagemaker = SageMakerConfig()
-
-    # Apply stored overrides.
-    default_simulator_registry.set_config(**stored_overrides.get("simulator_registry", {}))
-    default_network.set_config(**stored_overrides.get("network", {}))
-    default_hyperparams.set_config(**stored_overrides.get("hyperparams", {}))
-    default_sagemaker.set_config(**stored_overrides.get("sagemaker", {}))
-
-    # Use the updated defaults as our working configuration.
-    new_simulators = default_simulator_registry
-    new_network = default_network
-    new_hyperparams = default_hyperparams 
-    new_sagemaker = default_sagemaker 
-
-    # List to collect change summaries.
-    list_changes = []
-
-    # Loop through the parsed changes.
-    for key, value in new_changes.items():
-        diffs_for_key = []
-        changed = False
-        # If the top-level key is one of the config namespaces and the value is a dict with one item,
-        # then unpack that item so that:
-        #   key becomes the inner attribute (e.g. "exploration")
-        #   value becomes its nested dict (e.g. {'continuous': {'mu': 32}})
-        if key in ("simulator_registry", "hyperparams", "sagemaker", "network") and isinstance(value, dict) and len(value) == 1:
-            inner_key, inner_value = list(value.items())[0]
-            key = inner_key
-            value = inner_value
-
-        # Otherwise, update all config objects that have the attribute.
-        for obj in [new_simulators, new_network, new_hyperparams, new_sagemaker]:
-            if not hasattr(obj, key):
-                continue
-            attr = getattr(obj, key)
-            if callable(attr):
-                if not isinstance(value, list):
-                    value = [value]
-                # Filter out None values if necessary.
-                converted_args = [parse_value(arg) for arg in value if arg is not None]
-                if converted_args:
-                    attr(*converted_args)
-                else:
-                    attr()
-                arg_str = " ".join(str(x) for x in converted_args)
-                diffs_for_key.append((key, None, arg_str))
-                changed = True
-            elif isinstance(value, dict):
-                ch, diffs = recursive_update(attr, value, prefix=key)
-                if ch:
-                    changed = True
-                    diffs_for_key.extend(diffs)
-            else:
-                current_val = getattr(obj, key)
-                if current_val != value:
-                    setattr(obj, key, value)
-                    changed = True
-                    diffs_for_key.append((key, current_val, value))
-        list_changes.append((key, value, changed, diffs_for_key))
+    config_obj = convert_to_objects(stored_overrides)
+    list_changes = apply_config_updates(config_obj, new_changes)
 
     # Print detailed change summaries.
     for key, value, changed, diffs in list_changes:
@@ -308,26 +98,38 @@ def config(ctx: typer.Context):
                 f" - {key}: no changes applied (already up-to-date or attribute/method not found)",
                 fg=typer.colors.YELLOW
             ))
-
-    full_config = {
-        "simulator_registry": default_simulator_registry.to_dict(),
-        "network": default_network.to_dict(),
-        "hyperparams": default_hyperparams.to_dict(),
-        "sagemaker": default_sagemaker.to_dict(),
-    }
+            
+    full_config = {}
+    for key, obj in config_obj.items():
+        full_config[key] = obj.to_dict()
     save_config(full_config)
 
-def get_default(section: str) -> dict:
-    if section == "simulator_registry":
-        return SimulatorRegistry().to_dict()
-    elif section == "network":
-        return NetworkConfig().from_network_info().to_dict()
-    elif section == "hyperparams":
-        return Hyperparameters().to_dict()
-    elif section == "sagemaker":
-        return SageMakerConfig().to_dict()
-    else:
-        return {}
+@app.command("edit")
+def edit_config():
+    """
+    Open the configuration file in the system's default text editor for manual modification.
+    If the configuration file does not exist, create one with default values.
+    """
+    # Check if the configuration file exists; if not, create a default one.
+    if not os.path.exists(DEFAULT_CONFIG_PATH):
+        typer.echo("Configuration file not found. Creating a default configuration file...")
+        default_config = initialize_config()
+        save_config(default_config)
+    
+    try:
+        import platform
+        import subprocess
+        system = platform.system()
+        if system == "Windows":
+            subprocess.Popen(["notepad.exe", DEFAULT_CONFIG_PATH])
+        elif system == "Darwin":
+            subprocess.Popen(["open", DEFAULT_CONFIG_PATH])
+        elif system == "Linux":
+            subprocess.Popen(["xdg-open", DEFAULT_CONFIG_PATH])
+        else:
+            typer.launch(DEFAULT_CONFIG_PATH)
+    except Exception as e:
+        typer.echo(f"Failed to open the configuration file: {e}")
 
 @app.command("clear")
 def clear_config(
@@ -340,13 +142,13 @@ def clear_config(
     Clear configuration settings. If a section is provided, reset that section to its default.
     Otherwise, delete the entire configuration file from disk.
     """
-    allowed_sections = {"simulator_registry", "network", "hyperparams", "sagemaker"}
+    allowed_sections = set(TOP_CONFIG_CLASS_MAP.keys())
     if section:
         if section not in allowed_sections:
             typer.echo(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.")
             raise typer.Exit()
         config_data = load_config()
-        config_data[section] = get_default(section)
+        config_data[section] = generate_section_config(section)
         save_config(config_data)
         typer.echo(f"Configuration section '{section}' has been reset to default.")
     else:
@@ -371,16 +173,7 @@ def list_config(
     
     # If no configuration exists, generate defaults and save them.
     if not config_data:
-        default_simulator_registry = SimulatorRegistry().to_dict()
-        default_network = NetworkConfig().from_network_info().to_dict()
-        default_hyperparams = Hyperparameters().to_dict()
-        default_sagemaker = SageMakerConfig().to_dict()
-        config_data = {
-            "simulator_registry": default_simulator_registry,
-            "network": default_network,
-            "hyperparams": default_hyperparams,
-            "sagemaker": default_sagemaker,
-        }
+        config_data = initialize_config()
         save_config(config_data)
         
     if section:
@@ -390,9 +183,7 @@ def list_config(
         typer.echo(yaml.dump(section_data, default_flow_style=False, sort_keys=False))
     else:
         typer.echo("Current configuration:")
-        # Define the desired order.
-        ordered_sections = ["simulator_registry", "network", "hyperparams", "sagemaker"]
-        for sec in ordered_sections:
+        for sec in TOP_CONFIG_CLASS_MAP.keys():
             if sec in config_data:
                 typer.echo(f"**{sec}**:")
                 typer.echo(yaml.dump(config_data[sec], default_flow_style=False, sort_keys=False))
@@ -489,23 +280,22 @@ def simulate(
     simulators = simulator_registry_data.get("simulators", {})
     simulator_data = simulators.get(simulator_id)
     
-    simulator_config = SimulatorConfig()
-    simulator_config.set_config(**simulator_data)
+    simulator_obj = SimulatorConfig()
+    simulator_obj.set_config(**simulator_data)
         
-    env_type = simulator_config.env_type
-    hosting = simulator_config.hosting
-    url = simulator_config.url
-    host = simulator_config.host
-    connection = simulator_config.connection
-    total_agents = simulator_config.total_agents
+    env_type = simulator_obj.env_type
+    hosting = simulator_obj.hosting
+    url = simulator_obj.url
+    host = simulator_obj.host
+    connection = simulator_obj.connection
+    total_agents = simulator_obj.total_agents
     
     if not ports:
         typer.echo("No port numbers provided. Attempting to retrieve ports from the simulator configuration.")
-        ports = simulator_config.ports
+        ports = simulator_obj.ports
     if not ports:
         typer.echo("Error: No available ports found. Please specify one or more port numbers.")
         raise typer.Exit(code=1)
-    
 
     if hosting == "local":
         if connection == "tunnel":
@@ -522,7 +312,7 @@ def simulate(
             )
             launchers.append(launcher)
 
-        hyperparams = config_data.get("hyperparams", {})
+        
         num_launcers = len(launchers)
         base_agents = total_agents // num_launcers
         remainder = total_agents % num_launcers
@@ -530,15 +320,19 @@ def simulate(
         for i in range(remainder):
             agents_array[i] += 1
         
-        # Store simulation host info in hyperparams using a key like f"{simulator_id}:{port}"
+        # Add environment hosts for the simulation.
+        env_hosts = config_data.get("hyperparams", {}).get("env_hosts", {})
+        added_env_hosts = []
+        # Store simulation host info using a key like f"{simulator_id}:{port}"
         for i, launcher in enumerate(launchers):
             key = f"{simulator_id}:{launcher.port}"
             env_endpoint = launcher.endpoint
-            # Store the endpoint and agent count (here, 32) as a dictionary or tuple.
-            hyperparams["env_hosts"][key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
-            typer.echo(f" - {env_endpoint}")
+            env_hosts[key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
+            added_env_hosts.append(key)
+            typer.echo(f"env_endpoint: {env_endpoint}, num_agents: {agents_array[i]}")
 
-        config_data["hyperparams"] = hyperparams
+        # Update and save the config.
+        config_data.setdefault("hyperparams", {})["env_hosts"] = env_hosts
         save_config(config_data)
 
         # Inform the user that the simulation command will block this terminal.
@@ -556,13 +350,11 @@ def simulate(
             for launcher in launchers:
                 launcher.server_thread.join(timeout=2)
 
-        if "env_hosts" not in hyperparams:
-            hyperparams["env_hosts"] = {}
-        # After simulation ends, auto-remove the env_hosts entries for this simulator.
-        keys_to_remove = [key for key in hyperparams["env_hosts"] if key.startswith(f"{simulator_id}:")]
-        for key in keys_to_remove:
-            del hyperparams["env_hosts"][key]
-        config_data["hyperparams"] = hyperparams
+        # After simulation ends, remove only the env_hosts entries added for this simulation.
+        for key in added_env_hosts:
+            env_hosts.pop(key, None)
+
+        config_data["hyperparams"]["env_hosts"] = env_hosts
         save_config(config_data)
 
         if connection == "tunnel":
@@ -654,19 +446,21 @@ def train():
     """
     config_data = load_config()
 
-    # Use the sagemaker-trainer configuration.
-    sagemaker_conf = config_data.get("sagemaker", {})
-    hyperparams_conf = config_data.get("hyperparams", {})
-
-    sagemaker_config = SageMakerConfig(**sagemaker_conf)
-    hyperparams_config = Hyperparameters(**hyperparams_conf)
+    input_config_names = ["sagemaker", "hyperparams"] 
+    input_config = {}
+    for name in input_config_names:
+        input_config[name] = config_data.get(name, {})
+    converted_obj = convert_to_objects(input_config)
     
-    if not initialize_sagemaker_access(sagemaker_config.role_arn, sagemaker_config.region, service_type="trainer"):
+    sagemaker_obj: SageMakerConfig = converted_obj["sagemaker"]
+    hyperparams_config: Hyperparameters = converted_obj["hyperparams"]
+    
+    if not initialize_sagemaker_access(sagemaker_obj.role_arn, sagemaker_obj.region, service_type="trainer"):
         typer.echo("AgentGPT training failed.")
         raise typer.Exit(code=1)
     
     typer.echo("Submitting training job...")
-    estimator = AgentGPT.train(sagemaker_config, hyperparams_config)
+    estimator = AgentGPT.train(sagemaker_obj, hyperparams_config)
     typer.echo(f"Training job submitted: {estimator.latest_training_job.name}")
 
 @app.command()
@@ -677,16 +471,20 @@ def infer():
     """
     config_data = load_config()
 
-    sagemaker_conf = config_data.get("sagemaker", {})
-    sagemaker_config = SageMakerConfig(**sagemaker_conf)
+    # Use the sagemaker configuration.
+    input_config_names = ["sagemaker"]
+    input_config = {name: config_data.get(name, {}) for name in input_config_names}
+    converted_obj = convert_to_objects(input_config)
+    
+    sagemaker_obj: SageMakerConfig = converted_obj["sagemaker"]
 
-    if not initialize_sagemaker_access(sagemaker_config.role_arn, sagemaker_config.region, service_type="inference"):
+    if not initialize_sagemaker_access(sagemaker_obj.role_arn, sagemaker_obj.region, service_type="inference"):
         typer.echo("Error initializing SageMaker access for AgentGPT inference.")
         raise typer.Exit(code=1)
 
     typer.echo("Deploying inference endpoint...")
     
-    gpt_api = AgentGPT.infer(sagemaker_config)
+    gpt_api = AgentGPT.infer(sagemaker_obj)
     typer.echo(f"Inference endpoint deployed: {gpt_api.endpoint_name}")
 
 @app.callback()

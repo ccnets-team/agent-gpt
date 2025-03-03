@@ -1,16 +1,6 @@
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 
-class PostInstallCommand(install):
-    """Post-installation for installation mode."""
-    def run(self):
-        install.run(self)
-        print("\n****************************************")
-        print("Installation complete!")
-        print("Note: The CLI command is 'agent-gpt' not 'agent-gpt-aws'.")
-        print("Run 'agent-gpt --help' to see available commands and usage.")
-        print("****************************************\n")
-
 with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
@@ -34,7 +24,7 @@ install_requires = env_requirements + cli_dependencies
 
 setup(
     name="agent-gpt-aws",
-    version="0.3.7",
+    version="0.3.8",
     packages=find_packages(), 
     entry_points={
         "console_scripts": [
@@ -61,7 +51,4 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.7",
-    cmdclass={  
-         'install': PostInstallCommand,
-    },
 )

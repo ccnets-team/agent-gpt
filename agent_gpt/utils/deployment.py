@@ -74,7 +74,7 @@ def create_dockerfile(env_type: str, env_path: str, additional_dependencies: Lis
     logger.info(f" - Env Type: {env_type}")
 
     # Internal container path where environment files are copied.
-    cloud_import_path = "/app/env_files"
+    env_import_path = "/app/env_files"
 
     with open(dockerfile_path, "w") as f:
         f.write("FROM python:3.9-slim\n\n")
@@ -85,8 +85,8 @@ def create_dockerfile(env_type: str, env_path: str, additional_dependencies: Lis
 
         if rel_env_path:
             f.write("# Copy environment files\n")
-            f.write(f"RUN mkdir -p {cloud_import_path}\n")
-            f.write(f"COPY {rel_env_path} {cloud_import_path}/\n\n")
+            f.write(f"RUN mkdir -p {env_import_path}\n")
+            f.write(f"COPY {rel_env_path} {env_import_path}/\n\n")
         else:
             f.write("# No environment files to copy (env_path is None)\n")
 
