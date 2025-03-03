@@ -182,15 +182,19 @@ class Hyperparameters:
         self,
         key: str,
         type: str = "gaussian_noise",
+        **kwargs
     ):
         assert key in ["continuous", "discrete"], "Key must be 'continuous' or 'discrete'"
-        
-        self.exploration[key] = Exploration(type=type)
+        if key in self.exploration:
+            raise KeyError(f"Exploration key '{key}' already exists in hyperparameters.")
+        self.exploration[key] = Exploration(type=type, **kwargs)
     
     def del_exploration(self, key: str):
         """Deletes exploration config under a named key, e.g. 'continuous' or 'discrete'."""
         if key in self.exploration:
             del self.exploration[key]
+        else:
+            raise KeyError(f"Exploration key '{key}' not found in hyperparameters.")
 
     def set_env_host(self, key: str, env_endpoint: str, num_agents: int):
         """Sets a new environment host (endpoint + agent count) in the env_hosts dict."""

@@ -13,6 +13,7 @@ logging.getLogger("boto3").setLevel(logging.WARNING)
 logging.getLogger("sagemaker.config").setLevel(logging.WARNING)
 
 import typer
+import textwrap
 import os
 import re
 import yaml
@@ -23,53 +24,64 @@ from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
 from .env_host.server import EnvServer
 from .core import AgentGPT
-from .utils.config_utils import load_config, save_config, generate_section_config
+from .utils.config_utils import load_config, save_config, generate_section_config, handle_config_method
 from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, apply_config_updates
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
-@app.command("config", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+@app.command(
+    "config",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
+)
 def config(ctx: typer.Context):
     """
-    Update configuration settings.
+    Update configuration settings.\n\n
     
-    Modes:
+    This command supports two modes for modifying configuration: \n\n
     
-      Field Update Mode:
-        Example: agent-gpt config --batch_size 64 --lr_init 0.0005 --env_id "CartPole-v1"
+    1. Field Update Mode: \n
+    Use dot notation to update configuration fields directly.\n\n
     
-      Method Mode:
-        Example: agent-gpt config --set_env_host local0 http://your_domain.com:port 32
+    For example: \n
+    agent-gpt config --batch_size 64 --lr_init 0.0005 --env_id CartPole-v1 \n
+    agent-gpt config --trainer.max_run 360 \n\n
     
-    Note:
-      You can use dot notation to access nested configuration values.
-      For example:
-        agent-gpt config --sagemaker.trainer.max_run 360
-      will update the 'max_run' value inside the 'trainer' configuration under 'sagemaker'.
-      The top-level prefixes 'hyperparams', 'sagemaker', and 'network' can be omitted for convenience.
-    
-    Available Methods:
-      set_region         - Set the AWS region for SageMaker configurations.
-                           This method updates the ECR image URIs for both the trainer and inference images.
-                           Only two regions are allowed: 'us-east-1' and 'ap-northeast-2' (Seoul).
-      
-      set_env_host       - Set a new environment host.
-      del_env_host       - Delete an existing environment host.
-      set_exploration    - Set exploration parameters.
-      del_exploration    - Delete an exploration configuration.
-      
-      compose_environment  - Automatically generate a complete environment setup.
-                           This command creates a Dockerfile with stored configs to your environment
-                           by bundling the necessary files, installing dependencies, and
-                           setting the appropriate entry point. It also generates a
-                           corresponding Kubernetes manifest for deployment to AWS EKS.
-    """
+    This mode updates any key in the top-level configuration (such as:
+    simulator_registry, network, hyperparams, sagemaker)
+    without requiring dedicated subcommands. \n\n
 
-    # Parse CLI extra arguments into a nested dictionary.
-    new_changes = parse_extra_args(ctx.args)
+    2. Method Mode: \n
+    Use dedicated methods to add or remove configuration entries in specific sections. \n
+    The following functions are available, using the syntax:\n
+    agent-gpt config simulator/env-host/exploration set/del [identifier] [--option value ...] \n
+
+    a. Simulator Configuration:\n\n
     
-    # If no extra CLI arguments are provided, display the help for this command.
+    - Set:\n
+    agent-gpt config simulator set my_simulator --hosting local --connection ip\n
+    agent-gpt config simulator set my_simulator --hosting cloud --connection ec2\n
+    - Delete:\n
+    agent-gpt config simulator del my_simulator\n\n
+    
+    b. Environment Host Configuration:\n\n
+    
+    - Set:\n
+    agent-gpt config env-host set local0 --env_endpoint http://your-host:port --num_agents 32\n
+    agent-gpt config env-host set local1 --env_endpoint http://your-host:port1 --num_agents 64\n
+    - Delete:\n
+    agent-gpt config env-host del local0\n
+    
+    c. Exploration Configuration:\n\n
+    
+    - Set:\n
+    agent-gpt config exploration set continuous --type gaussian_noise --param1 0.1 --param2 0.001\n
+    - Delete:\n
+    agent-gpt config exploration del continuous\n\n
+
+    Choose Field Update Mode for simple, direct key modifications and Method Mode for more guided, complex configuration changes.
+    """
+    
     if not ctx.args:
         typer.echo(ctx.get_help())
         raise typer.Exit()
@@ -77,7 +89,13 @@ def config(ctx: typer.Context):
     # Load stored configuration overrides.
     stored_overrides = load_config()
     config_obj = convert_to_objects(stored_overrides)
-    list_changes = apply_config_updates(config_obj, new_changes)
+    diffs = []
+    # Check if the first argument starts with "--" (field update mode) or not (method mode)
+    if ctx.args[0].startswith("--"):
+        new_changes = parse_extra_args(ctx.args)
+        list_changes = apply_config_updates(config_obj, new_changes)
+    else:
+        list_changes = handle_config_method(ctx.args, config_obj)
 
     # Print detailed change summaries.
     for key, value, changed, diffs in list_changes:
@@ -94,10 +112,11 @@ def config(ctx: typer.Context):
                         fg=typer.colors.GREEN
                     ))
         else:
-            typer.echo(typer.style(
-                f" - {key}: no changes applied (already up-to-date or attribute/method not found)",
-                fg=typer.colors.YELLOW
-            ))
+            for full_key, old_val, new_val in diffs:
+                typer.echo(typer.style(
+                    f" - {key}: no changes applied {new_val}",
+                    fg=typer.colors.YELLOW
+                ))
             
     full_config = {}
     for key, obj in config_obj.items():
@@ -311,7 +330,6 @@ def simulate(
                 port=port
             )
             launchers.append(launcher)
-
         
         num_launcers = len(launchers)
         base_agents = total_agents // num_launcers

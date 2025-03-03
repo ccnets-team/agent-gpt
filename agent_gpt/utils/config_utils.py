@@ -190,19 +190,29 @@ def apply_config_updates(config_obj, new_changes):
         for obj in config_obj.values():
             if not hasattr(obj, key):
                 continue
+            
             attr = getattr(obj, key)
             if callable(attr):
                 if not isinstance(value, list):
                     value = [value]
                 # Filter out None values if necessary.
                 converted_args = [parse_value(arg) for arg in value if arg is not None]
-                if converted_args:
-                    attr(*converted_args)
-                else:
-                    attr()
+                try:
+                    if converted_args:
+                        attr(*converted_args)
+                    else:
+                        attr()
+                except Exception as e:
+                    # Log the error and record it in the diffs for later inspection.
+                    error_msg = f"Error calling '{key}' with arguments {converted_args}: {e}"
+                    print(error_msg)
+                    diffs_for_key.append((key, "error", error_msg))
+                    # Continue with the next step rather than halting the entire update.
+                    continue
                 arg_str = " ".join(str(x) for x in converted_args)
                 diffs_for_key.append((key, None, arg_str))
                 changed = True
+
             elif isinstance(value, dict):
                 ch, diffs = recursive_update(attr, value, prefix=key)
                 if ch:
@@ -216,3 +226,66 @@ def apply_config_updates(config_obj, new_changes):
                     diffs_for_key.append((key, current_val, value))
         list_changes.append((key, value, changed, diffs_for_key))
     return list_changes
+
+def handle_config_method(args: list[str], config_obj: dict) -> list:
+    """
+    Process method calls in the config command. For instance, if the user runs:
+      agent-gpt config simulator set simim --hosting local
+    Then:
+      - args[0] = "simulator"         (the configuration type)
+      - args[1] = "set"               (the behavior)
+      - args[2] = "simim"             (the identifier, e.g., simulator identifier)
+      - remaining args: ["--hosting", "local"] are parsed as keyword arguments.
+    
+    The function constructs the method name (e.g. "set_simulator") and loops over all
+    top-level configuration objects in config_obj to find one with a callable attribute
+    matching that name. If found, it calls that method with the identifier and any keyword arguments.
+    
+    Returns a list with one tuple having 4 items:
+      (target_key.method_name, keyword_args, changed, diffs_for_key)
+    where diffs_for_key is a list of 3-item tuples: (key, old_value, new_value).
+    """
+    # If not enough arguments, return a 4-item tuple indicating error.
+    if len(args) < 3:
+        return [("error", None, False, [("error", "error", "Not enough arguments for method call")])]
+
+    # Extract command parts.
+    object_name = args[0]          # e.g., "simulator"
+    behaviour = args[1]            # e.g., "set" or "del"
+    identifier = args[2]           # e.g., "simim"
+    method_name = f"{behaviour}_{object_name.lower().replace('-', '_')}"  # e.g., "set_simulator"
+
+    # Process any remaining arguments as keyword arguments (via dot notation).
+    method_args_raw = args[3:]
+    keyword_args = {}
+    if method_args_raw:
+        keyword_args = parse_extra_args(method_args_raw)
+
+    # Loop over all top-level configuration objects to find one with a callable matching method_name.
+    target_obj = None
+    target_object_name = None
+    for key, obj in config_obj.items():
+        if hasattr(obj, method_name) and callable(getattr(obj, method_name)):
+            target_obj = obj
+            target_object_name = key
+            break
+
+    if target_obj is None:
+        return [(object_name, keyword_args, False, [(object_name, "error", f"No configuration object found with callable '{method_name}'")])]
+    try:
+        method = getattr(target_obj, method_name)
+    except Exception as e:
+        return [(f"{target_object_name}.{method_name}", keyword_args, False, [(f"{target_object_name}.{method_name}", "error", str(e))])]
+
+    try:
+        # Call the method with the identifier as the first argument and pass any keyword arguments.
+        method(identifier, **keyword_args)
+        if keyword_args:
+            answer = f"Called with identifier '{identifier}' and {keyword_args}"
+        else:
+            answer = f"Called with identifier '{identifier}'"
+        return [(f"{target_object_name}.{method_name}", keyword_args, True,
+                 [(f"{target_object_name}.{method_name}", None, answer)])]
+    except Exception as e:
+        return [(f"{target_object_name}.{method_name}", keyword_args, False,
+                 [(f"{target_object_name}.{method_name}", "error", str(e))])]
