@@ -17,7 +17,7 @@ import os
 import re
 import yaml
 import requests
-from typing import Optional, List
+from typing import Optional
 from .config.simulator import SimulatorConfig 
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
@@ -26,58 +26,28 @@ from .core import AgentGPT
 from .utils.config_utils import load_config, save_config, generate_section_config, handle_config_method
 from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, apply_config_updates
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
+import yaml
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
+def load_help_texts(yaml_filename: str) -> dict:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    yaml_path = os.path.join(script_dir, yaml_filename)
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        return yaml.load(f, Loader=yaml.FullLoader)
+
+def auto_format_help(text: str) -> str:
+    formatted = re.sub(r'([.:])\s+', r'\1\n\n', text)
+    return formatted
+
+help_texts = load_help_texts("help_config.yaml")
+
 @app.command(
     "config",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
+    short_help=help_texts["config"]["short_help"],
+    help=auto_format_help(help_texts["config"]["detailed_help"]),
 )
 def config(ctx: typer.Context):
-    """
-    Update configuration settings.\n\n
-    
-    This command supports two modes for modifying configuration: \n\n
-    
-    1. Field Update Mode: \n
-    Use dot notation to update configuration fields directly.\n\n
-    
-    For example: \n
-    agent-gpt config --batch_size 64 --lr_init 0.0005 --env_id CartPole-v1 \n
-    agent-gpt config --trainer.max_run 360 \n\n
-    
-    This mode updates any key in the top-level configuration (such as:
-    simulator_registry, network, hyperparams, sagemaker)
-    without requiring dedicated subcommands. \n\n
-
-    2. Method Mode: \n
-    Use dedicated methods to add or remove configuration entries in specific sections. \n
-    The following functions are available, using the syntax:\n
-    agent-gpt config simulator/env-host/exploration set/del [identifier] [--option value ...] \n\n
-
-    a. Simulator Configuration:\n
-    - Set:\n
-    agent-gpt config simulator set my_simulator --hosting local --connection ip\n
-    agent-gpt config simulator set my_simulator --hosting cloud --connection ec2\n
-    - Delete:\n
-    agent-gpt config simulator del my_simulator\n\n
-    
-    b. Environment Host Configuration:\n
-    - Set:\n
-    agent-gpt config env-host set local0 --env_endpoint http://your-host:port --num_agents 32\n
-    agent-gpt config env-host set local1 --env_endpoint http://your-host:port1 --num_agents 64\n
-    - Delete:\n
-    agent-gpt config env-host del local0\n\n
-    
-    c. Exploration Configuration:\n
-    - Set:\n
-    agent-gpt config exploration set continuous --type gaussian_noise --param1 0.1 --param2 0.001\n
-    - Delete:\n
-    agent-gpt config exploration del continuous\n\n
-
-    Choose Field Update Mode for simple, direct key modifications and Method Mode for more guided, complex configuration changes.
-    """
-    
     if not ctx.args:
         typer.echo(ctx.get_help())
         raise typer.Exit()
@@ -119,12 +89,12 @@ def config(ctx: typer.Context):
         full_config[key] = obj.to_dict()
     save_config(full_config)
 
-@app.command("edit")
+@app.command(
+    "edit",
+    short_help=help_texts["edit"]["short_help"],
+    help=auto_format_help(help_texts["edit"]["detailed_help"]),
+)
 def edit_config():
-    """
-    Open the configuration file in the system's default text editor for manual modification.
-    If the configuration file does not exist, create one with default values.
-    """
     # Check if the configuration file exists; if not, create a default one.
     if not os.path.exists(DEFAULT_CONFIG_PATH):
         typer.echo("Configuration file not found. Creating a default configuration file...")
@@ -146,17 +116,16 @@ def edit_config():
     except Exception as e:
         typer.echo(f"Failed to open the configuration file: {e}")
 
-@app.command("clear")
+@app.command(
+    "clear",
+    short_help=help_texts["clear"]["short_help"],
+    help=auto_format_help(help_texts["clear"]["detailed_help"]),
+)
 def clear_config(
     section: Optional[str] = typer.Argument(
         None,
-        help="Optional configuration section to clear (environment, network, hyperparams, sagemaker). If not provided, clears the entire configuration."
     )
 ):
-    """
-    Clear configuration settings. If a section is provided, reset that section to its default.
-    Otherwise, delete the entire configuration file from disk.
-    """
     allowed_sections = set(TOP_CONFIG_CLASS_MAP.keys())
     if section:
         if section not in allowed_sections:
@@ -173,17 +142,16 @@ def clear_config(
         else:
             typer.echo("No configuration file found to delete.")
 
-@app.command("list")
+@app.command(
+    "list",
+    short_help=help_texts["list"]["short_help"],
+    help=auto_format_help(help_texts["list"]["detailed_help"]),
+)
 def list_config(
     section: Optional[str] = typer.Argument(
         None,
-        help="Configuration section to list (environment, network, hyperparams, sagemaker). If not provided, lists all configuration settings."
     )
 ):
-    """
-    List the current configuration settings. If a section is provided,
-    only that part of the configuration is displayed.
-    """
     config_data = load_config()
     
     # If no configuration exists, generate defaults and save them.
@@ -203,27 +171,15 @@ def list_config(
                 typer.echo(f"**{sec}**:")
                 typer.echo(yaml.dump(config_data[sec], default_flow_style=False, sort_keys=False))
 
-@app.command("upload")
+@app.command(
+    "upload",
+    short_help=help_texts["upload"]["short_help"],
+    help=auto_format_help(help_texts["upload"]["detailed_help"])
+)
 def upload(
     simulator_id: str = typer.Argument(
-        help="Simulator ID to upload for cloud hosting."
     )
 ):
-    """
-    Upload a simulator for cloud deployment.
-
-    Steps:
-      1. Validate & Retrieve Simulator:
-         - Load the configuration and retrieve the simulator settings from the Simulator Registry.
-      2. Create Dockerfile & Upload:
-         - Generate a Dockerfile based on the simulator configuration.
-         - Build and push a Docker image to your ECR account.
-      3. Update Simulator Registry:
-         - Update the Simulator configuration with the new image URI after a successful upload.
-    
-    Example:
-      agent-gpt upload my_simulator
-    """
     config_data = load_config()
     region = config_data.get("sagemaker", {}).get("region")
     if not region:
@@ -256,38 +212,15 @@ def upload(
     config_data["simulator_registry"] = simulator_registry_data
     save_config(config_data)
 
-@app.command("simulate")
+@app.command(
+    "simulate",
+    short_help=help_texts["simulate"]["short_help"],
+    help=auto_format_help(help_texts["simulate"]["detailed_help"])
+)
 def simulate(
-    simulator_id: str = typer.Argument(
-        "local",
-        help="Environment identifier to simulate. Default: 'local'."
-    ),
-    ports: Optional[List[int]] = typer.Argument(
-        None,
-        help="One or more container port numbers on which to run the simulation server. Example: 80. If not provided, the simulator's default ports will be used."
-    )
+    simulator_id: str = typer.Argument("local", help="Simulator identifier (default: local)"),
+    ports: list[int] = typer.Argument(None, help="List of port numbers")
 ):
-    """
-    Launch an environment simulation using the configured simulator settings or specified port numbers.
-
-    Steps:
-      1. Retrieve Simulator Configuration:
-           - Load the simulator settings from the local configuration file.
-           - Use default ports from the configuration if no port numbers are provided.
-      2. Launch Simulation Server:
-           - Start a simulation server on each provided port based on the simulator's hosting type.
-             * Local: Runs the simulation server locally.
-             * Remote: Not supported on this machine; run the simulation directly on the remote simulator.
-             * Cloud: Cloud-based simulation is not supported yet.
-      3. Monitor & Terminate:
-           - The simulation runs in the current terminal.
-           - Press Ctrl+C to gracefully terminate the simulation.
-
-    Examples:
-      agent-gpt simulate local
-      agent-gpt simulate local 8080, 8081
-      agent-gpt simulate my_simulator 80, 81, 82, 83
-    """
     # Load configuration to get the network settings.
     config_data = load_config()
 
@@ -459,12 +392,12 @@ def initialize_sagemaker_access(
         typer.echo("Initialization failed.")
         return False
 
-@app.command()
+@app.command(
+    "train",
+    short_help=help_texts["train"]["short_help"],
+    help=auto_format_help(help_texts["train"]["detailed_help"])
+)
 def train():
-    """
-    Launch a SageMaker training job for AgentGPT using configuration settings.
-    This command loads training configuration from the saved config file.
-    """
     config_data = load_config()
 
     input_config_names = ["sagemaker", "hyperparams"] 
@@ -484,12 +417,12 @@ def train():
     estimator = AgentGPT.train(sagemaker_obj, hyperparams_config)
     typer.echo(f"Training job submitted: {estimator.latest_training_job.name}")
 
-@app.command()
+@app.command(
+    "infer",
+    short_help=help_texts["infer"]["short_help"],
+    help=auto_format_help(help_texts["infer"]["detailed_help"])
+)
 def infer():
-    """
-    Deploy or reuse a SageMaker inference endpoint for AgentGPT using configuration settings.
-    This command loads inference configuration from the saved config file.
-    """
     config_data = load_config()
 
     # Use the sagemaker configuration.
