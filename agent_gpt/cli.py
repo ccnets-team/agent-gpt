@@ -313,12 +313,12 @@ def simulate(
         raise typer.Exit(code=1)
 
     if hosting == "local":
-        if connection == "tunnel":
-            from .utils.tunnel import create_tunnel
-            url = create_tunnel(ports[0])
             
         launchers = []
         for port in ports:
+            if connection == "tunnel":
+                from .utils.tunnel import create_tunnel
+                url = create_tunnel(port)
             launcher = EnvServer.launch(
                 env_type=env_type,
                 url=url,
@@ -340,7 +340,10 @@ def simulate(
         # Store simulation host info using a key like f"{simulator_id}:{port}"
         for i, launcher in enumerate(launchers):
             key = f"{simulator_id}:{launcher.port}"
-            env_endpoint = launcher.endpoint
+            if connection == "tunnel":
+                env_endpoint = launcher.url
+            else:
+                env_endpoint = launcher.endpoint
             env_host[key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
             added_env_hosts.append(key)
             typer.echo(f"env_endpoint: {env_endpoint}, num_agents: {agents_array[i]}")
@@ -373,7 +376,11 @@ def simulate(
 
         if connection == "tunnel":
             from pyngrok import ngrok
-            ngrok.disconnect(launcher.url)
+            for launcher in launchers:
+                try:
+                    ngrok.disconnect(launcher.url)
+                except Exception:
+                    pass
         
     elif hosting == "remote":
         typer.echo(

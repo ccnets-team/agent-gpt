@@ -91,4 +91,10 @@ def create_tunnel(port) -> str:
     ngrok.set_auth_token(token)
     # Create a tunnel on the first port (reuse its URL for all environments)
     tunnel = ngrok.connect(port)
-    return tunnel.public_url
+    
+    public_url = tunnel.public_url
+    # Convert 'https' to 'http' if the URL starts with 'https://'
+    if public_url.startswith("https://"):
+        public_url = public_url.replace("https://", "http://", 1)
+    
+    return public_url
