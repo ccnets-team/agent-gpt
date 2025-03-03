@@ -1,10 +1,21 @@
+import warnings
 import logging
-logging.getLogger().setLevel(logging.WARNING)
 
+# Suppress specific pydantic warning about the "json" field.
+warnings.filterwarnings(
+    "ignore",
+    message=r'Field name "json" in "MonitoringDatasetFormat" shadows an attribute in parent "Base"',
+    category=UserWarning,
+    module="pydantic._internal._fields"
+)
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
+logging.getLogger("boto3").setLevel(logging.WARNING)
+logging.getLogger("sagemaker.config").setLevel(logging.WARNING)
+
+import typer
 import os
 import re
 import yaml
-import typer
 import requests
 from typing import Optional, List
 from .config.simulator import SimulatorRegistry, SimulatorConfig 
@@ -14,7 +25,7 @@ from .config.sagemaker import SageMakerConfig
 from .env_host.server import EnvServer
 from .core import AgentGPT
 
-app = typer.Typer()
+app = typer.Typer(add_completion=False, invoke_without_command=True)
 
 try:    
     from importlib.metadata import version, PackageNotFoundError
@@ -677,6 +688,13 @@ def infer():
     
     gpt_api = AgentGPT.infer(sagemaker_config)
     typer.echo(f"Inference endpoint deployed: {gpt_api.endpoint_name}")
+
+@app.callback()
+def main(ctx: typer.Context):
+    if ctx.invoked_subcommand is None:
+        typer.echo("No command provided. Displaying help information:\n")
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
 if __name__ == "__main__":
     app()   
