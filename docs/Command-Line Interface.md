@@ -31,15 +31,15 @@ For users who wish to fine-tune or override settings—such as environment hosts
 
 ```bash
 # Manually add or remove an environment host configuration.
-agent-gpt config --set_env_host endpoint_name your_endpoint_on_cloud 32
-agent-gpt config --del_env_host endpoint_name
+agent-gpt config env_host set endpoint_name --env_endpoint your_endpoint_on_cloud --num_agents 32
+agent-gpt config env_host del endpoint_name
 ```
 
 ```bash
 # Configure exploration methods for continuous or discrete control.
-agent-gpt config --set_exploration continuous gaussian_noise
-agent-gpt config --set_exploration discrete epsilon_greedy
-agent-gpt config --del_exploration discrete
+agent-gpt config exploration set continuous --type gaussian_noise
+agent-gpt config exploration set discrete --type epsilon_greedy
+agent-gpt config exploration del discrete
 ```
 
 **Nested Configuration:**  
@@ -49,7 +49,7 @@ Update deeply nested configuration parameters using dot notation for fine-graine
 agent-gpt config --exploration.continuous.initial_sigma 0.2 
 
 # Set the number of agents for a specific environment host (advanced use-case)
-agent-gpt config --env_hosts.cloud1.num_agents 512
+agent-gpt config --env_host.cloud1.num_agents 512
 ```
 
 ### List
@@ -88,7 +88,7 @@ internal_ip: NEW_INTERNAL_IP
 env_id: Walker2d-v5
 env_entry_point: null
 env_dir: null
-env_hosts:
+env_host:
   local:34560:
     env_endpoint: https://106c-203-0-113-57.ngrok-free.app:34560
     num_agents: 64
@@ -152,14 +152,14 @@ The Simulator Registry is an innovative feature that manages multiple simulators
 - **Dynamic, Automatic Configuration:**  
   When you launch a simulation using agent-gpt simulate simulator_id, the CLI automatically updates the simulator registry with the appropriate environment host information for that specific simulator. This minimizes manual configuration while allowing you to manage and control individual simulators for a streamlined training setup.
 
-- **Advanced Customization:**  
+- **Customization with methods:**  
   You can manually adjust or override simulator configurations via commands such as:
   ```bash
-  # (Advanced) Add or update a simulator configuration.
-  agent-gpt config --set_simulator my_remote_simulator gym cloud http://your_remote_endpoint
+  # Add or update a simulator configuration.
+  agent-gpt config simulator set my_remote_simulator --env_type gym --hosting cloud --url http://your_remote_endpoint
   
-  # (Advanced) Remove a simulator from the registry.
-  agent-gpt config --del_simulator my_remote_simulator
+  # Remove a simulator from the registry.
+  agent-gpt config simulator del my_remote_simulator 
   ```
 
 > **Note:**  
@@ -177,7 +177,7 @@ Each CLI command is defined using decorators (e.g., `@app.command()`) from a CLI
 The AgentGPT CLI streamlines your workflow by providing commands to update configurations, launch simulations, train models, and deploy inference endpoints. Key innovations include:
 
 - **Automatic Environment Host Configuration:**  
-  When you run `simulate`, the environment host settings are auto-configured, so you don’t need to manually adjust them.
+  When you run a specific simulator with `simulate` command, the environment host settings are auto-configured, so you don’t need to manually adjust them.
 
 - **Simulator Registry:**  
   This feature manages multiple simulators (local and remote), enabling massive yet controlled cloud training sessions through AWS SageMaker.

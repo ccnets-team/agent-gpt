@@ -13,7 +13,6 @@ logging.getLogger("boto3").setLevel(logging.WARNING)
 logging.getLogger("sagemaker.config").setLevel(logging.WARNING)
 
 import typer
-import textwrap
 import os
 import re
 import yaml
@@ -54,26 +53,23 @@ def config(ctx: typer.Context):
     2. Method Mode: \n
     Use dedicated methods to add or remove configuration entries in specific sections. \n
     The following functions are available, using the syntax:\n
-    agent-gpt config simulator/env-host/exploration set/del [identifier] [--option value ...] \n
+    agent-gpt config simulator/env-host/exploration set/del [identifier] [--option value ...] \n\n
 
-    a. Simulator Configuration:\n\n
-    
+    a. Simulator Configuration:\n
     - Set:\n
     agent-gpt config simulator set my_simulator --hosting local --connection ip\n
     agent-gpt config simulator set my_simulator --hosting cloud --connection ec2\n
     - Delete:\n
     agent-gpt config simulator del my_simulator\n\n
     
-    b. Environment Host Configuration:\n\n
-    
+    b. Environment Host Configuration:\n
     - Set:\n
     agent-gpt config env-host set local0 --env_endpoint http://your-host:port --num_agents 32\n
     agent-gpt config env-host set local1 --env_endpoint http://your-host:port1 --num_agents 64\n
     - Delete:\n
-    agent-gpt config env-host del local0\n
+    agent-gpt config env-host del local0\n\n
     
-    c. Exploration Configuration:\n\n
-    
+    c. Exploration Configuration:\n
     - Set:\n
     agent-gpt config exploration set continuous --type gaussian_noise --param1 0.1 --param2 0.001\n
     - Delete:\n
@@ -235,8 +231,8 @@ def upload(
         raise typer.Exit(code=1)
 
     simulator_registry_data = config_data.get("simulator_registry", {})
-    simulators = simulator_registry_data.get("simulators", {})
-    simulator_data = simulators.get(simulator_id)
+    simulator = simulator_registry_data.get("simulator", {})
+    simulator_data = simulator.get(simulator_id)
     if not simulator_data:
         typer.echo(f"Warning: No simulator config found for identifier '{simulator_id}'")
         raise typer.Exit(code=1)
@@ -256,7 +252,7 @@ def upload(
         typer.echo(f"Error uploading simulator '{simulator_id}': {e}")
         raise typer.Exit(code=1)
     
-    simulator_registry_data["simulators"][simulator_id] = simulator_config.to_dict()
+    simulator_registry_data["simulator"][simulator_id] = simulator_config.to_dict()
     config_data["simulator_registry"] = simulator_registry_data
     save_config(config_data)
 
@@ -296,8 +292,8 @@ def simulate(
     config_data = load_config()
 
     simulator_registry_data = config_data.get("simulator_registry", {})
-    simulators = simulator_registry_data.get("simulators", {})
-    simulator_data = simulators.get(simulator_id)
+    simulator = simulator_registry_data.get("simulator", {})
+    simulator_data = simulator.get(simulator_id)
     
     simulator_obj = SimulatorConfig()
     simulator_obj.set_config(**simulator_data)
@@ -319,7 +315,7 @@ def simulate(
     if hosting == "local":
         if connection == "tunnel":
             from .utils.tunnel import create_tunnel
-            url = create_tunnel(ports)
+            url = create_tunnel(ports[0])
             
         launchers = []
         for port in ports:
@@ -339,18 +335,18 @@ def simulate(
             agents_array[i] += 1
         
         # Add environment hosts for the simulation.
-        env_hosts = config_data.get("hyperparams", {}).get("env_hosts", {})
+        env_host = config_data.get("hyperparams", {}).get("env_host", {})
         added_env_hosts = []
         # Store simulation host info using a key like f"{simulator_id}:{port}"
         for i, launcher in enumerate(launchers):
             key = f"{simulator_id}:{launcher.port}"
             env_endpoint = launcher.endpoint
-            env_hosts[key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
+            env_host[key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
             added_env_hosts.append(key)
             typer.echo(f"env_endpoint: {env_endpoint}, num_agents: {agents_array[i]}")
 
         # Update and save the config.
-        config_data.setdefault("hyperparams", {})["env_hosts"] = env_hosts
+        config_data.setdefault("hyperparams", {})["env_host"] = env_host
         save_config(config_data)
 
         # Inform the user that the simulation command will block this terminal.
@@ -368,16 +364,16 @@ def simulate(
             for launcher in launchers:
                 launcher.server_thread.join(timeout=2)
 
-        # After simulation ends, remove only the env_hosts entries added for this simulation.
+        # After simulation ends, remove only the env_host entries added for this simulation.
         for key in added_env_hosts:
-            env_hosts.pop(key, None)
+            env_host.pop(key, None)
 
-        config_data["hyperparams"]["env_hosts"] = env_hosts
+        config_data["hyperparams"]["env_host"] = env_host
         save_config(config_data)
 
         if connection == "tunnel":
             from pyngrok import ngrok
-            ngrok.disconnect(url)
+            ngrok.disconnect(launcher.url)
         
     elif hosting == "remote":
         typer.echo(

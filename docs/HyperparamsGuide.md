@@ -17,7 +17,7 @@
   - During development and testing, environments may not be packaged into containers yet.
   - Specifying env_dir tells the trainer exactly where to find and run the environment’s code and assets.
 
-- **env_hosts**  
+- **env_host**  
   *Mapping of host identifiers to environment configurations.*  
   - Enables distributed training by assigning endpoints (e.g., IP addresses, URLs, or AWS EC2 endpoints) and specifying the number of agents per host.  
   - Critical for integrating remote environments with the cloud trainer.

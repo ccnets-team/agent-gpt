@@ -12,13 +12,13 @@ class ContainerDeploymentConfig:
 @dataclass
 class SimulatorConfig:
     env_type: str = "gym"               # Environment simulator: 'gym', 'unity', or 'custom'
-    hosting: str = "cloud"       # Host type: 'local' or 'cloud'
+    hosting: str = "local"       # Host type: 'local' or 'cloud'
     connection: str = "tunnel"  # local: ip, tunnel(ngrok); cloud(aws): ec2, eks, app_runner
     url: str = ""
     host: str = "0.0.0.0"
     total_agents: int = 128
     env_dir: str = None  # Path to the environment files directory
-    ports: List[int] = field(default_factory=lambda: [34560, 34561, 34562, 34563])  # Local simulation ports
+    ports: List[int] = field(default_factory=lambda: [34560, 34561])  # Local simulation ports
     container: ContainerDeploymentConfig = field(default_factory=ContainerDeploymentConfig)
         
     def set_config(self, **kwargs):
@@ -40,40 +40,40 @@ class SimulatorConfig:
 @dataclass
 class SimulatorRegistry:
     # A mapping from simulator identifier to its corresponding SimulatorConfig.
-    simulators: Dict[str, SimulatorConfig] = field(default_factory=dict)
+    simulator: Dict[str, SimulatorConfig] = field(default_factory=dict)
         
     def __post_init__(self):
         # Local simulator for direct connection
-        if "local" not in self.simulators:
+        if "local" not in self.simulator:
             network_info = get_network_info()
             ip = network_info['public_ip']
-            self.simulators["local"] = SimulatorConfig(
+            self.simulator["local"] = SimulatorConfig(
                 hosting="local", 
                 url="http://" + ip,  
                 env_type="gym",
                 connection="tunnel",
             )
             project_root = Path(__file__).resolve().parents[2]  # Adjust as needed
-            self.simulators["local"].env_dir = str(project_root)
-            self.simulators["local"].container.deployment_name = None
+            self.simulator["local"].env_dir = str(project_root)
+            self.simulator["local"].container.deployment_name = None
             
     # set dockerfile will be renamed to upload to cloud 
     # and the command will be named as "upload"
     def set_dockerfile(self, simulator_id: str) -> None:
-        if simulator_id in self.simulators:
+        if simulator_id in self.simulator:
             from ..utils.deployment import create_dockerfile
-            env_type = self.simulators[simulator_id].env_type
-            env_dir = self.simulators[simulator_id].env_dir
-            additional_dependencies = self.simulators[simulator_id].container.additional_dependencies
+            env_type = self.simulator[simulator_id].env_type
+            env_dir = self.simulator[simulator_id].env_dir
+            additional_dependencies = self.simulator[simulator_id].container.additional_dependencies
             create_dockerfile(env_type, env_dir, additional_dependencies)
         else:
             print(f"Warning: No simulator config found for identifier '{simulator_id}'")
     
     # command will be renamed to "simulate"
     def simulate_on_cloud(self, simulator_id: str) -> None:
-        if simulator_id in self.simulators:
+        if simulator_id in self.simulator:
             from ..utils.deployment import deploy_eks_simulator, service_eks_simulator
-            simulator = self.simulators[simulator_id]
+            simulator = self.simulator[simulator_id]
             ports = simulator.ports
             image_uri = simulator.container.image_uri
             deployment_name = simulator.container.deployment_name
@@ -97,7 +97,7 @@ class SimulatorRegistry:
         if ports is None:
             ports = [34560, 34561, 34562, 34563]
 
-        if simulator_id in self.simulators:
+        if simulator_id in self.simulator:
             raise ValueError(f"Simulator identifier '{simulator_id}' already exists. Use a different identifier.")
 
         if hosting:
@@ -112,7 +112,7 @@ class SimulatorRegistry:
         if env_type not in ["gym", "unity"]:
             print(f"Make sure the environment type is not one of ['gym', 'unity'] unless using custom env: {env_type}")
 
-        self.simulators[simulator_id] = SimulatorConfig(
+        self.simulator[simulator_id] = SimulatorConfig(
             env_type=env_type,
             hosting=hosting, 
             connection=connection,
@@ -125,11 +125,11 @@ class SimulatorRegistry:
         if hosting == "local" and not url:
             network_info = get_network_info()
             ip = network_info['public_ip']
-            self.simulators[simulator_id].url = "http://" + ip
+            self.simulator[simulator_id].url = "http://" + ip
     
     def del_simulator(self, simulator_id: str) -> None:
-        if simulator_id in self.simulators:
-            del self.simulators[simulator_id]
+        if simulator_id in self.simulator:
+            del self.simulator[simulator_id]
         else:
             raise ValueError(f"Simulator identifier '{simulator_id}' not found.")
     
@@ -139,7 +139,7 @@ class SimulatorRegistry:
     def set_config(self, **kwargs) -> None:
         """
         Update nested simulator configurations.
-        Expects a key "simulators" in kwargs whose value is a dict mapping simulator
+        Expects a key "simulator" in kwargs whose value is a dict mapping simulator
         identifiers to their updates.
         """
         def update_dataclass(instance, updates: dict):
@@ -153,8 +153,8 @@ class SimulatorRegistry:
                 else:
                     print(f"Warning: {instance.__class__.__name__} has no attribute '{key}'")
         
-        simulators_data = kwargs.get("simulators", {})
+        simulators_data = kwargs.get("simulator", {})
         for simulator_id, simulator_updates in simulators_data.items():
-            if simulator_id not in self.simulators:
-                self.simulators[simulator_id] = SimulatorConfig()  # all defaults applied
-            update_dataclass(self.simulators[simulator_id], simulator_updates)
+            if simulator_id not in self.simulator:
+                self.simulator[simulator_id] = SimulatorConfig()  # all defaults applied
+            update_dataclass(self.simulator[simulator_id], simulator_updates)

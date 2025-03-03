@@ -41,6 +41,7 @@ class EnvServer(EnvAPI):
         self.api = EnvAPI(env_wrapper=env_wrapper, host=host, port=port)
                 
         self.endpoint = None
+        self.url = None
         self.host = host
         self.port = port
 
@@ -68,6 +69,7 @@ class EnvServer(EnvAPI):
         instance.run_thread_server()
         # Default ip to host if not provided
         # print(f"[AgentGPTTrainer] Launching environment at {url}:{port}")
-        instance.endpoint = f"{url}:{port}"
+        instance.url = url
         instance.port = port
+        instance.endpoint = f"{url}:{port}"
         return instance

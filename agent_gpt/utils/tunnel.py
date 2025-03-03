@@ -84,13 +84,11 @@ def get_or_prompt_ngrok_token() -> str:
         add_ngrok_token(auth_token)
         return auth_token
     
-def create_tunnel(ports: list) -> str:
-    if not ports or len(ports) == 0:
-        raise ValueError("At least one port must be provided to create a tunnel.")
+def create_tunnel(port) -> str:
     # Retrieve stored token or prompt once
     token = get_or_prompt_ngrok_token()
     # Set the token for the current session (if not already)
     ngrok.set_auth_token(token)
     # Create a tunnel on the first port (reuse its URL for all environments)
-    tunnel = ngrok.connect(ports[0])
+    tunnel = ngrok.connect(port)
     return tunnel.public_url

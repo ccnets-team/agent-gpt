@@ -87,7 +87,7 @@ def parse_extra_args(args: list[str]) -> dict:
     Parses extra CLI arguments provided in the form:
       --key value [value ...]
     Supports nested keys via dot notation, e.g.:
-      --env_hosts.local1.env_endpoint "http://example.com:8500"
+      --env_host.local1.env_endpoint "http://example.com:8500"
     Returns a nested dictionary of the parsed values.
     """
     new_changes = {}

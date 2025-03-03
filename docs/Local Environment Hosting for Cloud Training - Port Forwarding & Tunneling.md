@@ -81,7 +81,7 @@ When you run the simulation command (e.g., `agent-gpt simulate local` or `agent-
   env_id: Walker2d-v5
   env_entry_point: null
   env_dir: null
-  env_hosts:
+  env_host:
     local:34560:
       env_endpoint: https://106c-220-119-175-171.ngrok-free.app:34560
       num_agents: 64

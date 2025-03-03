@@ -92,6 +92,7 @@ class AgentGPT:
         
         image_uri = sagemaker_config.get_image_uri("trainer")
         hyperparams_dict = hyperparameters.to_dict()
+
         estimator = Estimator(
             image_uri=image_uri,
             role=sagemaker_config.role_arn,
@@ -200,13 +201,13 @@ def _validate_sagemaker(sagemaker_config: SageMakerConfig):
 
 def _validate_hyperparams(params: Hyperparameters):
     """
-    Validate required hyperparameters (env_id, env_hosts, etc.).
+    Validate required hyperparameters (env_id, env_host, etc.).
     Raises ValueError if any required parameter is missing or invalid.
     """
     if params.env_id is None:
         raise ValueError("Environment ID must be provided.")
-    if not params.env_hosts:
-        raise ValueError("No environment hosts specified in 'env_hosts'. "
+    if not params.env_host:
+        raise ValueError("No environment hosts specified in 'env_host'. "
                          "Please run 'agent-gpt simulate ...' first to set up an environment.")
     # If entry_point is provided, normalize it.
     if params.env_entry_point:

@@ -28,7 +28,7 @@ env_dir              : (str)    Indicates the directory where the environment's 
                                 Note that env_dir may not be used for Gym environments, as they are generally registered 
                                 solely via entry_point.
                                 
-env_hosts            : (dict)   A dictionary of EnvHost objects (keyed by
+env_host            : (dict)   A dictionary of EnvHost objects (keyed by
                                 strings like 'local', 'remote-aws', etc.) 
                                 that define parallel environment endpoints. 
                                 Each EnvHost contains an endpoint (URL/IP) 
@@ -141,7 +141,7 @@ class Hyperparameters:
     env_entry_point: Optional[str] = None
     env_dir: Optional[str] = None
     
-    env_hosts: dict[str, EnvHost] = field(default_factory=dict)
+    env_host: dict[str, EnvHost] = field(default_factory=dict)
     use_tensorboard: bool = False
     use_cloudwatch: bool = True
 
@@ -197,19 +197,19 @@ class Hyperparameters:
             raise KeyError(f"Exploration key '{key}' not found in hyperparameters.")
 
     def set_env_host(self, key: str, env_endpoint: str, num_agents: int):
-        """Sets a new environment host (endpoint + agent count) in the env_hosts dict."""
-        self.env_hosts[key] = EnvHost(env_endpoint=env_endpoint, num_agents=num_agents) 
+        """Sets a new environment host (endpoint + agent count) in the env_host dict."""
+        self.env_host[key] = EnvHost(env_endpoint=env_endpoint, num_agents=num_agents) 
 
     def del_env_host(self, key: str):
-        """Deletes an environment host (endpoint + agent count) from the env_hosts dict."""
-        if key in self.env_hosts:
-            del self.env_hosts[key]
+        """Deletes an environment host (endpoint + agent count) from the env_host dict."""
+        if key in self.env_host:
+            del self.env_host[key]
             
     def set_config(self, **kwargs):
         for k, v in kwargs.items():
-            if k == "env_hosts":
+            if k == "env_host":
                 if not isinstance(v, dict):
-                    raise TypeError(f"env_hosts must be a dict, got {type(v)}")
+                    raise TypeError(f"env_host must be a dict, got {type(v)}")
                 new_dict = {}
                 for subkey, item in v.items():
                     if isinstance(item, EnvHost):
@@ -218,9 +218,9 @@ class Hyperparameters:
                         new_dict[subkey] = EnvHost(**item)
                     else:
                         raise TypeError(
-                            f"env_hosts values must be a dict or EnvHost, got {type(item)}"
+                            f"env_host values must be a dict or EnvHost, got {type(item)}"
                         )
-                self.env_hosts = new_dict
+                self.env_host = new_dict
 
             elif hasattr(self, k):
                 setattr(self, k, v)
@@ -272,7 +272,7 @@ def main():
 
     # 7) Print environment hosts
     print("Environment hosts:")
-    for key, host_info in config_dict["env_hosts"].items():
+    for key, host_info in config_dict["env_host"].items():
         print(f"  {key}: endpoint={host_info['env_endpoint']}, agents={host_info['num_agents']}")
 
     # 8) Print exploration settings and other highlights
