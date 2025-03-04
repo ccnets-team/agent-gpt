@@ -25,23 +25,6 @@ TOP_CONFIG_CLASS_MAP = {
     "sagemaker": SageMakerConfig,
 }
 
-def load_config() -> dict:
-    if os.path.exists(DEFAULT_CONFIG_PATH):
-        with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-        # If the stored version doesn't match, clear the config file
-        if config.get("version") != CURRENT_AGENT_GPT_VERSION:
-            os.remove(DEFAULT_CONFIG_PATH)
-            config = {}  # Start with an empty config
-        return config
-    return {}
-
-def save_config(config_data: dict) -> None:
-    config_data["version"] = CURRENT_AGENT_GPT_VERSION
-    os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
-    with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
-
 def generate_section_config(section: str) -> dict:
     cls = TOP_CONFIG_CLASS_MAP.get(section)
     if cls:
@@ -52,16 +35,44 @@ def generate_section_config(section: str) -> dict:
 def initialize_config() -> dict:
     return { section: generate_section_config(section) for section in TOP_CONFIG_CLASS_MAP }
 
-def convert_to_objects(overrides: dict) -> dict:
+def convert_to_objects(config_data: dict) -> dict:
     """
-    Instantiate top-level configuration objects and apply stored overrides.
+    Instantiate top-level configuration objects and apply stored config_data.
     """
     result = {}
     for key, cls in TOP_CONFIG_CLASS_MAP.items():
         obj = cls()  # __post_init__ in NetworkConfig will fetch network info automatically.
-        obj.set_config(**overrides.get(key, {}))
+        obj.set_config(**config_data.get(key, {}))
         result[key] = obj
     return result
+
+def _ensure_config_exists():
+    # Ensure the configuration file exists at startup
+    if not os.path.exists(DEFAULT_CONFIG_PATH):
+        default_config = initialize_config()
+        save_config(default_config)
+        
+def load_config() -> dict:
+    if not os.path.exists(DEFAULT_CONFIG_PATH):
+        _ensure_config_exists()
+
+    with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+
+    if config.get("version") != CURRENT_AGENT_GPT_VERSION:
+        os.remove(DEFAULT_CONFIG_PATH)
+        _ensure_config_exists()
+        with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+    return config
+
+def save_config(config_data: dict) -> None:
+    config_data["version"] = CURRENT_AGENT_GPT_VERSION
+    os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
+    with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
+
+
 
 def parse_value(value: str):
     """

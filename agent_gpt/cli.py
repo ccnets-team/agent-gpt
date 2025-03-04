@@ -22,7 +22,7 @@ from .config.simulator import SimulatorConfig
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
 from .core import AgentGPT
-from .utils.config_utils import load_config, save_config, generate_section_config, handle_config_method
+from .utils.config_utils import load_config, save_config, generate_section_config, handle_config_method, _ensure_config_exists
 from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, apply_config_updates
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
 import yaml
@@ -40,15 +40,10 @@ def auto_format_help(text: str) -> str:
     return formatted
 
 help_texts = load_help_texts("help_config.yaml")
-
-# Ensure the configuration file exists at startup
-if not os.path.exists(DEFAULT_CONFIG_PATH):
-    typer.echo("Configuration file not found. Creating a default configuration file...")
-    default_config = initialize_config()
-    save_config(default_config)
     
 @app.command(
     "config",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
     short_help=help_texts["config"]["short_help"],
     help=auto_format_help(help_texts["config"]["detailed_help"]),
 )
@@ -56,16 +51,11 @@ def config(ctx: typer.Context):
     if not ctx.args:
         typer.echo(ctx.get_help())
         raise typer.Exit()
-
+    
     # Load stored configuration overrides.
-    stored_overrides = load_config()
-    config_obj = convert_to_objects(stored_overrides)
+    current_config = load_config()
+    config_obj = convert_to_objects(current_config)
 
-    typer.echo(ctx.args)
-    # Remove the first argument if it's "agent-gpt" (case-insensitive)
-    if ctx.args and ctx.args[0] == "agent-gpt":
-        ctx.args.pop(0)
-    typer.echo(ctx.args)
     # Check if the first argument starts with "--" (field update mode) or not (method mode)
     if ctx.args[0].startswith("--"):
         new_changes = parse_extra_args(ctx.args)
@@ -105,7 +95,8 @@ def config(ctx: typer.Context):
     short_help=help_texts["edit"]["short_help"],
     help=auto_format_help(help_texts["edit"]["detailed_help"]),
 )
-def edit_config():    
+def edit_config():   
+    _ensure_config_exists()
     try:
         import platform
         import subprocess
@@ -131,14 +122,15 @@ def clear_config(
         None,
     )
 ):
+    
     allowed_sections = set(TOP_CONFIG_CLASS_MAP.keys())
     if section:
         if section not in allowed_sections:
             typer.echo(typer.style(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.", fg=typer.colors.YELLOW))
             raise typer.Exit()
-        config_data = load_config()
-        config_data[section] = generate_section_config(section)
-        save_config(config_data)
+        current_config = load_config()
+        current_config[section] = generate_section_config(section)
+        save_config(current_config)
         typer.echo(f"Configuration section '{section}' has been reset to default.")
     else:
         if os.path.exists(DEFAULT_CONFIG_PATH):
@@ -157,66 +149,56 @@ def list_config(
         None,
     )
 ):
-    config_data = load_config()
     
-    # If no configuration exists, generate defaults and save them.
-    if not config_data:
-        config_data = initialize_config()
-        save_config(config_data)
-        
-    if section:
+    current_config = load_config()
+    if section in TOP_CONFIG_CLASS_MAP.keys():
         # Retrieve the specified section and print its contents directly.
-        section_data = config_data.get(section, {})
+        if section not in current_config:
+            typer.echo(f"No configuration found for section '{section}'.")
+            return
         typer.echo(f"Current configuration for '{section}':")
-        typer.echo(yaml.dump(section_data, default_flow_style=False, sort_keys=False))
+        typer.echo(yaml.dump(current_config[section], default_flow_style=False, sort_keys=False))
     else:
         typer.echo("Current configuration:")
         for sec in TOP_CONFIG_CLASS_MAP.keys():
-            if sec in config_data:
+            if sec in current_config:
                 typer.echo(f"**{sec}**:")
-                typer.echo(yaml.dump(config_data[sec], default_flow_style=False, sort_keys=False))
+                typer.echo(yaml.dump(current_config[sec], default_flow_style=False, sort_keys=False))
 
-@app.command(
-    "upload",
-    short_help=help_texts["upload"]["short_help"],
-    help=auto_format_help(help_texts["upload"]["detailed_help"])
-)
-def upload(
-    simulator_id: str = typer.Argument(
-    )
-):
-    config_data = load_config()
-    region = config_data.get("sagemaker", {}).get("region")
+@app.command("upload",
+             short_help=help_texts["upload"]["short_help"],
+             help=auto_format_help(help_texts["upload"]["detailed_help"]))
+def upload(simulator_id: str = typer.Argument()):
+    current_data = load_config()
+    
+    sagemaker_config = current_data.get("sagemaker", {})
+    region = sagemaker_config.get("region")
     if not region:
         typer.echo(typer.style("Error: AWS region not set in the configuration.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
 
-    simulator_registry_data = config_data.get("simulator_registry", {})
-    simulator = simulator_registry_data.get("simulator", {})
-    simulator_data = simulator.get(simulator_id) or {}
-    if not simulator_data:
-        typer.echo(typer.style(f"Warning: No simulator config found for identifier '{simulator_id}'", fg=typer.colors.YELLOW))
-        raise typer.Exit(code=1)
+    registry_data = current_data.get("simulator_registry", {})
+    simulator_group_data = registry_data.get("simulator", {})
+    simulator_data = simulator_group_data.get(simulator_id, {})
+    simulator = SimulatorConfig()
+    simulator.set_config(**simulator_data)
     
-    hosting = simulator_data.get("hosting")
-    if hosting != "cloud":
+    if simulator.hosting != "cloud":
         typer.echo(typer.style(f"Error: Simulator '{simulator_id}' is not set up for cloud deployment.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
 
-    simulator_config = SimulatorConfig()
-    simulator_config.set_config(**simulator_data)
     from .env_host.upload import upload_simulator
-    
     try: 
-        upload_simulator(region, simulator_config)
+        upload_simulator(region, simulator)
         typer.echo(f"Simulator '{simulator_id}' uploaded successfully.")
     except Exception as e:
         typer.echo(typer.style(f"Error uploading simulator '{simulator_id}': {e}", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
-    
-    simulator_registry_data["simulator"][simulator_id] = simulator_config.to_dict()
-    config_data["simulator_registry"] = simulator_registry_data
-    save_config(config_data)
+
+    registry = current_data.setdefault("simulator_registry", {})
+    simulators = registry.setdefault("simulator", {})
+    simulators[simulator_id] = simulator.to_dict()
+    save_config(current_data)
 
 @app.command(
     "simulate",
@@ -228,18 +210,15 @@ def simulate(
     ports: list[int] = typer.Argument(None, help="List of port numbers")
 ):
     # Load configuration and simulator data.
-    config_data = load_config()
-    simulator_registry_data = config_data.get("simulator_registry", {})
+    current_data = load_config()
+    simulator_registry_data = current_data.get("simulator_registry", {})
     simulator = simulator_registry_data.get("simulator", {})
     simulator_data = simulator.get(simulator_id) or {}
-
-    simulator_obj = SimulatorConfig()
-    simulator_obj.set_config(**simulator_data)
 
     # Check for ports.
     if not ports:
         typer.echo("No port numbers provided. Using ports from configuration.")
-        ports = simulator_obj.ports
+        ports = simulator_data.get("ports", [])
     if not ports:
         typer.echo(typer.style("Error: No available ports found. Please specify one or more port numbers.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
@@ -250,11 +229,11 @@ def simulate(
     extra_args = [
         "--simulator_id", simulator_id,
         "--ports", port_arg,
-        "--env_type", simulator_obj.env_type,
-        "--connection", simulator_obj.connection,
-        "--host", simulator_obj.host,
-        "--total_agents", str(simulator_obj.total_agents),
-        "--url", simulator_obj.url or ""
+        "--env_type", simulator_data.get("env_type", ""),
+        "--connection", simulator_data.get("connection", ""),
+        "--host", simulator_data.get("host", "0.0.0.0"),
+        "--total_agents", str(simulator_data.get("total_agents", 128)),
+        "--url", simulator_data.get("url", "")
     ]
     
     # (Optional) You might want to log or echo some status here.
@@ -265,7 +244,6 @@ def simulate(
     open_simulation_in_screen(extra_args)
     
     typer.echo("Simulation launched in a new terminal. You can continue using this terminal for AgentGPT training.")
-
     
 def initialize_sagemaker_access(
     role_arn: str,
