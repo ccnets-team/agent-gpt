@@ -94,8 +94,6 @@ class SimulatorRegistry:
         env_dir: str = None, 
         ports: List[int] = None
     ) -> None:
-        if ports is None:
-            ports = [34560, 34561, 34562, 34563]
 
         if simulator_id in self.simulator:
             raise ValueError(f"Simulator identifier '{simulator_id}' already exists. Use a different identifier.")

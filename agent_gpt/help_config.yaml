@@ -69,9 +69,11 @@ upload:
     Steps:
      1. Validate & Retrieve Simulator:
         - Load the configuration and retrieve the simulator settings from the Simulator Registry.
+
      2. Create Dockerfile & Upload:
         - Generate a Dockerfile based on the simulator configuration.
         - Build and push a Docker image to your ECR account.
+     
      3. Update Simulator Registry:
         - Update the Simulator configuration with the new image URI after a successful upload.
 

@@ -60,7 +60,12 @@ def config(ctx: typer.Context):
     # Load stored configuration overrides.
     stored_overrides = load_config()
     config_obj = convert_to_objects(stored_overrides)
-    diffs = []
+
+    typer.echo(ctx.args)
+    # Remove the first argument if it's "agent-gpt" (case-insensitive)
+    if ctx.args and ctx.args[0] == "agent-gpt":
+        ctx.args.pop(0)
+    typer.echo(ctx.args)
     # Check if the first argument starts with "--" (field update mode) or not (method mode)
     if ctx.args[0].startswith("--"):
         new_changes = parse_extra_args(ctx.args)
@@ -68,6 +73,7 @@ def config(ctx: typer.Context):
     else:
         list_changes = handle_config_method(ctx.args, config_obj)
 
+    diffs = []
     # Print detailed change summaries.
     for key, value, changed, diffs in list_changes:
         if changed:
@@ -99,13 +105,7 @@ def config(ctx: typer.Context):
     short_help=help_texts["edit"]["short_help"],
     help=auto_format_help(help_texts["edit"]["detailed_help"]),
 )
-def edit_config():
-    # Check if the configuration file exists; if not, create a default one.
-    # if not os.path.exists(DEFAULT_CONFIG_PATH):
-    #     typer.echo("Configuration file not found. Creating a default configuration file...")
-    #     default_config = initialize_config()
-    #     save_config(default_config)
-    
+def edit_config():    
     try:
         import platform
         import subprocess
@@ -119,7 +119,7 @@ def edit_config():
         else:
             typer.launch(DEFAULT_CONFIG_PATH)
     except Exception as e:
-        typer.echo(f"Failed to open the configuration file: {e}")
+        typer.echo(typer.style(f"Failed to open the configuration file: {e}", fg=typer.colors.YELLOW))
 
 @app.command(
     "clear",
@@ -134,7 +134,7 @@ def clear_config(
     allowed_sections = set(TOP_CONFIG_CLASS_MAP.keys())
     if section:
         if section not in allowed_sections:
-            typer.echo(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.")
+            typer.echo(typer.style(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.", fg=typer.colors.YELLOW))
             raise typer.Exit()
         config_data = load_config()
         config_data[section] = generate_section_config(section)
@@ -188,18 +188,19 @@ def upload(
     config_data = load_config()
     region = config_data.get("sagemaker", {}).get("region")
     if not region:
-        typer.echo("Error: AWS region not set in the configuration.")
+        typer.echo(typer.style("Error: AWS region not set in the configuration.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
 
     simulator_registry_data = config_data.get("simulator_registry", {})
     simulator = simulator_registry_data.get("simulator", {})
     simulator_data = simulator.get(simulator_id) or {}
     if not simulator_data:
-        typer.echo(f"Warning: No simulator config found for identifier '{simulator_id}'")
+        typer.echo(typer.style(f"Warning: No simulator config found for identifier '{simulator_id}'", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
+    
     hosting = simulator_data.get("hosting")
     if hosting != "cloud":
-        typer.echo(f"Error: Simulator '{simulator_id}' is not set up for cloud deployment.")
+        typer.echo(typer.style(f"Error: Simulator '{simulator_id}' is not set up for cloud deployment.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
 
     simulator_config = SimulatorConfig()
@@ -210,13 +211,12 @@ def upload(
         upload_simulator(region, simulator_config)
         typer.echo(f"Simulator '{simulator_id}' uploaded successfully.")
     except Exception as e:
-        typer.echo(f"Error uploading simulator '{simulator_id}': {e}")
+        typer.echo(typer.style(f"Error uploading simulator '{simulator_id}': {e}", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
     
     simulator_registry_data["simulator"][simulator_id] = simulator_config.to_dict()
     config_data["simulator_registry"] = simulator_registry_data
     save_config(config_data)
-
 
 @app.command(
     "simulate",
@@ -227,11 +227,6 @@ def simulate(
     simulator_id: str = typer.Argument("local", help="Simulator identifier (default: local)"),
     ports: list[int] = typer.Argument(None, help="List of port numbers")
 ):
-    """
-    Checks for available ports and then launches a separate process (a new terminal or screen)
-    to execute the simulation. The new process will create the launchers, distribute agents,
-    update the hyperparameters config (env_host), and then run the blocking simulation loop.
-    """
     # Load configuration and simulator data.
     config_data = load_config()
     simulator_registry_data = config_data.get("simulator_registry", {})
@@ -246,7 +241,7 @@ def simulate(
         typer.echo("No port numbers provided. Using ports from configuration.")
         ports = simulator_obj.ports
     if not ports:
-        typer.echo("Error: No available ports found. Please specify one or more port numbers.")
+        typer.echo(typer.style("Error: No available ports found. Please specify one or more port numbers.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
 
     # Prepare the extra arguments to pass to simulation.py.
@@ -289,7 +284,7 @@ def initialize_sagemaker_access(
     """
     # Validate the role ARN format.
     if not re.match(r"^arn:aws:iam::\d{12}:role/[\w+=,.@-]+$", role_arn):
-        typer.echo("Invalid role ARN format.")
+        typer.echo(typer.style("Invalid role ARN format.", fg=typer.colors.YELLOW))
         return False
 
     try:
@@ -318,7 +313,7 @@ def initialize_sagemaker_access(
         return False
 
     if response.status_code != 200:
-        typer.echo("Initialization failed.")
+        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
         return False
 
     if response.text.strip() in ("", "null"):
@@ -328,14 +323,14 @@ def initialize_sagemaker_access(
     try:
         data = response.json()
     except Exception:
-        typer.echo("Initialization failed.")
+        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
         return False
 
     if data.get("statusCode") == 200:
         typer.echo("Initialization succeeded.")
         return True
     else:
-        typer.echo("Initialization failed.")
+        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
         return False
 
 @app.command(
