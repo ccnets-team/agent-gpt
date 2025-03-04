@@ -15,6 +15,7 @@ logging.getLogger("sagemaker.config").setLevel(logging.WARNING)
 import typer
 import os
 import re
+import time
 import yaml
 import requests
 from typing import Optional
@@ -195,21 +196,61 @@ def upload(simulator_id: str = typer.Argument()):
     simulators[simulator_id] = simulator.to_dict()
     save_config(current_data)
 
+# Define a function to poll for config changes.
+def wait_for_config_update(expected_keys, timeout=10):
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        config_data = load_config()  # Your function to load the config file.
+        env_hosts = config_data.get("hyperparams", {}).get("env_host", {})
+        # Check if all expected keys are present.
+        if all(key in env_hosts for key in expected_keys):
+            return config_data
+        time.sleep(0.5)
+    raise TimeoutError("Timed out waiting for config update.")
+
 @app.command(
     "simulate",
     short_help=help_texts["simulate"]["short_help"],
     help=auto_format_help(help_texts["simulate"]["detailed_help"])
 )
 def simulate(
-    simulator_id: str = typer.Argument("local", help="Simulator identifier (default: local)"),
+    simulator_id: str = typer.Argument(None, help="Simulator identifier"),
     ports: list[int] = typer.Argument(None, help="List of port numbers")
 ):
     # Load configuration and simulator data.
     current_data = load_config()
     simulator_registry_data = current_data.get("simulator_registry", {})
     simulator = simulator_registry_data.get("simulator", {})
-    simulator_data = simulator.get(simulator_id) or {}
 
+    simulator_identifiers = list(simulator.keys())
+    num_simulators = len(simulator_identifiers)
+
+    if not simulator_id and num_simulators > 0:
+        typer.echo("Available simulator identifiers:")
+        for sid in simulator_identifiers:
+            typer.echo(f"  - {sid}")
+        simulator_id = typer.prompt(
+            "Enter the simulator identifier to use",
+            default=simulator_identifiers[0],
+            show_default=True
+        )
+    elif not simulator_id:
+        raise typer.Exit(code=1)
+
+    simulator_data = simulator.get(simulator_id)
+    if not simulator_data:
+        typer.echo(typer.style(f"Error: No simulator found with identifier '{simulator_id}'.", fg=typer.colors.YELLOW))
+        raise typer.Exit(code=1)
+    
+    hosting = simulator_data.get("hosting")
+    if hosting != "local":
+        typer.echo(typer.style(
+                "Direct simulation control is available only for local simulators. "
+                "If your simulation is launched externally, you can still manually specify the env_endpoint "
+                "and update your hyperparameters before submitting a training job (using the 'agent-gpt train' command).",
+                fg=typer.colors.YELLOW))
+        raise typer.Exit(code=1)
+    
     # Check for ports.
     if not ports:
         typer.echo("No port numbers provided. Using ports from configuration.")
@@ -230,15 +271,28 @@ def simulate(
         "--total_agents", str(simulator_data.get("total_agents", 128)),
         "--url", simulator_data.get("url", "")
     ]
+    typer.echo("Starting the simulation in a separate terminal window. Please monitor that window for real-time logs.")
     
-    # (Optional) You might want to log or echo some status here.
-    typer.echo("Ports verified. Launching the simulation process in a new terminal...")
-    
-    from .simulation import open_simulation_in_screen 
     # Launch the new process that will execute the simulation logic.
-    open_simulation_in_screen(extra_args)
-    
-    typer.echo("Simulation launched in a new terminal. You can continue using this terminal for AgentGPT training.")
+    from .simulation import open_simulation_in_screen
+    simulation_process = open_simulation_in_screen(extra_args)
+    expected_keys = [f"{simulator_id}:{port}" for port in ports]
+    try:
+        updated_config = wait_for_config_update(expected_keys, timeout=10)
+        updated_hyperparms = updated_config.get("hyperparams", {})
+        env_host = updated_hyperparms.get("env_host", {})
+        # print("Configuration updated:", updated_config["hyperparams"])
+        typer.echo(f"Environment hosts for simulation '{simulator_id}' have been updated successfully:")
+        typer.echo("Below is the updated configuration for environment hosts:")
+        typer.echo("Hyperparameters have been auto-configured for cloud training.")
+        dislay_output = "**hyperparams**:\n" + yaml.dump(env_host, default_flow_style=False, sort_keys=False)
+        typer.echo(typer.style(dislay_output.strip(), fg=typer.colors.GREEN))        
+        typer.echo("Simulation has been launched. You may continue to work in this terminal for further commands or to initiate another simulation.")
+        
+    except TimeoutError as e:
+        typer.echo("Configuration update timed out. The simulation process will now be forcefully terminated to free up resources.")
+        simulation_process.terminate()  # This call is non-blocking.
+        simulation_process.wait()
     
 def initialize_sagemaker_access(
     role_arn: str,

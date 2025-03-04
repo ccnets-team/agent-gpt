@@ -3,54 +3,44 @@ import typer
 import os
 import platform
 import subprocess
+import time
 
-def open_simulation_in_screen(extra_args: list[str]):
-    """
-    Launch a new terminal window that runs the simulation process.
-    extra_args should contain command-line arguments to pass to simulation.py.
-    """
+def open_simulation_in_screen(extra_args: list[str]) -> subprocess.Popen:
     env = os.environ.copy()
     simulation_script = os.path.join(os.path.dirname(__file__), "simulation.py")
     system = platform.system()
-
     if system == "Linux":
-        # Construct the command string.
         cmd_parts = ["python3", simulation_script] + extra_args
         cmd_str = " ".join(cmd_parts)
-        # Try launching a new terminal window using gnome-terminal.
         try:
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 ['gnome-terminal', '--', 'bash', '-c', f'{cmd_str}; exec bash'],
                 env=env
             )
         except FileNotFoundError:
-            # Fallback to xterm if gnome-terminal is not available.
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 ['xterm', '-e', f'{cmd_str}; bash'],
                 env=env
             )
     elif system == "Darwin":
-        # Construct the full command string.
         cmd_parts = ["python3", simulation_script] + extra_args
         cmd_str = " ".join(cmd_parts)
-        # Use AppleScript to open a new Terminal window on macOS.
         apple_script = (
             'tell application "Terminal"\n'
             f'  do script "{cmd_str}"\n'
             '  activate\n'
             'end tell'
         )
-        subprocess.Popen(['osascript', '-e', apple_script], env=env)
+        proc = subprocess.Popen(['osascript', '-e', apple_script], env=env)
     elif system == "Windows":
-        # Construct the full command string.
         cmd_parts = ["python", simulation_script] + extra_args
         cmd_str = " ".join(cmd_parts)
-        # Check if running in a bash-like environment (e.g., Git Bash)
         cmd = f'start cmd /k "{cmd_str}"'
-        subprocess.Popen(cmd, shell=True, env=env)
+        proc = subprocess.Popen(cmd, shell=True, env=env)
     else:
         typer.echo("Unsupported OS for launching a new terminal session.")
         raise typer.Exit(code=1)
+    return proc
 
 def main():
     parser = argparse.ArgumentParser()
