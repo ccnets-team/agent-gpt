@@ -1,20 +1,13 @@
 import os
 import yaml
+from typing import List, Dict
 
 from ..config.simulator import SimulatorRegistry
 from ..config.network import NetworkConfig
 from ..config.hyperparams import Hyperparameters
 from ..config.sagemaker import SageMakerConfig
 
-try:    
-    from importlib.metadata import version, PackageNotFoundError
-except ImportError:
-    from importlib_metadata import version, PackageNotFoundError
-
-try:
-    CURRENT_AGENT_GPT_VERSION = version("agent-gpt-aws")  # Replace with your package name
-except PackageNotFoundError:
-    CURRENT_AGENT_GPT_VERSION = "unknown"  # Fallback if the package is not installed
+from agent_gpt import __version__ as CURRENT_AGENT_GPT_VERSION
 
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.agent_gpt/config.yaml")
 
@@ -24,16 +17,39 @@ TOP_CONFIG_CLASS_MAP = {
     "hyperparams": Hyperparameters,
     "sagemaker": SageMakerConfig,
 }
-def generate_section_config(section: str) -> dict:
+
+def load_config() -> Dict:
+    config = {}    
+    with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+    return config
+
+def save_config(config_data: Dict) -> None:
+    config_data["version"] = CURRENT_AGENT_GPT_VERSION
+    with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
+
+def generate_default_section_config(section: str) -> Dict:
     cls = TOP_CONFIG_CLASS_MAP.get(section)
     if cls:
         return cls().to_dict()
     return {}
 
-def initialize_config() -> dict:
-    return { section: generate_section_config(section) for section in TOP_CONFIG_CLASS_MAP }
+def generate_default_config() -> Dict:
+    return { section: generate_default_section_config(section) for section in TOP_CONFIG_CLASS_MAP.keys() }
 
-def convert_to_objects(config_data: dict) -> dict:
+def ensure_config_exists():
+    os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
+    if not os.path.exists(DEFAULT_CONFIG_PATH):
+        new_config = generate_default_config()
+        save_config(new_config)
+    else:
+        config = load_config()
+        if not config or (config.get("version") != CURRENT_AGENT_GPT_VERSION):
+            new_config = generate_default_config()
+            save_config(new_config)
+
+def convert_to_objects(config_data: Dict) -> Dict:
     """
     Instantiate top-level configuration objects and apply stored config_data.
     """
@@ -43,33 +59,6 @@ def convert_to_objects(config_data: dict) -> dict:
         obj.set_config(**config_data.get(key, {}))
         result[key] = obj
     return result
-
-def ensure_config_exists():
-    # Ensure the configuration file exists at startup
-    if not os.path.exists(DEFAULT_CONFIG_PATH):
-        default_config = initialize_config()
-        save_config(default_config)
-        
-def load_config() -> dict:
-    config = {}
-    if os.path.exists(DEFAULT_CONFIG_PATH):
-        with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-    if not config or (config.get("version") != CURRENT_AGENT_GPT_VERSION):
-        # If the config file is empty or missing, recreate it.
-        config = initialize_config()
-        config["version"] = CURRENT_AGENT_GPT_VERSION
-        save_config(config)
-    
-    with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f) or {}
-    return config
-
-def save_config(config_data: dict) -> None:
-    config_data["version"] = CURRENT_AGENT_GPT_VERSION
-    os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
-    with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
 
 def parse_value(value: str):
     """
@@ -90,7 +79,7 @@ def parse_value(value: str):
             return lower == "true"
     return value
 
-def parse_extra_args(args: list[str]) -> dict:
+def parse_extra_args(args: List[str]) -> Dict:
     """
     Parses extra CLI arguments provided in the form:
       --key value [value ...]
@@ -129,7 +118,7 @@ def parse_extra_args(args: list[str]) -> dict:
             i += 1
     return new_changes
 
-def recursive_update(target, changes: dict, prefix="") -> list:
+def recursive_update(target, changes: Dict, prefix="") -> List:
     """
     Recursively update attributes of an object (or dictionary) using a nested changes dict.
     Only updates existing attributes/keys.
@@ -170,7 +159,7 @@ def recursive_update(target, changes: dict, prefix="") -> list:
                     update_log.append((current_key, current_val, new_val, False, "value unchanged"))
     return update_log
 
-def update_config_by_dot_notation(config_obj, new_changes) -> list:
+def update_config_by_dot_notation(config_obj, new_changes) -> List:
     """
     Applies changes from a nested dict to the configuration objects.
 
@@ -223,14 +212,14 @@ def update_config_by_dot_notation(config_obj, new_changes) -> list:
                 update_log.append((key, current_val, new_val, False, "value unchanged"))
     return update_log
 
-def update_config_using_method(args: list[str], config_obj: dict) -> list:
+def update_config_using_method(args: List[str], config_obj: Dict) -> List:
     """
     Process method calls in the config command.
 
     For example, if the user runs:
       agent-gpt config simulator set simim --hosting local
 
-    Returns a list of tuples (target_key, keyword_args, placeholder, changed, message).
+    Returns a List of tuples (target_key, keyword_args, placeholder, changed, message).
     """
     if len(args) < 3:
         return [("error", None, None, False, "Not enough arguments for method call")]

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, asdict
-from typing import Optional
+from typing import Optional, Dict
 
 ACCESIBLE_REGIONS = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-2"]  # Supported regions
 
@@ -51,7 +51,7 @@ class SageMakerConfig:
         # Construct the image URI dynamically based on region and service type.
         return f"533267316703.dkr.ecr.{self.region}.amazonaws.com/agent-gpt-{service_type}:{CURRENT_AGENT_GPT_VERSION}"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         """Returns a nested dictionary of the full SageMaker configuration."""
         return asdict(self)
     

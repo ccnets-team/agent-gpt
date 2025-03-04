@@ -1,7 +1,7 @@
 # gpt_api.py
 import numpy as np
 import json
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 from .utils.conversion_utils import (
     convert_ndarrays_to_nested_lists,
     convert_nested_lists_to_ndarrays,
@@ -49,7 +49,7 @@ class GPTAPI:
         self.__predictor = predictor
         self.endpoint_name = self.__predictor.endpoint_name
 
-    def _invoke(self, action: str, args: dict) -> dict:
+    def _invoke(self, action: str, args: dict) -> Dict:
         """
         Internal helper for sending JSON payloads to the SageMaker endpoint 
         and parsing JSON responses.

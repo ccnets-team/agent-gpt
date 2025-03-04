@@ -27,15 +27,16 @@ for AgentGPT. It includes functions for:
          converting any contained NumPy arrays to lists.
      
      - space_from_dict(data):
-         Recursively deserializes a Python dict (produced by space_to_dict) back into the corresponding Gymnasium
+         Recursively deserializes a Python dict (produced by space_to_Dict) back into the corresponding Gymnasium
          space, restoring the NumPy arrays as necessary.
 """
 import numpy as np
 import gymnasium as gym
+from typing import Dict, Tuple
 
 def convert_nested_lists_to_ndarrays(data, dtype):
     """
-    Recursively converts all lists in a nested structure (dict, list, tuple) to
+    Recursively converts all lists in a nested structure (dict, list, Tuple) to
     NumPy arrays while preserving the original structure. Handles None values gracefully.
 
     Args:
@@ -51,7 +52,7 @@ def convert_nested_lists_to_ndarrays(data, dtype):
         else:
             return [convert_nested_lists_to_ndarrays(item, dtype) if item is not None else None for item in data]
     elif isinstance(data, tuple):
-        return tuple(convert_nested_lists_to_ndarrays(item, dtype) for item in data)
+        return Tuple(convert_nested_lists_to_ndarrays(item, dtype) for item in data)
     elif isinstance(data, dict):
         return {key: convert_nested_lists_to_ndarrays(value, dtype) for key, value in data.items()}
     else:
@@ -59,7 +60,7 @@ def convert_nested_lists_to_ndarrays(data, dtype):
 
 def convert_ndarrays_to_nested_lists(data):
     """
-    Recursively converts all NumPy arrays in a nested structure (dict, list, tuple)
+    Recursively converts all NumPy arrays in a nested structure (dict, list, Tuple)
     to Python lists while preserving the original structure.
 
     Args:
@@ -73,7 +74,7 @@ def convert_ndarrays_to_nested_lists(data):
     elif isinstance(data, list):
         return [convert_ndarrays_to_nested_lists(item) for item in data]
     elif isinstance(data, tuple):
-        return tuple(convert_ndarrays_to_nested_lists(item) for item in data)
+        return Tuple(convert_ndarrays_to_nested_lists(item) for item in data)
     elif isinstance(data, dict):
         return {key: convert_ndarrays_to_nested_lists(value) for key, value in data.items()}
     else:
@@ -87,7 +88,7 @@ def replace_nans_infs(obj):
     if isinstance(obj, list):
         return [replace_nans_infs(v) for v in obj]
     elif isinstance(obj, tuple):
-        return tuple(replace_nans_infs(v) for v in obj)
+        return Tuple(replace_nans_infs(v) for v in obj)
     elif isinstance(obj, dict):
         return {k: replace_nans_infs(v) for k, v in obj.items()}
 
@@ -136,13 +137,13 @@ def space_to_dict(space: gym.spaces.Space):
     else:
         raise NotImplementedError(f"Cannot serialize space type: {type(space)}")
 
-def space_from_dict(data: dict) -> gym.spaces.Space:
+def space_from_dict(data: Dict) -> gym.spaces.Space:
     """Recursively deserialize a Python dict to a Gym space."""
     space_type = data["type"]
     if space_type == "Box":
         low = np.array(data["low"], dtype=float)
         high = np.array(data["high"], dtype=float)
-        shape = tuple(data["shape"])
+        shape = Tuple(data["shape"])
         dtype = data.get("dtype", "float32")
         return gym.spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
     elif space_type == "Discrete":
@@ -154,6 +155,6 @@ def space_from_dict(data: dict) -> gym.spaces.Space:
         return gym.spaces.Dict(sub_dict)
     elif space_type == "Tuple":
         sub_spaces = [space_from_dict(s) for s in data["spaces"]]
-        return gym.spaces.Tuple(tuple(sub_spaces))
+        return gym.spaces.Tuple(Tuple(sub_spaces))
     else:
         raise NotImplementedError(f"Cannot deserialize space type: {space_type}")

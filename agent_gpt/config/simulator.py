@@ -34,7 +34,7 @@ class SimulatorConfig:
             else:
                 print(f"Warning: No attribute '{k}' in SimulatorConfig")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         return asdict(self)
     
 @dataclass
@@ -131,7 +131,7 @@ class SimulatorRegistry:
         else:
             raise ValueError(f"Simulator identifier '{simulator_id}' not found.")
     
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         return asdict(self)
         
     def set_config(self, **kwargs) -> None:
@@ -140,7 +140,7 @@ class SimulatorRegistry:
         Expects a key "simulator" in kwargs whose value is a dict mapping simulator
         identifiers to their updates.
         """
-        def update_dataclass(instance, updates: dict):
+        def update_dataclass(instance, updates: Dict):
             for key, value in updates.items():
                 if hasattr(instance, key):
                     attr = getattr(instance, key)

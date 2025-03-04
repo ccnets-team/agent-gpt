@@ -1,5 +1,4 @@
 from setuptools import setup, find_packages
-from setuptools.command.install import install
 
 with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -10,11 +9,11 @@ with open("requirements.txt", encoding="utf-8") as f:
 
 # Additional dependencies not in the file
 cli_dependencies = [
-    "typer>=0.15.1",
-    "pyyaml>=6.0",
-    "requests>=2.32.3",
-    "boto3>=1.36.5",
-    "sagemaker>=2.237.3",
+    "typer",
+    "requests",
+    "pyyaml",
+    "boto3",
+    "sagemaker",
     "kubernetes",
     "pyngrok",
 ]
@@ -24,7 +23,7 @@ install_requires = env_requirements + cli_dependencies
 
 setup(
     name="agent-gpt-aws",
-    version="0.4.4",
+    version="0.4.5",
     packages=find_packages(), 
     include_package_data=True,
     package_data={
@@ -54,5 +53,5 @@ setup(
         "License :: Other/Proprietary License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
 )

@@ -64,7 +64,7 @@ gpt_type             : (str)    GPT variant (e.g., "gpt2", "gpt-neo", etc.) from
 """
 
 from dataclasses import dataclass, field, asdict
-from typing import Optional
+from typing import Optional, List, Dict
 
 @dataclass
 class EnvHost:
@@ -101,7 +101,7 @@ class Exploration:
     initial_stddev: float = 0.05
     final_stddev: float = 0.0005
     
-    def _fields_for_type(self) -> list[str]:
+    def _fields_for_type(self) -> List[str]:
         """Returns a list of field names relevant to the specified exploration type."""
         if self.type == "none":
             return ["type"]
@@ -141,7 +141,7 @@ class Hyperparameters:
     env_entry_point: Optional[str] = None
     env_dir: Optional[str] = None
     
-    env_host: dict[str, EnvHost] = field(default_factory=dict)
+    env_host: Dict[str, EnvHost] = field(default_factory=dict)
     use_tensorboard: bool = False
     use_cloudwatch: bool = True
 
@@ -159,7 +159,7 @@ class Hyperparameters:
     gamma_init: float = 0.99
     lambda_init: float = 0.95
     max_input_states: int = 16
-    exploration: dict[str, Exploration] = field(default_factory=dict)
+    exploration: Dict[str, Exploration] = field(default_factory=dict)
 
     # 5) Optimization
     lr_init: float = 1e-4
@@ -227,7 +227,7 @@ class Hyperparameters:
             else:
                 print(f"Warning: No attribute '{k}' in Hyperparameters")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         """
         Returns a deep dictionary of all dataclass fields,
         including nested dataclasses, by leveraging asdict().

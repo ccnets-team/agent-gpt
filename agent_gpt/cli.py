@@ -18,19 +18,18 @@ import re
 import time
 import yaml
 import requests
-from typing import Optional
+from typing import Optional, List, Dict
 from .config.simulator import SimulatorConfig 
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
 from .core import AgentGPT
-from .utils.config_utils import load_config, save_config, generate_section_config, update_config_using_method, ensure_config_exists
-from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, update_config_by_dot_notation
+from .utils.config_utils import load_config, save_config, generate_default_section_config, update_config_using_method, ensure_config_exists
+from .utils.config_utils import convert_to_objects, parse_extra_args, update_config_by_dot_notation
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
-import yaml
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
-def load_help_texts(yaml_filename: str) -> dict:
+def load_help_texts(yaml_filename: str) -> Dict:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     yaml_path = os.path.join(script_dir, yaml_filename)
     with open(yaml_path, "r", encoding="utf-8") as f:
@@ -49,6 +48,8 @@ help_texts = load_help_texts("help_config.yaml")
     help=auto_format_help(help_texts["config"]["detailed_help"]),
 )
 def config(ctx: typer.Context):
+    ensure_config_exists()
+    
     if not ctx.args:
         typer.echo(ctx.get_help())
         raise typer.Exit()
@@ -118,6 +119,7 @@ def clear_config(
         None,
     )
 ):
+    ensure_config_exists()
     
     allowed_sections = set(TOP_CONFIG_CLASS_MAP.keys())
     if section:
@@ -125,7 +127,7 @@ def clear_config(
             typer.echo(typer.style(f"Invalid section '{section}'. Allowed sections: {', '.join(allowed_sections)}.", fg=typer.colors.YELLOW))
             raise typer.Exit()
         current_config = load_config()
-        current_config[section] = generate_section_config(section)
+        current_config[section] = generate_default_section_config(section)
         save_config(current_config)
         typer.echo(f"Configuration section '{section}' has been reset to default.")
     else:
@@ -145,6 +147,7 @@ def list_config(
         None,
     )
 ):
+    ensure_config_exists()
     
     current_config = load_config()
     if section in TOP_CONFIG_CLASS_MAP.keys():
@@ -165,6 +168,8 @@ def list_config(
              short_help=help_texts["upload"]["short_help"],
              help=auto_format_help(help_texts["upload"]["detailed_help"]))
 def upload(simulator_id: str = typer.Argument()):
+    ensure_config_exists()
+    
     current_data = load_config()
     
     sagemaker_config = current_data.get("sagemaker", {})
@@ -201,9 +206,9 @@ def wait_for_config_update(expected_keys, timeout=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
         config_data = load_config()  # Your function to load the config file.
-        env_hosts = config_data.get("hyperparams", {}).get("env_host", {})
+        env_host_keys = config_data.get("hyperparams", {}).get("env_host", {})
         # Check if all expected keys are present.
-        if all(key in env_hosts for key in expected_keys):
+        if all(key in env_host_keys for key in expected_keys):
             return config_data
         time.sleep(0.5)
     raise TimeoutError("Timed out waiting for config update.")
@@ -215,8 +220,10 @@ def wait_for_config_update(expected_keys, timeout=10):
 )
 def simulate(
     simulator_id: str = typer.Argument(None, help="Simulator identifier"),
-    ports: list[int] = typer.Argument(None, help="List of port numbers")
+    ports: List[int] = typer.Argument(None, help="List of port numbers")
 ):
+    ensure_config_exists()
+    
     # Load configuration and simulator data.
     current_data = load_config()
     simulator_registry_data = current_data.get("simulator_registry", {})
@@ -366,6 +373,8 @@ def initialize_sagemaker_access(
     help=auto_format_help(help_texts["train"]["detailed_help"])
 )
 def train():
+    ensure_config_exists()
+    
     config_data = load_config()
 
     input_config_names = ["sagemaker", "hyperparams"] 
@@ -391,6 +400,8 @@ def train():
     help=auto_format_help(help_texts["infer"]["detailed_help"])
 )
 def infer():
+    ensure_config_exists()
+    
     config_data = load_config()
 
     # Use the sagemaker configuration.

@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import List
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ def create_dockerfile(env_type: str, env_path: str, additional_dependencies: Lis
     logger.info(f"Done. Dockerfile written at: {dockerfile_path}")
     return dockerfile_path
 
-def get_build_files(env: str) -> dict:
+def get_build_files(env: str) -> Dict:
     """
     Returns a dictionary mapping file basenames to their paths required for the Docker build.
 
@@ -132,7 +132,7 @@ def get_build_files(env: str) -> dict:
     files = [entrypoint_file, api_file, data_converters_file, env_wrapper_file]
     return {os.path.basename(p.rstrip("/")): p for p in files}
 
-def write_code_copy_instructions(f, build_files: dict):
+def write_code_copy_instructions(f, build_files: Dict):
     """
     Writes Docker COPY instructions for each file in build_files.
 

@@ -3,9 +3,9 @@ import typer
 import os
 import platform
 import subprocess
-import time
+from typing import List
 
-def open_simulation_in_screen(extra_args: list[str]) -> subprocess.Popen:
+def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
     env = os.environ.copy()
     simulation_script = os.path.join(os.path.dirname(__file__), "simulation.py")
     system = platform.system()

@@ -1,6 +1,7 @@
 from dataclasses import dataclass, asdict
 import socket
 import requests
+from typing import Dict
 
 @dataclass
 class NetworkConfig:
@@ -14,7 +15,7 @@ class NetworkConfig:
         self.public_ip = info.get("public_ip", self.public_ip)
         self.internal_ip = info.get("internal_ip", self.internal_ip) or "127.0.0.1"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         """Returns a dictionary of all Network configuration fields."""
         return asdict(self)
 
@@ -38,7 +39,7 @@ class NetworkConfig:
         return cls()
     
                 
-def get_network_info() -> dict:
+def get_network_info() -> Dict:
     """
     Returns a dictionary with:
     - 'public_ip': The public IP address (if retrievable)
