@@ -132,34 +132,29 @@ def parse_extra_args(args: list[str]) -> dict:
             i += 1
     return new_changes
 
-def recursive_update(target, changes: dict, prefix="") -> tuple:
+def recursive_update(target, changes: dict, prefix="") -> list:
     """
     Recursively update attributes of an object (or dictionary) using a nested changes dict.
     Only updates existing attributes/keys.
 
     Returns:
-        tuple: (changed, diffs)
-            changed (bool): True if any update was made, False otherwise.
-            diffs (list): A list of differences in the form (full_key, old_value, new_value)
+        list of tuples: Each tuple is (full_key, old_value, new_value, updated, message),
+        where 'updated' is a boolean indicating if an update was performed.
     """
-    changed = False
-    diffs = []
-
+    update_log = []
     if isinstance(target, dict):
-        for k, v in changes.items():
+        for k, new_val in changes.items():
             if k in target:
                 current_key = f"{prefix}.{k}" if prefix else k
-                if isinstance(v, dict):
-                    sub_changed, sub_diffs = recursive_update(target[k], v, prefix=current_key)
-                    if sub_changed:
-                        changed = True
-                        diffs.extend(sub_diffs)
+                if isinstance(new_val, dict):
+                    update_log.extend(recursive_update(target[k], new_val, prefix=current_key))
                 else:
-                    if target[k] != v:
+                    if target[k] != new_val:
                         old_val = target[k]
-                        target[k] = v
-                        changed = True
-                        diffs.append((current_key, old_val, v))
+                        target[k] = new_val
+                        update_log.append((current_key, old_val, new_val, True, ""))
+                    else:
+                        update_log.append((current_key, target[k], new_val, False, "value unchanged"))
             # Do not add new keys.
     else:
         for attr, new_val in changes.items():
@@ -167,136 +162,106 @@ def recursive_update(target, changes: dict, prefix="") -> tuple:
                 continue
             current_val = getattr(target, attr)
             current_key = f"{prefix}.{attr}" if prefix else attr
-            # If the new value is a dict, try to update the inner attributes.
             if isinstance(new_val, dict):
-                sub_changed, sub_diffs = recursive_update(current_val, new_val, prefix=current_key)
-                if sub_changed:
-                    changed = True
-                    diffs.extend(sub_diffs)
+                update_log.extend(recursive_update(current_val, new_val, prefix=current_key))
             else:
                 if current_val != new_val:
                     old_val = current_val
                     setattr(target, attr, new_val)
-                    changed = True
-                    diffs.append((current_key, old_val, new_val))
+                    update_log.append((current_key, old_val, new_val, True, ""))
+                else:
+                    update_log.append((current_key, current_val, new_val, False, "value unchanged"))
+    return update_log
 
-    return changed, diffs
+def update_config_by_dot_notation(config_obj, new_changes) -> list:
+    """
+    Applies changes from a nested dict to the configuration objects.
 
-def apply_config_updates(config_obj, new_changes):
-    # List to collect change summaries.
-    list_changes = []
-    # Loop through the parsed changes.
-    for key, value in new_changes.items():
-        diffs_for_key = []
-        changed = False
-        
-        # Allow shorthand syntax for top-level config sections 
-        # (simulator_registry, network, hyperparams, sagemaker).
-        if key in (config_obj.keys()) and isinstance(value, dict) and len(value) == 1:
-            inner_key, inner_value = list(value.items())[0]
+    Returns:
+        list of tuples: Each tuple is (key, old_value, new_value, changed, message)
+    """
+    update_log = []
+    for key, new_val in new_changes.items():
+        # Allow shorthand syntax for top-level config sections.
+        if key in config_obj and isinstance(new_val, dict) and len(new_val) == 1:
+            inner_key, inner_value = list(new_val.items())[0]
             key = inner_key
-            value = inner_value
-            
-        # Otherwise, update all config objects that have the attribute.
+            new_val = inner_value
+
+        matching_obj = None
         for obj in config_obj.values():
-            if not hasattr(obj, key):
+            if hasattr(obj, key):
+                matching_obj = obj
+                break
+        
+        if matching_obj is None:
+            update_log.append((key, None, None, False, "it was not found in the configuration"))
+            continue
+        
+        attr = getattr(matching_obj, key)
+        if callable(attr):
+            if not isinstance(new_val, list):
+                new_val = [new_val]
+            converted_args = [parse_value(arg) for arg in new_val if arg is not None]
+            try:
+                if converted_args:
+                    attr(*converted_args)
+                else:
+                    attr()
+            except Exception as e:
+                error_msg = f"Error calling '{key}' with arguments {converted_args}: {e}"
+                # print(error_msg)
+                update_log.append((key, None, None, False, error_msg))
                 continue
-            
-            attr = getattr(obj, key)
-            if callable(attr):
-                if not isinstance(value, list):
-                    value = [value]
-                # Filter out None values if necessary.
-                converted_args = [parse_value(arg) for arg in value if arg is not None]
-                try:
-                    if converted_args:
-                        attr(*converted_args)
-                    else:
-                        attr()
-                except Exception as e:
-                    # Log the error and record it in the diffs for later inspection.
-                    error_msg = f"Error calling '{key}' with arguments {converted_args}: {e}"
-                    print(error_msg)
-                    diffs_for_key.append((key, "error", error_msg))
-                    # Continue with the next step rather than halting the entire update.
-                    continue
-                arg_str = " ".join(str(x) for x in converted_args)
-                diffs_for_key.append((key, None, arg_str))
-                changed = True
-
-            elif isinstance(value, dict):
-                ch, diffs = recursive_update(attr, value, prefix=key)
-                if ch:
-                    changed = True
-                    diffs_for_key.extend(diffs)
+            arg_str = " ".join(str(x) for x in converted_args)
+            update_log.append((key, None, None, True, arg_str))
+        elif isinstance(new_val, dict):
+            update_log.extend(recursive_update(attr, new_val, prefix=key))
+        else:
+            current_val = getattr(matching_obj, key)
+            if current_val != new_val:
+                setattr(matching_obj, key, new_val)
+                update_log.append((key, current_val, new_val, True, ""))
             else:
-                current_val = getattr(obj, key)
-                if current_val != value:
-                    setattr(obj, key, value)
-                    changed = True
-                    diffs_for_key.append((key, current_val, value))
-        list_changes.append((key, value, changed, diffs_for_key))
-    return list_changes
+                update_log.append((key, current_val, new_val, False, "value unchanged"))
+    return update_log
 
-def handle_config_method(args: list[str], config_obj: dict) -> list:
+def update_config_using_method(args: list[str], config_obj: dict) -> list:
     """
-    Process method calls in the config command. For instance, if the user runs:
+    Process method calls in the config command.
+
+    For example, if the user runs:
       agent-gpt config simulator set simim --hosting local
-    Then:
-      - args[0] = "simulator"         (the configuration type)
-      - args[1] = "set"               (the behavior)
-      - args[2] = "simim"             (the identifier, e.g., simulator identifier)
-      - remaining args: ["--hosting", "local"] are parsed as keyword arguments.
-    
-    The function constructs the method name (e.g. "set_simulator") and loops over all
-    top-level configuration objects in config_obj to find one with a callable attribute
-    matching that name. If found, it calls that method with the identifier and any keyword arguments.
-    
-    Returns a list with one tuple having 4 items:
-      (target_key.method_name, keyword_args, changed, diffs_for_key)
-    where diffs_for_key is a list of 3-item tuples: (key, old_value, new_value).
+
+    Returns a list of tuples (target_key, keyword_args, placeholder, changed, message).
     """
-    # If not enough arguments, return a 4-item tuple indicating error.
     if len(args) < 3:
-        return [("error", None, False, [("error", "error", "Not enough arguments for method call")])]
+        return [("error", None, None, False, "Not enough arguments for method call")]
 
-    # Extract command parts.
-    object_name = args[0]          # e.g., "simulator"
-    behaviour = args[1]            # e.g., "set" or "del"
-    identifier = args[2]           # e.g., "simim"
-    method_name = f"{behaviour}_{object_name.lower().replace('-', '_')}"  # e.g., "set_simulator"
-
-    # Process any remaining arguments as keyword arguments (via dot notation).
+    object_name = args[0]  # e.g., "simulator"
+    behaviour = args[1]    # e.g., "set" or "del"
+    identifier = args[2]   # e.g., "simim"
+    method_name = f"{behaviour}_{object_name.lower().replace('-', '_')}"
     method_args_raw = args[3:]
-    keyword_args = {}
-    if method_args_raw:
-        keyword_args = parse_extra_args(method_args_raw)
+    keyword_args = parse_extra_args(method_args_raw) if method_args_raw else {}
 
-    # Loop over all top-level configuration objects to find one with a callable matching method_name.
     target_obj = None
-    target_object_name = None
     for key, obj in config_obj.items():
         if hasattr(obj, method_name) and callable(getattr(obj, method_name)):
             target_obj = obj
-            target_object_name = key
             break
 
     if target_obj is None:
-        return [(object_name, keyword_args, False, [(object_name, "error", f"No configuration object found with callable '{method_name}'")])]
+        message = f"No configuration object found for '{object_name}' using '{behaviour}' for identifier '{identifier}'"
+        return [(f"{behaviour} {object_name}", None, None, False, message)]
     try:
         method = getattr(target_obj, method_name)
     except Exception as e:
-        return [(f"{target_object_name}.{method_name}", keyword_args, False, [(f"{target_object_name}.{method_name}", "error", str(e))])]
+        return [(f"{behaviour} {object_name}", keyword_args, None, False, str(e))]
 
     try:
-        # Call the method with the identifier as the first argument and pass any keyword arguments.
         method(identifier, **keyword_args)
-        if keyword_args:
-            answer = f"Called with identifier '{identifier}' and {keyword_args}"
-        else:
-            answer = f"Called with identifier '{identifier}'"
-        return [(f"{target_object_name}.{method_name}", keyword_args, True,
-                 [(f"{target_object_name}.{method_name}", None, answer)])]
+        message = f"{behaviour.capitalize()} '{object_name}' for identifier '{identifier}'" if keyword_args else f"for identifier '{identifier}'"
+        return [(f"{behaviour} {object_name}", None, None, True, message)]
     except Exception as e:
-        return [(f"{target_object_name}.{method_name}", keyword_args, False,
-                 [(f"{target_object_name}.{method_name}", "error", str(e))])]
+        return [(f"{behaviour} {object_name}", None, None, False, str(e))]

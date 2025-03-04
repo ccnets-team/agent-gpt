@@ -22,8 +22,8 @@ from .config.simulator import SimulatorConfig
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
 from .core import AgentGPT
-from .utils.config_utils import load_config, save_config, generate_section_config, handle_config_method, _ensure_config_exists
-from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, apply_config_updates
+from .utils.config_utils import load_config, save_config, generate_section_config, update_config_using_method, _ensure_config_exists
+from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, update_config_by_dot_notation
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
 import yaml
 
@@ -52,42 +52,37 @@ def config(ctx: typer.Context):
         typer.echo(ctx.get_help())
         raise typer.Exit()
     
-    # Load stored configuration overrides.
     current_config = load_config()
     config_obj = convert_to_objects(current_config)
 
-    # Check if the first argument starts with "--" (field update mode) or not (method mode)
+    # Decide the mode based on the first argument.
     if ctx.args[0].startswith("--"):
         new_changes = parse_extra_args(ctx.args)
-        list_changes = apply_config_updates(config_obj, new_changes)
+        update_log = update_config_by_dot_notation(config_obj, new_changes)
     else:
-        list_changes = handle_config_method(ctx.args, config_obj)
+        update_log = update_config_using_method(ctx.args, config_obj)
 
-    diffs = []
     # Print detailed change summaries.
-    for key, value, changed, diffs in list_changes:
+    for key, old_value, new_value, changed, message in update_log:
         if changed:
-            for full_key, old_val, new_val in diffs:
-                if old_val is None:
-                    typer.echo(typer.style(
-                        f" - {full_key} {new_val}",
-                        fg=typer.colors.GREEN
-                    ))
-                else:
-                    typer.echo(typer.style(
-                        f" - {full_key} changed from {old_val} to {new_val}",
-                        fg=typer.colors.GREEN
-                    ))
-        else:
-            for full_key, old_val, new_val in diffs:
+            method_configuration = True if old_value is None and new_value is None else False
+            if method_configuration:
                 typer.echo(typer.style(
-                    f" - {key}: no changes applied {new_val}",
-                    fg=typer.colors.YELLOW
+                    f" - {key} {message}.",
+                    fg=typer.colors.GREEN
                 ))
+            else:
+                typer.echo(typer.style(
+                    f" - {key} changed from {old_value} to {new_value}",
+                    fg=typer.colors.GREEN
+                ))
+        else:
+            typer.echo(typer.style(
+                f" - {key}: no changes applied because {message}",
+                fg=typer.colors.YELLOW
+            ))
             
-    full_config = {}
-    for key, obj in config_obj.items():
-        full_config[key] = obj.to_dict()
+    full_config = {key: obj.to_dict() for key, obj in config_obj.items()}
     save_config(full_config)
 
 @app.command(
