@@ -24,11 +24,9 @@ TOP_CONFIG_CLASS_MAP = {
     "hyperparams": Hyperparameters,
     "sagemaker": SageMakerConfig,
 }
-
 def generate_section_config(section: str) -> dict:
     cls = TOP_CONFIG_CLASS_MAP.get(section)
     if cls:
-        # With __post_init__ in NetworkConfig, simply instantiating is enough.
         return cls().to_dict()
     return {}
 
@@ -46,24 +44,25 @@ def convert_to_objects(config_data: dict) -> dict:
         result[key] = obj
     return result
 
-def _ensure_config_exists():
+def ensure_config_exists():
     # Ensure the configuration file exists at startup
     if not os.path.exists(DEFAULT_CONFIG_PATH):
         default_config = initialize_config()
         save_config(default_config)
         
 def load_config() -> dict:
-    if not os.path.exists(DEFAULT_CONFIG_PATH):
-        _ensure_config_exists()
-
-    with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f) or {}
-
-    if config.get("version") != CURRENT_AGENT_GPT_VERSION:
-        os.remove(DEFAULT_CONFIG_PATH)
-        _ensure_config_exists()
+    config = {}
+    if os.path.exists(DEFAULT_CONFIG_PATH):
         with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
+    if not config or (config.get("version") != CURRENT_AGENT_GPT_VERSION):
+        # If the config file is empty or missing, recreate it.
+        config = initialize_config()
+        config["version"] = CURRENT_AGENT_GPT_VERSION
+        save_config(config)
+    
+    with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
     return config
 
 def save_config(config_data: dict) -> None:
@@ -71,8 +70,6 @@ def save_config(config_data: dict) -> None:
     os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
     with open(DEFAULT_CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
-
-
 
 def parse_value(value: str):
     """

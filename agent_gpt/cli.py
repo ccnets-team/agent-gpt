@@ -22,7 +22,7 @@ from .config.simulator import SimulatorConfig
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
 from .core import AgentGPT
-from .utils.config_utils import load_config, save_config, generate_section_config, update_config_using_method, _ensure_config_exists
+from .utils.config_utils import load_config, save_config, generate_section_config, update_config_using_method, ensure_config_exists
 from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, update_config_by_dot_notation
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
 import yaml
@@ -91,7 +91,7 @@ def config(ctx: typer.Context):
     help=auto_format_help(help_texts["edit"]["detailed_help"]),
 )
 def edit_config():   
-    _ensure_config_exists()
+    ensure_config_exists()
     try:
         import platform
         import subprocess
