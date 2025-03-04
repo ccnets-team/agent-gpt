@@ -21,7 +21,6 @@ from typing import Optional
 from .config.simulator import SimulatorConfig 
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
-from .env_host.server import EnvServer
 from .core import AgentGPT
 from .utils.config_utils import load_config, save_config, generate_section_config, handle_config_method
 from .utils.config_utils import convert_to_objects, parse_extra_args, initialize_config, apply_config_updates
@@ -42,6 +41,12 @@ def auto_format_help(text: str) -> str:
 
 help_texts = load_help_texts("help_config.yaml")
 
+# Ensure the configuration file exists at startup
+if not os.path.exists(DEFAULT_CONFIG_PATH):
+    typer.echo("Configuration file not found. Creating a default configuration file...")
+    default_config = initialize_config()
+    save_config(default_config)
+    
 @app.command(
     "config",
     short_help=help_texts["config"]["short_help"],
@@ -96,10 +101,10 @@ def config(ctx: typer.Context):
 )
 def edit_config():
     # Check if the configuration file exists; if not, create a default one.
-    if not os.path.exists(DEFAULT_CONFIG_PATH):
-        typer.echo("Configuration file not found. Creating a default configuration file...")
-        default_config = initialize_config()
-        save_config(default_config)
+    # if not os.path.exists(DEFAULT_CONFIG_PATH):
+    #     typer.echo("Configuration file not found. Creating a default configuration file...")
+    #     default_config = initialize_config()
+    #     save_config(default_config)
     
     try:
         import platform

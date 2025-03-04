@@ -49,13 +49,6 @@ def get_network_info() -> dict:
         "internal_ip": None,
     }
     # Try to get the public IP via an external service.
-    try:
-        response = requests.get("https://api.ipify.org", timeout=5)
-        if response.status_code == 200:
-            info["public_ip"] = response.text.strip()
-    except requests.RequestException:
-        pass  # Ignore errors
-
     # Determine the internal (LAN) IP address.
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -63,6 +56,14 @@ def get_network_info() -> dict:
             info["internal_ip"] = s.getsockname()[0]
     except OSError:
         info["internal_ip"] = "127.0.0.1"  # Fallback
+
+    try:
+        response = requests.get("https://api.ipify.org", timeout=5)
+        if response.status_code == 200:
+            info["public_ip"] = response.text.strip()
+    except requests.RequestException:
+        info["public_ip"] = info["internal_ip"]
+        print("Warning: Unable to retrieve public IP address.")
 
     return info
 
