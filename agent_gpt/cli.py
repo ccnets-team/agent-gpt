@@ -188,7 +188,7 @@ def upload(
 
     simulator_registry_data = config_data.get("simulator_registry", {})
     simulator = simulator_registry_data.get("simulator", {})
-    simulator_data = simulator.get(simulator_id)
+    simulator_data = simulator.get(simulator_id) or {}
     if not simulator_data:
         typer.echo(f"Warning: No simulator config found for identifier '{simulator_id}'")
         raise typer.Exit(code=1)
@@ -212,6 +212,7 @@ def upload(
     config_data["simulator_registry"] = simulator_registry_data
     save_config(config_data)
 
+
 @app.command(
     "simulate",
     short_help=help_texts["simulate"]["short_help"],
@@ -221,111 +222,51 @@ def simulate(
     simulator_id: str = typer.Argument("local", help="Simulator identifier (default: local)"),
     ports: list[int] = typer.Argument(None, help="List of port numbers")
 ):
-    # Load configuration to get the network settings.
+    """
+    Checks for available ports and then launches a separate process (a new terminal or screen)
+    to execute the simulation. The new process will create the launchers, distribute agents,
+    update the hyperparameters config (env_host), and then run the blocking simulation loop.
+    """
+    # Load configuration and simulator data.
     config_data = load_config()
-
     simulator_registry_data = config_data.get("simulator_registry", {})
     simulator = simulator_registry_data.get("simulator", {})
-    simulator_data = simulator.get(simulator_id)
-    
+    simulator_data = simulator.get(simulator_id) or {}
+
     simulator_obj = SimulatorConfig()
     simulator_obj.set_config(**simulator_data)
-        
-    env_type = simulator_obj.env_type
-    hosting = simulator_obj.hosting
-    url = simulator_obj.url
-    host = simulator_obj.host
-    connection = simulator_obj.connection
-    total_agents = simulator_obj.total_agents
-    
+
+    # Check for ports.
     if not ports:
-        typer.echo("No port numbers provided. Attempting to retrieve ports from the simulator configuration.")
+        typer.echo("No port numbers provided. Using ports from configuration.")
         ports = simulator_obj.ports
     if not ports:
         typer.echo("Error: No available ports found. Please specify one or more port numbers.")
         raise typer.Exit(code=1)
 
-    if hosting == "local":
-            
-        launchers = []
-        for port in ports:
-            if connection == "tunnel":
-                from .utils.tunnel import create_tunnel
-                url = create_tunnel(port)
-            launcher = EnvServer.launch(
-                env_type=env_type,
-                url=url,
-                host=host,
-                port=port
-            )
-            launchers.append(launcher)
-        
-        num_launcers = len(launchers)
-        base_agents = total_agents // num_launcers
-        remainder = total_agents % num_launcers
-        agents_array = [base_agents] * num_launcers
-        for i in range(remainder):
-            agents_array[i] += 1
-        
-        # Add environment hosts for the simulation.
-        env_host = config_data.get("hyperparams", {}).get("env_host", {})
-        added_env_hosts = []
-        # Store simulation host info using a key like f"{simulator_id}:{port}"
-        for i, launcher in enumerate(launchers):
-            key = f"{simulator_id}:{launcher.port}"
-            if connection == "tunnel":
-                env_endpoint = launcher.url
-            else:
-                env_endpoint = launcher.endpoint
-            env_host[key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
-            added_env_hosts.append(key)
-            typer.echo(f"env_endpoint: {env_endpoint}, num_agents: {agents_array[i]}")
+    # Prepare the extra arguments to pass to simulation.py.
+    # (Ports are passed as a comma-separated string.)
+    port_arg = ",".join(str(p) for p in ports)
+    extra_args = [
+        "--simulator_id", simulator_id,
+        "--ports", port_arg,
+        "--env_type", simulator_obj.env_type,
+        "--connection", simulator_obj.connection,
+        "--host", simulator_obj.host,
+        "--total_agents", str(simulator_obj.total_agents),
+        "--url", simulator_obj.url or ""
+    ]
+    
+    # (Optional) You might want to log or echo some status here.
+    typer.echo("Ports verified. Launching the simulation process in a new terminal...")
+    
+    from .simulation import open_simulation_in_screen 
+    # Launch the new process that will execute the simulation logic.
+    open_simulation_in_screen(extra_args)
+    
+    typer.echo("Simulation launched in a new terminal. You can continue using this terminal for AgentGPT training.")
 
-        # Update and save the config.
-        config_data.setdefault("hyperparams", {})["env_host"] = env_host
-        save_config(config_data)
-
-        # Inform the user that the simulation command will block this terminal.
-        typer.echo("Simulation running. This terminal is now dedicated to simulation; open another terminal for AgentGPT training.") 
-        typer.echo("Press Ctrl+C to terminate the simulation.")
-        
-        try:
-            while any(launcher.server_thread.is_alive() for launcher in launchers):
-                for launcher in launchers:
-                    launcher.server_thread.join(timeout=0.5)
-        except KeyboardInterrupt:
-            typer.echo("Shutdown requested, stopping all local servers...")
-            for launcher in launchers:
-                launcher.shutdown()
-            for launcher in launchers:
-                launcher.server_thread.join(timeout=2)
-
-        # After simulation ends, remove only the env_host entries added for this simulation.
-        for key in added_env_hosts:
-            env_host.pop(key, None)
-
-        config_data["hyperparams"]["env_host"] = env_host
-        save_config(config_data)
-
-        if connection == "tunnel":
-            from pyngrok import ngrok
-            for launcher in launchers:
-                try:
-                    ngrok.disconnect(launcher.url)
-                except Exception:
-                    pass
-        
-    elif hosting == "remote":
-        typer.echo(
-            "Remote simulation mode selected. This machine does not support launching remote simulations. "
-            "Please run the simulation command directly on the simulator, which hosts the simulation locally."
-        )
-    elif hosting == "cloud":
-        typer.echo("Cloud-based simulation is not supported yet.")
-        raise typer.Exit(code=0)
-    else:
-        typer.echo("Other hosting modes are not supported yet.")
-
+    
 def initialize_sagemaker_access(
     role_arn: str,
     region: str,
