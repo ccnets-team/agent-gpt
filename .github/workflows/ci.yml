@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: [3.8, 3.9, 3.10, 3.11, 3.12, 3.13]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      # Check out the repository code.
+      - uses: actions/checkout@v3
+
+      # Set up the Python version.
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Upgrade pip and install your package in editable mode.
+      - name: Install package and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      # Optionally, verify the CLI installation (running a sample command).
+      - name: Verify CLI installation
+        run: agent-gpt --help
+
+      # Lint your code using flake8.
+      - name: Lint code with flake8
+        run: |
+          pip install flake8
+          flake8 .
+
+      # Run tests with pytest.
+      - name: Run tests with pytest
+        run: |
+          pip install pytest
+          pytest

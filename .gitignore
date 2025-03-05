@@ -103,3 +103,8 @@ Desktop.ini
 
 # Local configuration file for agent-gpt (if desired)
 ~/.agent_gpt/config.yaml
+
+# Ensure workflow files are tracked
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
