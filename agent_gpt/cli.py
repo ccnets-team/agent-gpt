@@ -232,6 +232,10 @@ def simulate(
     simulator_identifiers = list(simulator.keys())
     num_simulators = len(simulator_identifiers)
 
+    if simulator_id and simulator_id not in simulator_identifiers:
+        typer.echo(typer.style(f"Error: No simulator found with identifier '{simulator_id}'.", fg=typer.colors.YELLOW))
+        simulator_id = None
+
     if not simulator_id and num_simulators > 0:
         typer.echo("Available simulator identifiers:")
         for sid in simulator_identifiers:
@@ -241,10 +245,12 @@ def simulate(
             default=simulator_identifiers[0],
             show_default=True
         )
-    elif not simulator_id:
+   
+    if not simulator_id:
         raise typer.Exit(code=1)
 
     simulator_data = simulator.get(simulator_id)
+    
     if not simulator_data:
         typer.echo(typer.style(f"Error: No simulator found with identifier '{simulator_id}'.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)
