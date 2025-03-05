@@ -9,19 +9,24 @@ def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
     env = os.environ.copy()
     simulation_script = os.path.join(os.path.dirname(__file__), "simulation.py")
     system = platform.system()
+
     if system == "Linux":
         cmd_parts = ["python3", simulation_script] + extra_args
-        cmd_str = " ".join(cmd_parts)
-        try:
-            proc = subprocess.Popen(
-                ['gnome-terminal', '--', 'bash', '-c', f'{cmd_str}; exec bash'],
-                env=env
-            )
-        except FileNotFoundError:
-            proc = subprocess.Popen(
-                ['xterm', '-e', f'{cmd_str}; bash'],
-                env=env
-            )
+        if not os.environ.get("DISPLAY"):
+            # Headless mode: run in background without opening a terminal emulator.
+            proc = subprocess.Popen(cmd_parts, env=env)
+        else:
+            cmd_str = " ".join(cmd_parts)
+            try:
+                proc = subprocess.Popen(
+                    ['gnome-terminal', '--', 'bash', '-c', f'{cmd_str}; exec bash'],
+                    env=env
+                )
+            except FileNotFoundError:
+                proc = subprocess.Popen(
+                    ['xterm', '-e', f'{cmd_str}; bash'],
+                    env=env
+                )
     elif system == "Darwin":
         cmd_parts = ["python3", simulation_script] + extra_args
         cmd_str = " ".join(cmd_parts)
@@ -41,6 +46,7 @@ def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
         typer.echo("Unsupported OS for launching a new terminal session.")
         raise typer.Exit(code=1)
     return proc
+
 
 def main():
     parser = argparse.ArgumentParser()
