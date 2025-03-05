@@ -313,8 +313,11 @@ def simulate(
             ))
         else:
             typer.echo(typer.style(
-                "Remote gym functions in some endpoints are not accessible externally. Please verify your connection or try another simulator.\n"
-                "Refer to docs/Local Environment Hosting for Cloud Training - Port Forwarding & Tunneling.md for more information.",
+                "Note: Our remote gym functions perform recursive checks from external to internal addresses. "
+                "In some cases, stricter incoming connection policies may cause endpoints to appear unresponsive—even if cloud training works correctly. "
+                "For optimal speed and cost efficiency, using your local IP is preferred—provided your IP ports are properly forwarded (adjust your router if needed). "
+                "Alternatively, for temporary cloud testing of our service, we recommend using a tunnel to bypass these restrictions. "
+                "See docs/Local Environment Hosting for Cloud Training - Port Forwarding & Tunneling.md for further guidance.",
                 fg=typer.colors.YELLOW
             ))
         typer.echo("Simulation has been launched. You may continue to work in this terminal for further commands or to initiate another simulation.")
