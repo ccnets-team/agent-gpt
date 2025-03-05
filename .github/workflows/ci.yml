@@ -1,4 +1,4 @@
-name: CI-CLI-Check
+name: CI
 
 on:
   push:
@@ -7,11 +7,13 @@ on:
     branches: [ main ]
 
 jobs:
-  cli-check:
-    runs-on: [ubuntu-latest, windows-latest, macos-latest]
+  build:
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v3
 
