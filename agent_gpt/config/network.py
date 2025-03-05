@@ -67,9 +67,11 @@ def get_network_info() -> Dict:
 
     return info
 
-def remote_make(env_key, env_endpoint, 
+import requests, msgpack, uuid
+
+def remote_gym_make(env_key, env_endpoint, 
                 env_id, env_entry_point, env_dir,
-                timeout=60):
+                timeout=10):
     """
     Sends a POST request to the /make endpoint using msgpack to create an environment.
     
@@ -85,7 +87,6 @@ def remote_make(env_key, env_endpoint,
     Raises:
         Exception: If the HTTP request fails or returns a non-OK status.
     """
-    import requests, msgpack
 
     payload = {
         "env_key": env_key,
@@ -109,7 +110,7 @@ def remote_make(env_key, env_endpoint,
     make_response = response_data.get("message", "No message returned from /make")
     return make_response
 
-def remote_close(env_key, env_endpoint, timeout=60):
+def remote_gym_close(env_key, env_endpoint, timeout=10):
     """
     Sends a POST request to the /close endpoint using msgpack to close an environment.
     
@@ -124,7 +125,6 @@ def remote_close(env_key, env_endpoint, timeout=60):
     Raises:
         Exception: If the HTTP request fails or returns a non-OK status.
     """
-    import requests, msgpack
 
     payload = {"env_key": env_key}
     packed = msgpack.packb(payload, use_bin_type=True)
@@ -145,21 +145,8 @@ def remote_close(env_key, env_endpoint, timeout=60):
 def test_my_remote_environment(env_hosts: dict, 
                                env_id="Humanoid-v5", env_entry_point="gym.envs:HumanoidEnv", 
                                env_dir="your/env/dir/"):
-    """
-    Tests remote environment endpoints by creating and then closing an environment.
-    
-    For each host in the provided dictionary, a unique env_key is generated.
-    The function calls `remote_make` to create an environment and then `remote_close` to close it.
-    
-    Args:
-        env_hosts (dict): Dictionary where keys are host identifiers and values contain an "env_endpoint".
-        env_id (str, optional): Environment ID to use for testing. Defaults to "remote_dummy_env".
-    
-    Returns:
-        dict: Mapping from each host identifier to a result dictionary with the responses or error message.
-    """
-    import uuid
     results = {}
+    at_least_one_fail = False
     for env_host_id, env_host_data in env_hosts.items():
         env_endpoint = env_host_data.get("env_endpoint")
         if not env_endpoint:
@@ -168,8 +155,8 @@ def test_my_remote_environment(env_hosts: dict,
         
         env_key = uuid.uuid4().hex[:16]
         try:
-            make_response = remote_make(env_key, env_endpoint, env_id, env_entry_point, env_dir)
-            close_response = remote_close(env_key, env_endpoint)
+            make_response = remote_gym_make(env_key, env_endpoint, env_id, env_entry_point, env_dir)
+            close_response = remote_gym_close(env_key, env_endpoint)
             results[env_host_id] = {
                 "status": 200,
                 "remote-gym-make": make_response,
@@ -180,7 +167,9 @@ def test_my_remote_environment(env_hosts: dict,
                 "status": 500,
                 "error": str(e)
             }
-    return results
+            at_least_one_fail = True
+    all_success = not at_least_one_fail
+    return results, all_success
 
 if __name__ == "__main__":
     config = NetworkConfig.from_network_info()

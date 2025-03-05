@@ -303,18 +303,20 @@ def simulate(
         typer.echo(typer.style(dislay_output.strip(), fg=typer.colors.GREEN))       
 
         # Test the env_endpoints.
-        test_results = test_my_remote_environment(env_host)
+        test_results, all_success = test_my_remote_environment(env_host)
         for key, result in test_results.items():
-            typer.echo(f"Testing endpoint '{key}'... {result}")
-        all_success = all(isinstance(result, dict) for result in test_results.values())
-
+            typer.echo(f"Testing Remote Gym Functions '{key}'... {result}")
         if all_success:
-            typer.echo(typer.style("All environment endpoints are accessible for simulation.", fg=typer.colors.GREEN, bold=True))
+            typer.echo(typer.style(
+                "Remote gym functions are accessible over the internet. You can now switch to 'agent-gpt train'.",
+                fg=typer.colors.GREEN
+            ))
         else:
-            typer.echo(typer.style("Some environment endpoints are not accessible. This simulator may be intended for cloud training.", fg=typer.colors.YELLOW, bold=True))
-            for key, result in test_results.items():
-                if not isinstance(result, dict):
-                    typer.echo(typer.style(f" - {key}: {result}", fg=typer.colors.YELLOW))
+            typer.echo(typer.style(
+                "Remote gym functions in some endpoints are not accessible externally. Please verify your connection or try another simulator.\n"
+                "Refer to docs/Local Environment Hosting for Cloud Training - Port Forwarding & Tunneling.md for more information.",
+                fg=typer.colors.YELLOW
+            ))
         typer.echo("Simulation has been launched. You may continue to work in this terminal for further commands or to initiate another simulation.")
     except TimeoutError as e:
         typer.echo("Configuration update timed out. The simulation process will now be forcefully terminated to free up resources.")
