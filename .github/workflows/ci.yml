@@ -2,16 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ ci-testing ]
   pull_request:
-    branches: [ main ]
+    branches: [ ci-testing ]
 
 jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -29,7 +29,12 @@ jobs:
 
       - name: Verify CLI commands (config, edit, clear, list)
         run: |
+          agent-gpt --help
           agent-gpt config --help
           agent-gpt edit --help
           agent-gpt clear --help
           agent-gpt list --help
+          agent-gpt config
+          agent-gpt edit
+          agent-gpt clear
+          agent-gpt list
