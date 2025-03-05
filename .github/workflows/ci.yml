@@ -2,16 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [ feature-network ]
+    branches: [ main ]
   pull_request:
-    branches: [ feature-network ]
+    branches: [ main ]
 
 jobs:
   build:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.12"]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -38,4 +38,24 @@ jobs:
           agent-gpt edit
           agent-gpt clear
           agent-gpt list
+
+      - name: Verify CLI commands (simulate local-ip for network connection testing)
+        run: |
+          pip install -e .[mujoco]
+          python -m pip show gymnasium  # Verify gymnasium (with mujoco extra) is installed
+          # Optionally run a command that uses mujoco functionality
           agent-gpt simulate local-ip
+          pip uninstall -y [mujoco]
+
+      - name: Test mlagents extras installation
+        run: |
+          pip install -e .[mlagents]
+          python -m pip show mlagents_envs  # Verify mlagents_envs is installed
+          # Optionally run a command that uses mlagents functionality
+          pip uninstall -y [mlagents]
+
+      - name: Uninstallation and reinstallation
+        run: |
+          pip uninstall -y agent-gpt-aws
+          pip install -e .
+          agent-gpt --help
