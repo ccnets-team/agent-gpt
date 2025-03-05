@@ -269,6 +269,8 @@ def simulate(
     if not ports:
         typer.echo("No port numbers provided. Using ports from configuration.")
         ports = simulator_data.get("ports", [])
+        if isinstance(ports, int):
+            ports = [ports]
     if not ports:
         typer.echo(typer.style("Error: No available ports found. Please specify one or more port numbers.", fg=typer.colors.YELLOW))
         raise typer.Exit(code=1)

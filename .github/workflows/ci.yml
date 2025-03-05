@@ -41,16 +41,14 @@ jobs:
       - name: Verify CLI commands (simulate local-ip for network connection testing)
         run: |
           # Optionally run a command that uses mujoco functionality
+          agent-gpt config --simulator.local-ip.ports 8080
+          agent-gpt simulate local-ip
+          agent-gpt config --simulator.local-ip.ports 8080, 8081
           agent-gpt simulate local-ip
 
       - name: Uninstall package and verify clear command config deletion
         run: |
           agent-gpt clear
           pip uninstall -y agent-gpt-aws
-          # Check that the config file has been deleted
-          if [ -f ~/.agent_gpt/config.yaml ]; then
-            echo "ERROR: Config file still exists at ~/.agent_gpt/config.yaml"
-            exit 1
-          else
-            echo "Config file successfully deleted."
-          fi
+          python -c "import os; config = os.path.expanduser('~/.agent_gpt/config.yaml'); \
+                    exit(1) if os.path.exists(config) else exit(0)"
