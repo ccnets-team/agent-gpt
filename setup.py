@@ -37,7 +37,7 @@ setup(
     },
     install_requires=install_requires,
     extras_require={
-         "mujoco": ["gymnasium[mujoco]"],
+         "mujoco": ["gymnasium[mujoco]>=1.0.0"],
          "mlagents": ["mlagents_envs==0.30.0", "protobuf==3.20.0"],
     },        
     author="JunHo Park",
