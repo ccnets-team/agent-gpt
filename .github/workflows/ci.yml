@@ -1,4 +1,4 @@
-name: CI
+name: CI-CLI-Check
 
 on:
   push:
@@ -7,13 +7,11 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  cli-check:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest]
         python-version: ["3.8"]
-    runs-on: ${{ matrix.os }}
-
     steps:
       - uses: actions/checkout@v3
 
@@ -27,5 +25,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
-      - name: Verify CLI installation
-        run: agent-gpt --help
+      - name: Verify CLI commands (config, edit, clear, list)
+        run: |
+          agent-gpt config --help
+          agent-gpt edit --help
+          agent-gpt clear --help
+          agent-gpt list --help
