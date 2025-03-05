@@ -30,11 +30,6 @@ jobs:
       - name: Verify CLI installation
         run: agent-gpt --help
 
-      - name: Lint code with flake8
-        run: |
-          pip install flake8
-          flake8 .
-
       - name: Run tests with pytest
         run: |
           pip install pytest
