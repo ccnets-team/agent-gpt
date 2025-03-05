@@ -56,6 +56,19 @@ class SimulatorRegistry:
             project_root = Path(__file__).resolve().parents[2]  # Adjust as needed
             self.simulator["local"].env_dir = str(project_root)
             self.simulator["local"].container.deployment_name = None
+
+        if "local-ip" not in self.simulator:
+            network_info = get_network_info()
+            ip = network_info['public_ip']
+            self.simulator["local-ip"] = SimulatorConfig(
+                hosting="local", 
+                url="http://" + ip,  
+                env_type="gym",
+                connection="ip",
+            )
+            project_root = Path(__file__).resolve().parents[2]  # Adjust as needed
+            self.simulator["local-ip"].env_dir = str(project_root)
+            self.simulator["local-ip"].container.deployment_name = None
             
     # set dockerfile will be renamed to upload to cloud 
     # and the command will be named as "upload"

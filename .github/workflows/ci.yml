@@ -38,3 +38,4 @@ jobs:
           agent-gpt edit
           agent-gpt clear
           agent-gpt list
+          agent-gpt simulate local-ip
