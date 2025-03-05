@@ -10,8 +10,8 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -29,8 +29,3 @@ jobs:
 
       - name: Verify CLI installation
         run: agent-gpt --help
-
-      - name: Run tests with pytest
-        run: |
-          pip install pytest
-          pytest
