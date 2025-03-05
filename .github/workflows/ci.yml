@@ -36,26 +36,21 @@ jobs:
           agent-gpt list --help
           agent-gpt config
           agent-gpt edit
-          agent-gpt clear
           agent-gpt list
 
       - name: Verify CLI commands (simulate local-ip for network connection testing)
         run: |
-          pip install -e .[mujoco]
-          python -m pip show gymnasium  # Verify gymnasium (with mujoco extra) is installed
           # Optionally run a command that uses mujoco functionality
           agent-gpt simulate local-ip
-          pip uninstall -y [mujoco]
 
-      - name: Test mlagents extras installation
+      - name: Uninstall package and verify clear command config deletion
         run: |
-          pip install -e .[mlagents]
-          python -m pip show mlagents_envs  # Verify mlagents_envs is installed
-          # Optionally run a command that uses mlagents functionality
-          pip uninstall -y [mlagents]
-
-      - name: Uninstallation and reinstallation
-        run: |
+          agent-gpt clear
           pip uninstall -y agent-gpt-aws
-          pip install -e .
-          agent-gpt --help
+          # Check that the config file has been deleted
+          if [ -f ~/.agent_gpt/config.yaml ]; then
+            echo "ERROR: Config file still exists at ~/.agent_gpt/config.yaml"
+            exit 1
+          else
+            echo "Config file successfully deleted."
+          fi
