@@ -2,16 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [ ci-testing ]
+    branches: [ feature-network ]
   pull_request:
-    branches: [ ci-testing ]
+    branches: [ feature-network ]
 
 jobs:
   build:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8"]
+        python-version: ["3.8", "3.12"]
     runs-on: ${{ matrix.os }}
 
     steps:

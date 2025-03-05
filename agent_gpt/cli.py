@@ -22,6 +22,7 @@ from typing import Optional, List, Dict
 from .config.simulator import SimulatorConfig 
 from .config.hyperparams import Hyperparameters
 from .config.sagemaker import SageMakerConfig
+from .config.network import test_my_remote_environment
 from .core import AgentGPT
 from .utils.config_utils import load_config, save_config, generate_default_section_config, update_config_using_method, ensure_config_exists
 from .utils.config_utils import convert_to_objects, parse_extra_args, update_config_by_dot_notation
@@ -242,7 +243,7 @@ def simulate(
             typer.echo(f"  - {sid}")
         simulator_id = typer.prompt(
             "Enter the simulator identifier to use",
-            default=simulator_identifiers[0],
+            default=simulator_identifiers[-1],
             show_default=True
         )
    
@@ -294,14 +295,27 @@ def simulate(
         updated_config = wait_for_config_update(expected_keys, timeout=10)
         updated_hyperparms = updated_config.get("hyperparams", {})
         env_host = updated_hyperparms.get("env_host", {})
-        # print("Configuration updated:", updated_config["hyperparams"])
+        
         typer.echo(f"Environment hosts for simulation '{simulator_id}' have been updated successfully:")
         typer.echo("Below is the updated configuration for environment hosts:")
         typer.echo("Hyperparameters have been auto-configured for cloud training.")
         dislay_output = "**hyperparams**:\n" + yaml.dump(env_host, default_flow_style=False, sort_keys=False)
-        typer.echo(typer.style(dislay_output.strip(), fg=typer.colors.GREEN))        
+        typer.echo(typer.style(dislay_output.strip(), fg=typer.colors.GREEN))       
+
+        # Test the env_endpoints.
+        test_results = test_my_remote_environment(env_host)
+        for key, result in test_results.items():
+            typer.echo(f"Testing endpoint '{key}'... {result}")
+        all_success = all(isinstance(result, dict) for result in test_results.values())
+
+        if all_success:
+            typer.echo(typer.style("All environment endpoints are accessible for simulation.", fg=typer.colors.GREEN, bold=True))
+        else:
+            typer.echo(typer.style("Some environment endpoints are not accessible. This simulator may be intended for cloud training.", fg=typer.colors.YELLOW, bold=True))
+            for key, result in test_results.items():
+                if not isinstance(result, dict):
+                    typer.echo(typer.style(f" - {key}: {result}", fg=typer.colors.YELLOW))
         typer.echo("Simulation has been launched. You may continue to work in this terminal for further commands or to initiate another simulation.")
-        
     except TimeoutError as e:
         typer.echo("Configuration update timed out. The simulation process will now be forcefully terminated to free up resources.")
         simulation_process.terminate()  # This call is non-blocking.

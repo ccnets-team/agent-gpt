@@ -52,7 +52,7 @@ def convert_nested_lists_to_ndarrays(data, dtype):
         else:
             return [convert_nested_lists_to_ndarrays(item, dtype) if item is not None else None for item in data]
     elif isinstance(data, tuple):
-        return Tuple(convert_nested_lists_to_ndarrays(item, dtype) for item in data)
+        return tuple(convert_nested_lists_to_ndarrays(item, dtype) for item in data)
     elif isinstance(data, dict):
         return {key: convert_nested_lists_to_ndarrays(value, dtype) for key, value in data.items()}
     else:
@@ -74,7 +74,7 @@ def convert_ndarrays_to_nested_lists(data):
     elif isinstance(data, list):
         return [convert_ndarrays_to_nested_lists(item) for item in data]
     elif isinstance(data, tuple):
-        return Tuple(convert_ndarrays_to_nested_lists(item) for item in data)
+        return tuple(convert_ndarrays_to_nested_lists(item) for item in data)
     elif isinstance(data, dict):
         return {key: convert_ndarrays_to_nested_lists(value) for key, value in data.items()}
     else:
@@ -88,7 +88,7 @@ def replace_nans_infs(obj):
     if isinstance(obj, list):
         return [replace_nans_infs(v) for v in obj]
     elif isinstance(obj, tuple):
-        return Tuple(replace_nans_infs(v) for v in obj)
+        return tuple(replace_nans_infs(v) for v in obj)
     elif isinstance(obj, dict):
         return {k: replace_nans_infs(v) for k, v in obj.items()}
 

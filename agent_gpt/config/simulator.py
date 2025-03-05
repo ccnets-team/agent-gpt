@@ -44,6 +44,20 @@ class SimulatorRegistry:
         
     def __post_init__(self):
         # Local simulator for direct connection
+        if "local-tunnel" not in self.simulator:
+            network_info = get_network_info()
+            ip = network_info['public_ip']
+            self.simulator["local-tunnel"] = SimulatorConfig(
+                hosting="local", 
+                url="http://" + ip,  
+                env_type="gym",
+                connection="tunnel",
+                ports = [45670, 45671],
+            )
+            project_root = Path(__file__).resolve().parents[2]  # Adjust as needed
+            self.simulator["local-tunnel"].env_dir = str(project_root)
+            self.simulator["local-tunnel"].container.deployment_name = None
+
         if "local-ip" not in self.simulator:
             network_info = get_network_info()
             ip = network_info['public_ip']
@@ -58,19 +72,6 @@ class SimulatorRegistry:
             self.simulator["local-ip"].env_dir = str(project_root)
             self.simulator["local-ip"].container.deployment_name = None
 
-        if "local-tunnel" not in self.simulator:
-            network_info = get_network_info()
-            ip = network_info['public_ip']
-            self.simulator["local-tunnel"] = SimulatorConfig(
-                hosting="local", 
-                url="http://" + ip,  
-                env_type="gym",
-                connection="tunnel",
-                ports = [45670, 45671],
-            )
-            project_root = Path(__file__).resolve().parents[2]  # Adjust as needed
-            self.simulator["local-tunnel"].env_dir = str(project_root)
-            self.simulator["local-tunnel"].container.deployment_name = None
             
     # set dockerfile will be renamed to upload to cloud 
     # and the command will be named as "upload"
