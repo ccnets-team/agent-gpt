@@ -6,6 +6,8 @@ import socket
 import queue
 import threading
 from typing import Optional, Any
+import msgpack
+import base64
 
 # ------------------------------------------------
 # Utility imports
@@ -17,7 +19,7 @@ from ..utils.conversion_utils import (
     space_to_dict,
 )
 
-URL = "wss://<agentgpt-api>.execute-api.<agentgpt-region>.amazonaws.com/<stage>/"
+URL = "wss://<agentgpt-api>.execute-api.<region>.amazonaws.com/<stage>/"
 HTTP_BAD_REQUEST = 400
 HTTP_INTERNAL_SERVER_ERROR = 500
 WEBSOCKET_TIMEOUT = 10
@@ -29,14 +31,13 @@ class WSEnvAPI:
         self.host = host
         self.port = port
         self.ws = None
-        self.client_connection_id = None
         self.message_queue = queue.Queue()
 
         self.shutdown_event = threading.Event()
         
     def __exit__(self, exc_type, exc_value, traceback):
         if self.ws:
-            print("Closing WebSocket connection.", "connection ID:", self.client_connection_id)
+            print("Closing WebSocket connection.")
             self.ws.close()
         for env_key in list(self.environments.keys()):
             self.environments[env_key].close()
@@ -48,14 +49,15 @@ class WSEnvAPI:
     def communicate_forever(self):
         self.ws = websocket.WebSocket()
         self.ws.connect(URL)
-        self.ws.send(json.dumps({"action": "getId"}))
-        self.client_connection_id = self.ws.recv()
+        
+        connection_key = self.get_connection_key(self.ws)
+        print(f"Connected to server with key: {connection_key}")
 
         while not self.shutdown_event.is_set():
             try:
                 message = self.ws.recv()
             except socket.timeout:
-                continue  # Non-blocking via timeout, check shutdown_event periodically
+                continue  # Non-blocking via timeout, c1heck shutdown_event periodically
             except websocket.WebSocketConnectionClosedException:
                 logging.warning("WebSocket connection closed by server.")
                 break
@@ -64,7 +66,7 @@ class WSEnvAPI:
                 continue
 
             try:
-                sender_id, payload = self.disclose_message(message)
+                payload = self.disclose_message(message)
                 data = payload.get("data", {})
                 method = data.get("method")
                 env_key = data.get("env_key")
@@ -86,38 +88,39 @@ class WSEnvAPI:
                 else:
                     response = self.report_message(f"Unknown method: {method}")
 
-                payload = self.enclose_message(sender_id, response)
-                self.ws.send(payload)
+                message = self.enclose_message(response)
+                self.ws.send(message)
 
             except Exception as e:
                 logging.exception("Error processing message: %s", e)
                 error_payload = self.report_message(f"Internal server error: {str(e)}")
-                self.ws.send(self.enclose_message(sender_id, error_payload))
+                self.ws.send(self.enclose_message(error_payload))
 
         if self.ws:
-            print("Closing WebSocket connection.", "connection ID:", self.client_connection_id)
+            print("Closing WebSocket connection.")
             self.ws.close()
             self.ws = None
 
-    def enclose_message(self, receive_id: str, payload: dict) -> bytes:
-        encoded_data = json.dumps(payload).encode('utf-8')
-        encoded_receive_id = receive_id.encode('utf-8')
-        return encoded_receive_id + encoded_data
+    def enclose_message(self, payload):
+        packed = msgpack.packb(payload, use_bin_type=True)
+        messagee = base64.b64encode(packed).decode('utf-8')
+        return messagee
 
-    def disclose_message(self, received_message):
-        if isinstance(received_message, bytes):
-            message = received_message.decode("utf-8")
-        else:
-            message = received_message
-        sender_id = message[:16]
-        payload = json.loads(message[16:])
-        return sender_id, payload
+    def disclose_message(self, message):
+        compressed = base64.b64decode(message)
+        payload = msgpack.unpackb(compressed, raw=False)
+        return payload
+    
+    def get_connection_key(self, ws: websocket.WebSocket):
+        ws.send(json.dumps({"action": "getConnectionKey"}))
+        connection_key = ws.recv()
+        return connection_key
 
-    def report_message(self, message: str) -> str:
+    def report_message(self, message: str, type: str = "error") -> str:
         return json.dumps({
-            "action": "report",
-            "status": HTTP_BAD_REQUEST,
+            "action": "event",
             "message": message,
+            "type": type
         })
 
     # ----------------- Environment methods -----------------
