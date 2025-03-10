@@ -1,10 +1,13 @@
-# env_host/env_api.py
 import numpy as np
 import logging
-import msgpack
-import uvicorn
-from fastapi import FastAPI, HTTPException, Request, Response
+import websocket
+import json
+import socket
+import queue
+import threading
 from typing import Optional, Any
+import msgpack
+import base64
 
 # ------------------------------------------------
 # Utility imports
@@ -16,298 +19,140 @@ from ..utils.conversion_utils import (
     space_to_dict,
 )
 
+URL = "wss://<agentgpt-api>.execute-api.<region>.amazonaws.com/<stage>/"
+
 HTTP_BAD_REQUEST = 400
-HTTP_OK = 200
-HTTP_NOT_FOUND = 404
 HTTP_INTERNAL_SERVER_ERROR = 500
+WEBSOCKET_TIMEOUT = 10
 
-# ------------------------------------------------
-# EnvAPI class with FastAPI integration
-# ------------------------------------------------
 class EnvAPI:
-    """
-    EnvAPI is a minimal FastAPI service bridging an RL environment (e.g., Gym, Unity)
-    with external trainers. It serves two primary roles:
-
-      1) Receives inbound requests (e.g., /step, /reset) and delegates them
-         to an underlying environment wrapper (your env simulator).
-      2) Extends the basic Gymnasium protocol with improved security and remote
-         communication methods for flexible, safer usage—whether hosted locally
-         or in the cloud.
-    """    
-    def __init__(self, env_wrapper, host: str = "0.0.0.0", port: int = 80):
-        """
-        env_simulator: an object that must have .make(...) and .make_vec(...)
-        """
+    def __init__(self, env_wrapper):
         self.env_wrapper = env_wrapper
         self.environments = {}
-        self.host = host
-        self.port = port
-
-        # Create a FastAPI instance
-        self.app = FastAPI()
-
-        # Define all routes
-        self._define_endpoints()
-    
+        self.message_queue = queue.Queue()
+        self.shutdown_event = threading.Event()
+        self.ws = websocket.WebSocket()
+        self.ws.connect(URL)        
+        self.connection_key = self.get_connection_key(self.ws)
+        print(f"Connected to server with key: {self.connection_key}")
+        
     def __exit__(self, exc_type, exc_value, traceback):
-        for env_key in self.environments:
+        if self.ws:
+            print("Closing WebSocket connection.")
+            self.ws.close()
+        for env_key in list(self.environments.keys()):
             self.environments[env_key].close()
             del self.environments[env_key]
-        
-    def run_server(self):
-        """Run the FastAPI/Starlette application via uvicorn."""
-        uvicorn.run(self.app, host=self.host, port=self.port, 
-                    log_level="warning") # Only show warnings and errors
-            
-    def attempt_register_env(self, env_id: str, env_entry_point: str, env_dir: str):
-        # Register the environment only if both env_id and entry_point are provided.
-        if env_id and (env_entry_point or env_dir):
-            print(f"Registering environment {env_id} with entry_point {env_entry_point}")
-            self.env_wrapper.register(env_id = env_id, env_entry_point = env_entry_point, env_dir = env_dir)
 
-    def _define_endpoints(self):
-        """Attach all routes/endpoints to self.app."""
-
-        @self.app.post("/make")
-        async def make_endpoint(request: Request) -> Response:
-            """
-            Equivalent to /make, but receives and returns msgpack.
-            Expects:
-            {
-                "env_key": str,
-                "env_id": str,
-                "env_entry_point": str,
-                "render_mode": Optional[str]
-            }
-            """
-            raw_body = await request.body()
+    def communicate(self):
+        while not self.shutdown_event.is_set():
             try:
-                body_data = msgpack.unpackb(raw_body, raw=False)
-                env_key = body_data["env_key"]
-                env_id = body_data["env_id"]
-                env_entry_point = body_data["env_entry_point"]
-                env_dir = body_data["env_dir"]
-                render_mode = body_data.get("render_mode", None)
+                message = self.ws.recv()
+            except socket.timeout:
+                continue  # Non-blocking via timeout, c1heck shutdown_event periodically
+            except websocket.WebSocketConnectionClosedException:
+                logging.warning("WebSocket connection closed by server.")
+                break
             except Exception as e:
-                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
-            
-            self.attempt_register_env(env_id, env_entry_point, env_dir)
-            
-            response_dict = self.make(env_key=env_key, env_id=env_id, render_mode=render_mode)
-            packed = msgpack.packb(response_dict, use_bin_type=True)
-            return Response(content=packed, media_type="application/x-msgpack")
+                logging.exception("WebSocket receiving error: %s", e)
+                continue
 
-        @self.app.post("/make_vec")
-        async def make_vec_endpoint(request: Request) -> Response:
-            """
-            Equivalent to /make_vec, but msgpack-based.
-            Expects:
-            {
-                "env_key": str,
-                "env_id": str,
-                "num_envs": int
-            }
-            """
-            raw_body = await request.body()
             try:
-                body_data = msgpack.unpackb(raw_body, raw=False)
-                env_key = body_data["env_key"]
-                env_id = body_data["env_id"]
-                env_entry_point = body_data["env_entry_point"]
-                env_dir = body_data["env_dir"]
-                num_envs = int(body_data["num_envs"])
+                payload = self.disclose_message(message)
+                data = payload.get("data", {})
+                method = data.get("method")
+                env_key = data.get("env_key")
+
+                if method == "make":
+                    response = self.make(env_key, data.get("env_id"), data.get("render_mode"))
+                elif method == "make_vec":
+                    response = self.make_vec(env_key, data.get("env_id"), int(data.get("num_envs", 1)))
+                elif method == "reset":
+                    response = self.reset(env_key, data.get("seed"), data.get("options"))
+                elif method == "step":
+                    response = self.step(env_key, data.get("action"))
+                elif method == "close":
+                    response = self.close(env_key)
+                elif method == "observation_space":
+                    response = self.observation_space(env_key)
+                elif method == "action_space":
+                    response = self.action_space(env_key)
+                else:
+                    response = self.report_message(f"Unknown method: {method}")
+
+                message = self.enclose_message(response)
+                self.ws.send(message)
+
             except Exception as e:
-                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+                logging.exception("Error processing message: %s", e)
+                error_payload = self.report_message(f"Internal server error: {str(e)}")
+                self.ws.send(self.enclose_message(error_payload))
 
-            self.attempt_register_env(env_id, env_entry_point, env_dir)
+        if self.ws:
+            print("Closing WebSocket connection.")
+            self.ws.close()
+            self.ws = None
 
-            response_dict = self.make_vec(env_key=env_key, env_id=env_id, num_envs=num_envs)
-            packed = msgpack.packb(response_dict, use_bin_type=True)
-            return Response(content=packed, media_type="application/x-msgpack")
+    def enclose_message(self, payload):
+        packed = msgpack.packb(payload, use_bin_type=True)
+        messagee = base64.b64encode(packed).decode('utf-8')
+        return messagee
 
-        @self.app.post("/reset")
-        async def reset_endpoint(request: Request) -> Response:
-            """
-            Equivalent to /reset, but msgpack-based.
-            Expects:
-              {
-                "env_key": str,
-                "seed": Optional[int],
-                "options": Optional[Any]
-              }
-            """
-            raw_body = await request.body()
-            try:
-                body_data = msgpack.unpackb(raw_body, raw=False)
-                env_key = body_data["env_key"]
-                seed = body_data.get("seed", None)
-                options = body_data.get("options", None)
-            except Exception as e:
-                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+    def disclose_message(self, message):
+        compressed = base64.b64decode(message)
+        payload = msgpack.unpackb(compressed, raw=False)
+        return payload
+    
+    def get_connection_key(self, ws: websocket.WebSocket):
+        ws.send(json.dumps({"action": "getConnectionKey"}))
+        connection_key = ws.recv()
+        return connection_key
 
-            response_dict = self.reset(env_key=env_key, seed=seed, options=options)
-            packed = msgpack.packb(response_dict, use_bin_type=True)
-            return Response(content=packed, media_type="application/x-msgpack")
+    def report_message(self, message: str, type: str = "error") -> str:
+        return json.dumps({
+            "action": "event",
+            "message": message,
+            "type": type
+        })
 
-        @self.app.post("/step")
-        async def step_endpoint(request: Request) -> Response:
-            """
-            Equivalent to /step, but msgpack-based.
-            Expects:
-              {
-                "env_key": bytes or str,
-                "action": ...
-              }
-            """
-            raw_body = await request.body()
-            try:
-                body_data = msgpack.unpackb(raw_body, raw=False)
-                env_key = body_data["env_key"]
-                action_data = body_data["action"]
-            except Exception as e:
-                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
+    # ----------------- Environment methods -----------------
 
-            # Perform step logic
-            response_dict = self.step(env_key=env_key, action_data=action_data)
-            
-            packed = msgpack.packb(response_dict, use_bin_type=True)
-            return Response(content=packed, media_type="application/x-msgpack")
-
-        @self.app.get("/action_space")
-        async def action_space_endpoint(env_key: str) -> Response:
-            """Equivalent to /action_space but returns msgpack."""
-            response_dict = self.action_space(env_key)
-            packed = msgpack.packb(response_dict, use_bin_type=True)
-            return Response(content=packed, media_type="application/x-msgpack")
-
-        @self.app.get("/observation_space")
-        async def observation_space_endpoint(env_key: str) -> Response:
-            """Equivalent to /observation_space but returns msgpack."""
-            response_dict = self.observation_space(env_key)
-            packed = msgpack.packb(response_dict, use_bin_type=True)
-            return Response(content=packed, media_type="application/x-msgpack")
-
-        @self.app.post("/close")
-        async def close_endpoint(request: Request) -> Response:
-            """
-            POST /close, receives env_key in the body as msgpack.
-            Expects:
-            {
-                "env_key": str
-            }
-            """
-            raw_body = await request.body()
-            try:
-                body_data = msgpack.unpackb(raw_body, raw=False)
-                env_key = body_data["env_key"]
-            except Exception as e:
-                raise HTTPException(status_code=HTTP_BAD_REQUEST, detail=f"Invalid msgpack data: {str(e)}")
-
-            response_dict = self.close(env_key)
-            packed = msgpack.packb(response_dict, use_bin_type=True)
-            return Response(content=packed, media_type="application/x-msgpack")
-
-    # ------------------------------------------------
-    # The methods each endpoint calls (same logic, but returning Python dicts)
-    # ------------------------------------------------
     def make(self, env_key: str, env_id: str, render_mode: Optional[str] = None):
-        if not self.env_wrapper or not hasattr(self.env_wrapper, "make"):
-            raise HTTPException(status_code=HTTP_BAD_REQUEST,
-                                detail="Backend not properly registered.")
         env_instance = self.env_wrapper.make(env_id, render_mode=render_mode)
         self.environments[env_key] = env_instance
-        logging.info(f"Environment {env_id} created with key {env_key}.")
-        return {
-            "message": f"Environment {env_id} created.",    
-            "env_key": env_key
-        }
+        return {"message": f"Environment {env_id} created.", "env_key": env_key}
 
     def make_vec(self, env_key: str, env_id: str, num_envs: int):
-        if not self.env_wrapper or not hasattr(self.env_wrapper, "make_vec"):
-            raise HTTPException(status_code=HTTP_BAD_REQUEST,
-                                detail="Backend not properly registered.")
         env_instance = self.env_wrapper.make_vec(env_id, num_envs=num_envs)
         self.environments[env_key] = env_instance
-        logging.info(f"Vectorized env {env_id} with {num_envs} instance(s), key {env_key}.")
-        return {
-            "message": f"Environment {env_id} created with {num_envs} instance(s).",
-            "env_key": env_key
-        }
+        return {"message": f"Vectorized environment {env_id} created.", "env_key": env_key}
 
     def reset(self, env_key: str, seed: Optional[int], options: Optional[Any]):
-        if env_key not in self.environments:
-            raise HTTPException(status_code=HTTP_BAD_REQUEST,
-                                detail="Environment not initialized. Please call /make first.")
         env = self.environments[env_key]
         observation, info = env.reset(seed=seed, options=options)
-        # Convert to nested lists for serialization
-        observation, info = (
-            convert_ndarrays_to_nested_lists(x) for x in (observation, info)
-        )
-        return {"observation": observation, "info": info}
+        return {"observation": convert_ndarrays_to_nested_lists(observation), "info": convert_ndarrays_to_nested_lists(info)}
 
     def step(self, env_key: str, action_data):
-        # Check environment existence
-        if env_key not in self.environments:
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Environment not initialized. Please call /make first."
-            )
         env = self.environments[env_key]
-        
         action = convert_nested_lists_to_ndarrays(action_data, dtype=np.float32)
-        
-        try:
-            observation, reward, terminated, truncated, info = env.step(action)
-        except Exception as e:
-            logging.exception("Error in env.step()")
-            raise HTTPException(status_code=HTTP_INTERNAL_SERVER_ERROR, detail=str(e))
-
-        # Convert all to nested lists for messagepack
-        observation, reward, terminated, truncated, info = (
-            convert_ndarrays_to_nested_lists(x)
-            for x in (observation, reward, terminated, truncated, info)
-        )
+        observation, reward, terminated, truncated, info = env.step(action)
         return {
-            "observation": observation,
-            "reward": reward,
-            "terminated": terminated,
-            "truncated": truncated,
-            "info": info
+            "observation": convert_ndarrays_to_nested_lists(observation),
+            "reward": convert_ndarrays_to_nested_lists(reward),
+            "terminated": convert_ndarrays_to_nested_lists(terminated),
+            "truncated": convert_ndarrays_to_nested_lists(truncated),
+            "info": convert_ndarrays_to_nested_lists(info)
         }
 
     def action_space(self, env_key: str):
-        if env_key not in self.environments:
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Environment not initialized. Please call /make first."
-            )
-        action_space = self.environments[env_key].action_space
-        action_space = space_to_dict(action_space)
-        return replace_nans_infs(action_space)
+        return replace_nans_infs(space_to_dict(self.environments[env_key].action_space))
 
     def observation_space(self, env_key: str):
-        if env_key not in self.environments:
-            raise HTTPException(
-                status_code=HTTP_BAD_REQUEST,
-                detail="Environment not initialized. Please call /make first."
-            )
-        observation_space = self.environments[env_key].observation_space
-        observation_space = space_to_dict(observation_space)
-        return replace_nans_infs(observation_space)
+        return replace_nans_infs(space_to_dict(self.environments[env_key].observation_space))
 
     def close(self, env_key: str):
-        if env_key not in self.environments:
-            # Close all environments if the key is not found
-            for key in list(self.environments.keys()):
-                self.environments[key].close()
-                logging.info(f"Environment with key {key} closed.")
-                del self.environments[key]
-            return {"message": "All environments closed successfully."}
-        
-        # Otherwise, close only the specified environment.
-        self.environments[env_key].close()
-        del self.environments[env_key]
-        logging.info(f"Environment with key {env_key} closed.")
-        return {"message": f"Environment {env_key} closed successfully."}
+        if env_key in self.environments:
+            self.environments[env_key].close()
+            del self.environments[env_key]
+            return {"message": f"Environment {env_key} closed."}
+        return {"error": f"Environment {env_key} not found."}

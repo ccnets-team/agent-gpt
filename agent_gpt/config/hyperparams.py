@@ -27,15 +27,6 @@ env_dir              : (str)    Indicates the directory where the environment's 
                                 and you want to specifically run "3DBall", then env_dir is used to select that environment.
                                 Note that env_dir may not be used for Gym environments, as they are generally registered 
                                 solely via entry_point.
-                                
-env_host            : (dict)   A dictionary of EnvHost objects (keyed by
-                                strings like 'local', 'remote-aws', etc.) 
-                                that define parallel environment endpoints. 
-                                Each EnvHost contains an endpoint (URL/IP) 
-                                and a number of agents to run there. This
-                                mechanism allows distributed or local/cloud-hosted 
-                                environments (at different URLs) to send
-                                experiences to a single trainer.
 
 replay_ratio         : (float)  Ratio of training iterations to environment steps.
                                 For example, 1.0 => one training iteration 
@@ -141,7 +132,7 @@ class Hyperparameters:
     env_entry_point: Optional[str] = None
     env_dir: Optional[str] = None
     
-    env_host: Dict[str, EnvHost] = field(default_factory=dict)
+    connection_keys: List[str] = field(default_factory=list)
     use_tensorboard: bool = False
     use_cloudwatch: bool = True
 
@@ -195,15 +186,6 @@ class Hyperparameters:
             del self.exploration[key]
         else:
             raise KeyError(f"Exploration key '{key}' not found in hyperparameters.")
-
-    def set_env_host(self, key: str, env_endpoint: str, num_agents: int):
-        """Sets a new environment host (endpoint + agent count) in the env_host dict."""
-        self.env_host[key] = EnvHost(env_endpoint=env_endpoint, num_agents=num_agents) 
-
-    def del_env_host(self, key: str):
-        """Deletes an environment host (endpoint + agent count) from the env_host dict."""
-        if key in self.env_host:
-            del self.env_host[key]
             
     def set_config(self, **kwargs):
         for k, v in kwargs.items():
@@ -236,49 +218,3 @@ class Hyperparameters:
     
     def __post_init__(self):
         self.set_exploration("continuous")
-    
-def main():
-    # 1) Instantiate hyperparameters with defaults
-    hyperparams = Hyperparameters()
-
-    # 2) Add a single known local host ("local1")
-    hyperparams.set_env_host("local1", "http://23.34.13.132:8500", 32)
-
-    # 3) Specify how many additional local hosts to create, starting from index 2
-    num_local_hosts = 4  # e.g., will generate local2, local3, local4, local5
-
-    # Base IP and port for these extra hosts
-    base_ip = "http://30.14.22.168:"
-    starting_port = 45450
-
-    # 4) Loop to add local2..localN, each with a unique endpoint
-    for i in range(2, num_local_hosts + 2):
-        host_key = f"local{i}"
-        # Construct an endpoint using base_ip plus an incremental port number
-        env_endpoint = f"{base_ip}{starting_port + i}"
-        # Add the host to hyperparams using the new signature
-        hyperparams.set_env_host(host_key, env_endpoint, 32)
-
-    # 5) Configure exploration parameters for continuous action space using the new API
-    hyperparams.set_exploration(
-        "continuous",
-        type="gaussian_noise",
-        initial_sigma=0.1,
-        final_sigma=0.001
-    )
-
-    # 6) Convert to a dictionary for printing or downstream consumption
-    config_dict = hyperparams.to_dict()
-
-    # 7) Print environment hosts
-    print("Environment hosts:")
-    for key, host_info in config_dict["env_host"].items():
-        print(f"  {key}: endpoint={host_info['env_endpoint']}, agents={host_info['num_agents']}")
-
-    # 8) Print exploration settings and other highlights
-    print("\nExploration configs:", config_dict["exploration"])
-    print("GPT type:", config_dict["gpt_type"])
-    print("\nFull hyperparams dictionary:\n", config_dict)
-
-if __name__ == "__main__":
-    main()

@@ -2,15 +2,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict
 
 ACCESIBLE_REGIONS = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-2"]  # Supported regions
-
-# try:    
-#     from importlib.metadata import version, PackageNotFoundError
-# except ImportError:
-#     from importlib_metadata import version, PackageNotFoundError
-# try:
-#     CURRENT_AGENT_GPT_VERSION = version("agent-gpt-aws")  # Replace with your package name
-# except PackageNotFoundError:
-CURRENT_AGENT_GPT_VERSION = "v0.3.9"  # Current Image Tag in ACCESIBLE_REGIONS
+CURRENT_AGENT_GPT_VERSION = "latest"  # Current Image Tag in ACCESIBLE_REGIONS
 
 @dataclass
 class TrainerConfig:

@@ -7,12 +7,11 @@ class EnvServer(EnvAPI):
     It integrates the launching functionality so that you can simply call
     EnvServer.launch(...) to start a server.
     """
-    def __init__(self, env_type="gym", host="0.0.0.0", port=8000):
+    def __init__(self, env_type="gym"):
 
         if env_type.lower() == "gym":
             from ..wrappers.gym_env import GymEnv
             env_wrapper = GymEnv
-            # print("[server.py] Using GymEnv wrapper.")
                    
         elif env_type.lower() == "unity":
             try:
@@ -36,22 +35,19 @@ class EnvServer(EnvAPI):
 
 
         # Optionally call the parent's initializer
-        super().__init__(env_wrapper, host, port)
+        super().__init__(env_wrapper)
 
-        self.api = EnvAPI(env_wrapper=env_wrapper, host=host, port=port)
-                
-        self.endpoint = None
-        self.url = None
-        self.host = host
-        self.port = port
+        self.api = EnvAPI(env_wrapper=env_wrapper)
+        self.connection_key = self.api.connection_key
 
         # Create a shutdown event that can be used for graceful termination.
         self.shutdown_event = Event()
 
     def run_thread_server(self):
         """Run the server in a separate daemon thread with a graceful shutdown mechanism."""
-        self.server_thread = Thread(target=self.run_server, daemon=True)
+        self.server_thread = Thread(target=self.communicate, daemon=True)
         self.server_thread.start()
+        
         return self.server_thread
 
     def shutdown(self):
@@ -60,16 +56,7 @@ class EnvServer(EnvAPI):
         # Additional logic would be needed here to stop the uvicorn server, etc.
 
     @classmethod
-    def launch(cls, env_type: str, url: str, host: str = "0.0.0.0", port: int = 8000) -> "EnvServer":
-        """
-        Create an EnvServer instance, launch its server in a separate thread,
-        and set the public URL (defaulting to http://host:port).
-        """
-        instance = cls(env_type, host, port)
+    def launch(cls, env_type: str) -> "EnvServer":
+        instance = cls(env_type)
         instance.run_thread_server()
-        # Default ip to host if not provided
-        # print(f"[AgentGPTTrainer] Launching environment at {url}:{port}")
-        instance.url = url
-        instance.port = port
-        instance.endpoint = f"{url}:{port}"
         return instance

@@ -2,8 +2,6 @@ import os
 import yaml
 from typing import List, Dict
 
-from ..config.simulator import SimulatorRegistry
-from ..config.network import NetworkConfig
 from ..config.hyperparams import Hyperparameters
 from ..config.sagemaker import SageMakerConfig
 
@@ -12,8 +10,6 @@ from agent_gpt import __version__ as CURRENT_AGENT_GPT_VERSION
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.agent_gpt/config.yaml")
 
 TOP_CONFIG_CLASS_MAP = {
-    "simulator_registry": SimulatorRegistry,
-    "network": NetworkConfig,
     "hyperparams": Hyperparameters,
     "sagemaker": SageMakerConfig,
 }

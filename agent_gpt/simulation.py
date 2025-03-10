@@ -50,53 +50,40 @@ def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--simulator_id", required=True)
-    parser.add_argument("--ports", required=True)  # comma-separated string of ports
+    parser.add_argument("--connection_identifiers", required=True)
     parser.add_argument("--env_type", required=True)
-    parser.add_argument("--connection", required=True)
-    parser.add_argument("--host", required=True)
-    parser.add_argument("--total_agents", type=int, required=True)
-    parser.add_argument("--url", default="")
+    parser.add_argument("--num_agents", type=int, required=True)
     args = parser.parse_args()
     
-    # Parse ports.
-    ports = [int(p.strip()) for p in args.ports.split(",") if p.strip()]
     from agent_gpt.utils.config_utils import load_config, save_config        
     from agent_gpt.env_host.server import EnvServer    
-    # Load the latest configuration.
+    
     config_data = load_config()
     
-    # Create launchers for each port.
-    launchers = []
-    for port in ports:
-        if args.connection == "tunnel":
-            from agent_gpt.utils.tunnel import create_tunnel
-            url = create_tunnel(port)
-        else:
-            url = args.url
+    connection_identifiers = args.connection_identifiers.split(",")  # fixed parsing
+    num_launchers = len(connection_identifiers)  # Ensure consistent with identifiers
 
-        launcher = EnvServer.launch(args.env_type, url, args.host, port)
+    launchers = []
+    for _ in range(num_launchers):  # fix iteration over range
+        launcher = EnvServer.launch(args.env_type)
         launchers.append(launcher)
     
-    # Distribute agents across launchers.
-    num_launchers = len(launchers)
-    base_agents = args.total_agents // num_launchers
-    remainder = args.total_agents % num_launchers
+    base_agents = args.num_agents // num_launchers
+    remainder = args.num_agents % num_launchers
     agents_array = [base_agents] * num_launchers
     for i in range(remainder):
         agents_array[i] += 1
     
-    added_env_hosts = []
-    # Update the hyperparameters config with new environment host entries.
-    env_host = config_data.get("hyperparams", {}).get("env_host", {})
-    for i, launcher in enumerate(launchers):
-        key = f"{args.simulator_id}:{launcher.port}"
-        env_endpoint = launcher.url if args.connection == "tunnel" else launcher.endpoint
-        env_host[key] = {"env_endpoint": env_endpoint, "num_agents": agents_array[i]}
-        added_env_hosts.append(key)
-        typer.echo(f"Configured env_host entry: {env_endpoint} with {agents_array[i]} agents")
+    connection_key = config_data.get("hyperparams", {}).get("connection_key", {})
+    added_connection_keys = []
     
-    config_data.setdefault("hyperparams", {})["env_host"] = env_host
+    for i, launcher in enumerate(launchers):
+        connection_identifier = connection_identifiers[i] 
+        connection_key[i] = launcher.connection_key
+        added_connection_keys.append(connection_identifier)
+        typer.echo(f"Configured connection_key entry: {connection_key} with {agents_array[i]} agents")
+    
+    config_data.setdefault("hyperparams", {})["connection_key"] = connection_key
     save_config(config_data)
     
     typer.echo("Simulation running. This terminal is now dedicated to simulation;")
@@ -113,20 +100,12 @@ def main():
         for launcher in launchers:
             launcher.server_thread.join(timeout=2)
 
-    # After simulation ends, remove only the env_host entries added for this simulation.
-    for key in added_env_hosts:
-        env_host.pop(key, None)
-
-    config_data["hyperparams"]["env_host"] = env_host
+    # Cleanup config after simulation ends
+    for key in connection_key:
+        connection_key.pop(key, None)
+        
+    config_data["hyperparams"]["connection_key"] = connection_key
     save_config(config_data)
-
-    if args.connection == "tunnel":
-        from pyngrok import ngrok
-        for launcher in launchers:
-            try:
-                ngrok.disconnect(launcher.url)
-            except Exception:
-                pass
     
     typer.echo("Simulation terminated.")
 
