@@ -3,7 +3,7 @@ import typer
 import os
 import platform
 import subprocess
-from typing import List
+from typing import List, Dict
 
 def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
     env = os.environ.copy()
@@ -50,63 +50,64 @@ def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--connection_identifiers", required=True)
+    parser.add_argument("--connection_identifier", required=True)
     parser.add_argument("--env_type", required=True)
     parser.add_argument("--num_agents", type=int, required=True)
     args = parser.parse_args()
-    
-    from agent_gpt.utils.config_utils import load_config, save_config        
-    from agent_gpt.env_host.server import EnvServer    
-    
-    config_data = load_config()
-    
-    connection_identifiers = args.connection_identifiers.split(",")  # fixed parsing
-    num_launchers = len(connection_identifiers)  # Ensure consistent with identifiers
 
-    launchers = []
-    for _ in range(num_launchers):  # fix iteration over range
-        launcher = EnvServer.launch(args.env_type)
-        launchers.append(launcher)
-    
-    base_agents = args.num_agents // num_launchers
-    remainder = args.num_agents % num_launchers
-    agents_array = [base_agents] * num_launchers
-    for i in range(remainder):
-        agents_array[i] += 1
-    
-    connection_key = config_data.get("hyperparams", {}).get("connection_key", {})
-    added_connection_keys = []
+    from agent_gpt.utils.config_utils import load_config, save_config
+    from agent_gpt.env_host.server import EnvServer
+    from agent_gpt.config.hyperparams import EnvHost
+    import typer
+
+    config_data = load_config()
+
+    connection_identifier = args.connection_identifier
+    num_launchers = 4
+
+    launchers = [EnvServer.launch(args.env_type) for _ in range(num_launchers)]
+
+    base_agents, remainder = divmod(args.num_agents, num_launchers)
+    agents_per_launcher = [base_agents + (1 if i < remainder else 0) for i in range(num_launchers)]
+
+    env_host = config_data.get("hyperparams", {}).get("env_host", {})
+    added_env_hosts = []
     
     for i, launcher in enumerate(launchers):
-        connection_identifier = connection_identifiers[i] 
-        connection_key[i] = launcher.connection_key
-        added_connection_keys.append(connection_identifier)
-        typer.echo(f"Configured connection_key entry: {connection_key} with {agents_array[i]} agents")
-    
-    config_data.setdefault("hyperparams", {})["connection_key"] = connection_key
+        key = f"local{i + 1}"
+        env_host[key] = {"env_endpoint": launcher.connection_key, "num_agents": agents_per_launcher[i]}
+        added_env_hosts.append(key)
+        
+    config_data["hyperparams"]["connection_identifier"] = connection_identifier  # fixed plural naming consistency
+    config_data["hyperparams"]["env_host"] = env_host
     save_config(config_data)
-    
+
     typer.echo("Simulation running. This terminal is now dedicated to simulation;")
     typer.echo("Press Ctrl+C to terminate the simulation.")
-    
+
     try:
         while any(launcher.server_thread.is_alive() for launcher in launchers):
             for launcher in launchers:
                 launcher.server_thread.join(timeout=0.5)
     except KeyboardInterrupt:
-        typer.echo("Shutdown requested, stopping all local servers...")
+        typer.echo("Shutdown requested, stopping all servers...")
         for launcher in launchers:
             launcher.shutdown()
         for launcher in launchers:
             launcher.server_thread.join(timeout=2)
 
-    # Cleanup config after simulation ends
-    for key in connection_key:
-        connection_key.pop(key, None)
+    # Cleanup after simulation ends
+    config_data = load_config()
+
+    for key in added_env_hosts:
+        env_host.pop(key, None)
         
-    config_data["hyperparams"]["connection_key"] = connection_key
+    config_data["hyperparams"]["env_host"] = env_host
+    if "connection_identifier" in config_data["hyperparams"]:
+        del config_data["hyperparams"]["connection_identifier"]
+        
     save_config(config_data)
-    
+
     typer.echo("Simulation terminated.")
 
 if __name__ == "__main__":

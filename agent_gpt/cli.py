@@ -165,13 +165,14 @@ def list_config(
                 typer.echo(yaml.dump(current_config[sec], default_flow_style=False, sort_keys=False))
 
 # Define a function to poll for config changes.
-def wait_for_config_update(connection_identifiers, timeout=10):
+def wait_for_config_update(sent_identifier, timeout=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
         config_data = load_config()  # Your function to load the config file.
-        connection_identifier = config_data.get("hyperparams", {}).get("connection_identifiers", {})
+        checked_identifier = config_data.get("hyperparams", {}).get("connection_identifier")
+        print("checked_identifier:", checked_identifier)
         # Check if all expected keys are present.
-        if all(key in connection_identifier for key in connection_identifiers):
+        if sent_identifier == checked_identifier:
             return config_data
         time.sleep(0.5)
     raise TimeoutError("Timed out waiting for config update.")
@@ -183,11 +184,10 @@ def simulate(
 ):
     ensure_config_exists()
 
-    connection_identifiers = [uuid.uuid4().hex for _ in range(4)]  # generate list of UUIDs
-    connection_identifiers_str = ",".join(connection_identifiers)  # stringify for subprocess args
+    connection_identifier = uuid.uuid4().hex
 
     extra_args = [
-        "--connection_identifiers", connection_identifiers_str,
+        "--connection_identifier", connection_identifier,
         "--env_type", env_type,
         "--num_agents", str(num_agents),
     ]
@@ -197,7 +197,7 @@ def simulate(
     from .simulation import open_simulation_in_screen
     simulation_process = open_simulation_in_screen(extra_args)
     try:
-        updated_config = wait_for_config_update(connection_identifiers, timeout=10)
+        updated_config = wait_for_config_update(connection_identifier, timeout=10)
         updated_hyperparms = updated_config.get("hyperparams", {})
         env_host = updated_hyperparms.get("env_host", {})
         typer.echo("Environment hosts for simulation updated successfully:")

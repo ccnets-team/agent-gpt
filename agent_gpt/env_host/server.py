@@ -33,12 +33,8 @@ class EnvServer(EnvAPI):
         else:
             raise ValueError(f"Unknown env type '{env_type}'. Choose 'unity' or 'gym'.")
 
-
         # Optionally call the parent's initializer
         super().__init__(env_wrapper)
-
-        self.api = EnvAPI(env_wrapper=env_wrapper)
-        self.connection_key = self.api.connection_key
 
         # Create a shutdown event that can be used for graceful termination.
         self.shutdown_event = Event()
