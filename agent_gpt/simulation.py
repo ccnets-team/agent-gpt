@@ -3,7 +3,7 @@ import typer
 import os
 import platform
 import subprocess
-from typing import List, Dict
+from typing import List
 
 def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
     env = os.environ.copy()
@@ -47,39 +47,50 @@ def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
         raise typer.Exit(code=1)
     return proc
 
-
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--connection_identifier", required=True)
+    parser.add_argument("--remote_training_key", required=True)
     parser.add_argument("--env_type", required=True)
+    parser.add_argument("--env_id", required=True)
+    parser.add_argument("--num_envs", type=int, required=True)
     parser.add_argument("--num_agents", type=int, required=True)
+    parser.add_argument("--entry_point", required=True)
+    parser.add_argument("--agent_gpt_server_url", required=True)
+    parser.add_argument("--env_dir", required=True)
+    parser.add_argument("--seed", type=int, required=True)
+
     args = parser.parse_args()
 
     from agent_gpt.utils.config_utils import load_config, save_config
     from agent_gpt.env_host.server import EnvServer
-    from agent_gpt.config.hyperparams import EnvHost
     import typer
 
     config_data = load_config()
 
-    connection_identifier = args.connection_identifier
-    num_launchers = 4
-
-    launchers = [EnvServer.launch(args.env_type) for _ in range(num_launchers)]
-
-    base_agents, remainder = divmod(args.num_agents, num_launchers)
-    agents_per_launcher = [base_agents + (1 if i < remainder else 0) for i in range(num_launchers)]
-
-    env_host = config_data.get("hyperparams", {}).get("env_host", {})
-    added_env_hosts = []
+    remote_training_key = args.remote_training_key
+    num_envs = args.num_envs
+    base_agents, remainder = divmod(args.num_agents, num_envs)
+    agents_per_env = [base_agents + (1 if i < remainder else 0) for i in range(num_envs)]
     
-    for i, launcher in enumerate(launchers):
-        key = f"local{i + 1}"
-        env_host[key] = {"env_endpoint": launcher.connection_key, "num_agents": agents_per_launcher[i]}
-        added_env_hosts.append(key)
-        
-    config_data["hyperparams"]["connection_identifier"] = connection_identifier  # fixed plural naming consistency
-    config_data["hyperparams"]["env_host"] = env_host
+    launchers = []
+    for i in range(num_envs):
+        env_idx = i
+        launchers.append(
+            EnvServer.launch(
+                remote_training_key,
+                args.agent_gpt_server_url,
+                args.env_type,
+                args.env_id,
+                num_envs,
+                env_idx,
+                agents_per_env[i],
+                args.entry_point,
+                args.env_dir,
+                args.seed,
+            )
+        )
+    remote_training_key = config_data.get("hyperparams", {}).get("remote_training_key", {})
+    config_data["hyperparams"]["remote_training_key"] = remote_training_key  # fixed plural naming consistency
     save_config(config_data)
 
     typer.echo("Simulation running. This terminal is now dedicated to simulation;")
@@ -98,14 +109,8 @@ def main():
 
     # Cleanup after simulation ends
     config_data = load_config()
-
-    for key in added_env_hosts:
-        env_host.pop(key, None)
-        
-    config_data["hyperparams"]["env_host"] = env_host
-    if "connection_identifier" in config_data["hyperparams"]:
-        del config_data["hyperparams"]["connection_identifier"]
-        
+    if config_data["hyperparams"]["remote_training_key"] == remote_training_key:
+        config_data["hyperparams"]["remote_training_key"] = None
     save_config(config_data)
 
     typer.echo("Simulation terminated.")

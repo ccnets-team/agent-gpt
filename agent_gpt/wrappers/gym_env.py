@@ -115,3 +115,27 @@ class GymEnv:
             except Exception as e:
                 print(f"Error registering environment {env_id}: {e}")
                 raise e
+
+def get_gymnasium_envs():
+    """
+    Retrieves environment IDs grouped by specified categories based on entry points in the Gymnasium registry.
+    
+    Returns:
+        dict: A dictionary where keys are categories (e.g., "classic_control", "box2d") and values are lists of 
+        environment IDs for each category.
+    """
+    categories = ["classic_control", "box2d", "toy_text", "mujoco", "phys2d", "tabular"]
+    envs_by_category = {category: [] for category in categories}
+    from gymnasium import envs
+    
+    for env_spec in envs.registry.values():
+        if isinstance(env_spec.entry_point, str):
+            for category in categories:
+                if category in env_spec.entry_point:
+                    envs_by_category[category].append(env_spec.id)
+                    break  # Move to the next env_spec after finding a match for the current category
+
+    # Flatten the dictionary to check if the environment is in any category
+    all_registered_envs = [env_id for env_list in envs_by_category.values() for env_id in env_list]
+    
+    return all_registered_envs

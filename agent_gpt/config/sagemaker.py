@@ -20,6 +20,7 @@ class InferenceConfig:
     instance_count: int = 1
     max_run: int = 3600
     model_data: Optional[str] = DEFAULT_MODEL_DATA
+    
 @dataclass
 class SageMakerConfig:
     role_arn: Optional[str] = "arn:aws:iam::<your-aws-account-id>:role/SageMakerExecutionRole"

@@ -8,6 +8,7 @@ import threading
 from typing import Optional, Any
 import msgpack
 import base64
+from websocket._exceptions import WebSocketTimeoutException, WebSocketConnectionClosedException
 
 # ------------------------------------------------
 # Utility imports
@@ -19,44 +20,41 @@ from ..utils.conversion_utils import (
     space_to_dict,
 )
 
-URL = "wss://<agentgpt-api>.execute-api.<region>.amazonaws.com/<stage>/"
-
-HTTP_BAD_REQUEST = 400
-HTTP_INTERNAL_SERVER_ERROR = 500
-WEBSOCKET_TIMEOUT = 10
-
+WEBSOCKET_TIMEOUT = 1
 class EnvAPI:
-    def __init__(self, env_wrapper):
+    def __init__(self, env_wrapper, remote_training_key, agent_gpt_server_url, 
+               env_id, num_envs, env_idx, num_agents, entry_point=None, env_dir=None, seed=None):
         self.env_wrapper = env_wrapper
         self.environments = {}
         self.message_queue = queue.Queue()
         self.shutdown_event = threading.Event()
         self.ws = websocket.WebSocket()
-        self.ws.connect(URL)        
-        self.connection_key = self.get_connection_key(self.ws)
-        print(f"Connected to server with key: {self.connection_key}")
+        self.ws.connect(agent_gpt_server_url)        
+        self.register_environment(self.ws, remote_training_key, 
+                                    env_id, num_envs, env_idx, num_agents, env_dir, entry_point, seed)
+        self.ws.settimeout(WEBSOCKET_TIMEOUT)
         
     def __exit__(self, exc_type, exc_value, traceback):
         if self.ws:
             print("Closing WebSocket connection.")
             self.ws.close()
         for env_key in list(self.environments.keys()):
-            self.environments[env_key].close()
+            self.environments[env_key].close()  
             del self.environments[env_key]
-
+        
     def communicate(self):
         while not self.shutdown_event.is_set():
             try:
                 message = self.ws.recv()
-            except socket.timeout:
-                continue  # Non-blocking via timeout, c1heck shutdown_event periodically
-            except websocket.WebSocketConnectionClosedException:
+            except (socket.timeout, WebSocketTimeoutException):
+                continue  # Silently continue without logging
+            except WebSocketConnectionClosedException:
                 logging.warning("WebSocket connection closed by server.")
                 break
             except Exception as e:
                 logging.exception("WebSocket receiving error: %s", e)
                 continue
-
+            
             try:
                 payload = self.disclose_message(message)
                 data = payload.get("data", {})
@@ -103,10 +101,23 @@ class EnvAPI:
         payload = msgpack.unpackb(compressed, raw=False)
         return payload
     
-    def get_connection_key(self, ws: websocket.WebSocket):
-        ws.send(json.dumps({"action": "getConnectionKey"}))
-        connection_key = ws.recv()
-        return connection_key
+    # Example from client-side (your original snippet):
+    def register_environment(ws: websocket.WebSocket, remote_training_key: str, 
+                                env_id: str,  num_envs: int, env_idx: int, num_agents: int, env_dir: str, entry_point: str, seed: int):
+        data = {
+            "env_id": env_id,    
+            "num_envs": num_envs,
+            "env_idx": env_idx,
+            "num_agents": num_agents,
+            "env_dir": env_dir,
+            "entry_point": entry_point,
+            "seed": seed
+        }
+        ws.send(json.dumps({
+            "action": "register",
+            "training_key": remote_training_key,   
+            "data": data
+        }))
 
     def report_message(self, message: str, type: str = "error") -> str:
         return json.dumps({

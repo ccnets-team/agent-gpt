@@ -17,12 +17,12 @@ import os
 import re
 import time
 import yaml
-import requests
-import uuid
-from typing import Optional, Dict
-from .config.hyperparams import Hyperparameters
-from .config.sagemaker import SageMakerConfig
+import json
+import websocket
 from .core import AgentGPT
+from .config.sagemaker import SageMakerConfig
+from .config.hyperparams import Hyperparameters
+from typing import Optional, Dict
 from .utils.config_utils import load_config, save_config, generate_default_section_config, update_config_using_method, ensure_config_exists
 from .utils.config_utils import convert_to_objects, parse_extra_args, update_config_by_dot_notation
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
@@ -169,111 +169,106 @@ def wait_for_config_update(sent_identifier, timeout=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
         config_data = load_config()  # Your function to load the config file.
-        checked_identifier = config_data.get("hyperparams", {}).get("connection_identifier")
-        print("checked_identifier:", checked_identifier)
+        checked_identifier = config_data.get("hyperparams", {}).get("training_key")
         # Check if all expected keys are present.
         if sent_identifier == checked_identifier:
             return config_data
         time.sleep(0.5)
     raise TimeoutError("Timed out waiting for config update.")
 
+def envelop_request(action, data):
+    return json.dumps({"action": action, "data": data})
+
+def get_agent_gpt_server_url(region):
+    # check if the region is valid
+    if region not in ["ap-northeast-2", "us-east-1", "us-west-2", "eu-west-1"]:
+        raise ValueError(f"Invalid region: {region}")
+    return f"wss://{region}.agentgpt-beta.ccnets.org"
+
+# Allow the user not to provide the arguments upfront.
 @app.command("simulate")
 def simulate(
-    env_type: str = typer.Argument(None, help="environment type: 'gym' or 'unity'"),
-    num_agents: int = typer.Argument(None, help="num agents to simulate and train"),
+    env_type: Optional[str] = typer.Option(None, help="Environment type: 'gym' or 'unity'"),
+    env_id: Optional[str] = typer.Option(None, help="Environment ID to simulate, e.g., 'Walker2d-v5'"),
+    num_envs: Optional[int] = typer.Option(None, help="Number of parallel environments to simulate concurrently"),
+    num_agents: Optional[int] = typer.Option(None, help="Number of agents to simulate and train"),
+    region: Optional[str] = typer.Option(None, help="Your region for running simulation/training"),
+    entry_point: Optional[str] = typer.Option(None, help="Entry point script for the simulation"),
+    env_dir: Optional[str] = typer.Option(None, help="Directory containing the simulation environment files"),
+    seed: Optional[int] = typer.Option(None, help="Random seed for reproducibility"),
 ):
-    ensure_config_exists()
+    if not env_type:
+        env_type = typer.prompt(
+            "Please provide the environment type ('gym' or 'unity')"
+        )
 
-    connection_identifier = uuid.uuid4().hex
+    if not env_id:
+        env_id = typer.prompt(
+            "Please provide the environment ID to simulate (e.g., 'Walker2d-v5')"
+        )
 
-    extra_args = [
-        "--connection_identifier", connection_identifier,
-        "--env_type", env_type,
-        "--num_agents", str(num_agents),
-    ]
+    if not num_agents:
+        num_agents = typer.prompt(
+            "Please provide the number of agents to simulate and train", type=int
+        )
+
+    if not num_envs:
+        num_envs = typer.prompt(
+            "Please provide the number of parallel environments", type=int
+        )
+
+    if not region:
+        region = typer.prompt(
+            "Please provide the AWS region for conneting your local environment ? training (e.g., 'ap-northeast-2')",
+            default="ap-northeast-2",
+        )
+        
+    env_config = {
+        "env_type": env_type,
+        "env_id": env_id,
+        "num_envs": num_envs,
+        "num_agents": num_agents,
+        "entry_point": entry_point,
+        "env_dir": env_dir,
+        "seed": seed
+    }
+
+    ws = websocket.WebSocket()
+    agent_gpt_server_url = get_agent_gpt_server_url(region)
+    ws.connect(agent_gpt_server_url)
+    message = envelop_request("register", env_config)
+    ws.send(message)
+    remote_training_key = ws.recv()
+    ws.close()
+    
+    # Start with your env_config dict
+    extra_args = []
+
+    # Add remote_training_key explicitly first
+    extra_args.extend(["--agent_gpt_server_url", agent_gpt_server_url])
+    extra_args.extend(["--remote_training_key", remote_training_key])
+
+    # Dynamically add all other args from env_config
+    for key, value in env_config.items():
+        # Skip None values (optional)
+        if value is not None:
+            extra_args.extend([f"--{key}", str(value)])
 
     typer.echo("Starting the simulation in a separate terminal window. Please monitor that window for real-time logs.")
     
     from .simulation import open_simulation_in_screen
     simulation_process = open_simulation_in_screen(extra_args)
     try:
-        updated_config = wait_for_config_update(connection_identifier, timeout=10)
-        updated_hyperparms = updated_config.get("hyperparams", {})
-        env_host = updated_hyperparms.get("env_host", {})
-        typer.echo("Environment hosts for simulation updated successfully:")
-        dislay_output = "**hyperparams**:\n" + yaml.dump(env_host, default_flow_style=False, sort_keys=False)
+        updated_config = wait_for_config_update(remote_training_key, timeout=10)
+        remote_training_key = updated_config.get("hyperparams", {}).get("remote_training_key", {})
+        typer.echo("Remote Training Key for simulation updated successfully:")
+        dislay_output = "**hyperparams**:\n" + yaml.dump(remote_training_key, default_flow_style=False, sort_keys=False)
         typer.echo(typer.style(dislay_output.strip(), fg=typer.colors.GREEN))
     except TimeoutError:
         typer.echo("Configuration update timed out. Terminating simulation process.")
         simulation_process.terminate()
         simulation_process.wait()
     
-def initialize_sagemaker_access(
-    role_arn: str,
-    region: str,
-    service_type: str,  # expected to be "trainer" or "inference"
-    email: Optional[str] = None
-):
-    """
-    Initialize SageMaker access by registering your AWS account details.
-
-    - Validates the role ARN format.
-    - Extracts your AWS account ID from the role ARN.
-    - Sends the account ID, region, and service type to the registration endpoint.
-    
-    Returns True on success; otherwise, returns False.
-    """
-    # Validate the role ARN format.
-    if not re.match(r"^arn:aws:iam::\d{12}:role/[\w+=,.@-]+$", role_arn):
-        typer.echo(typer.style("Invalid role ARN format.", fg=typer.colors.YELLOW))
-        return False
-
-    try:
-        account_id = role_arn.split(":")[4]
-    except IndexError:
-        typer.echo("Invalid role ARN. Unable to extract account ID.")
-        return False
-
-    typer.echo("Initializing access...")
-    
-    beta_register_url = "https://agentgpt-beta.ccnets.org"
-    payload = {
-        "clientAccountId": account_id,
-        "region": region,
-        "serviceType": service_type
-    }
-    if email:
-        payload["Email"] = email
-    
-    headers = {'Content-Type': 'application/json'}
-    
-    try:
-        response = requests.post(beta_register_url, json=payload, headers=headers)
-    except Exception:
-        typer.echo("Request error.")
-        return False
-
-    if response.status_code != 200:
-        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
-        return False
-
-    if response.text.strip() in ("", "null"):
-        typer.echo("Initialization succeeded.")
-        return True
-
-    try:
-        data = response.json()
-    except Exception:
-        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
-        return False
-
-    if data.get("statusCode") == 200:
-        typer.echo("Initialization succeeded.")
-        return True
-    else:
-        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
-        return False
-
 @app.command(
     "train",
     short_help=help_texts["train"]["short_help"],
@@ -292,10 +287,6 @@ def train():
     
     sagemaker_obj: SageMakerConfig = converted_obj["sagemaker"]
     hyperparams_config: Hyperparameters = converted_obj["hyperparams"]
-    
-    if not initialize_sagemaker_access(sagemaker_obj.role_arn, sagemaker_obj.region, service_type="trainer"):
-        typer.echo("AgentGPT training failed.")
-        raise typer.Exit(code=1)
     
     typer.echo("Submitting training job...")
     estimator = AgentGPT.train(sagemaker_obj, hyperparams_config)
@@ -317,10 +308,6 @@ def infer():
     converted_obj = convert_to_objects(input_config)
     
     sagemaker_obj: SageMakerConfig = converted_obj["sagemaker"]
-
-    if not initialize_sagemaker_access(sagemaker_obj.role_arn, sagemaker_obj.region, service_type="inference"):
-        typer.echo("Error initializing SageMaker access for AgentGPT inference.")
-        raise typer.Exit(code=1)
 
     typer.echo("Deploying inference endpoint...")
     
