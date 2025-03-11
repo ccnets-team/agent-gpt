@@ -10,12 +10,10 @@ with open("requirements.txt", encoding="utf-8") as f:
 # Additional dependencies not in the file
 cli_dependencies = [
     "typer",
-    "requests",
+    "websocket-client",
     "pyyaml",
     "boto3",
     "sagemaker",
-    "kubernetes",
-    "pyngrok",
 ]
 
 # Combine the two lists

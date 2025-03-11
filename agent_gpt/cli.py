@@ -165,13 +165,12 @@ def list_config(
                 typer.echo(yaml.dump(current_config[sec], default_flow_style=False, sort_keys=False))
 
 # Define a function to poll for config changes.
-def wait_for_config_update(sent_identifier, timeout=10):
+def wait_for_config_update(sent_remote_training_key, timeout=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
         config_data = load_config()  # Your function to load the config file.
-        checked_identifier = config_data.get("hyperparams", {}).get("training_key")
-        # Check if all expected keys are present.
-        if sent_identifier == checked_identifier:
+        registered_remote_training_key = config_data.get("hyperparams", {}).get("remote_training_key")
+        if sent_remote_training_key == registered_remote_training_key:
             return config_data
         time.sleep(0.5)
     raise TimeoutError("Timed out waiting for config update.")
@@ -183,7 +182,7 @@ def get_agent_gpt_server_url(region):
     # check if the region is valid
     if region not in ["ap-northeast-2", "us-east-1", "us-west-2", "eu-west-1"]:
         raise ValueError(f"Invalid region: {region}")
-    return f"wss://{region}.agentgpt-beta.ccnets.org"
+    return f"wss://{region}.agent-gpt-server.ccnets.org"
 
 # Allow the user not to provide the arguments upfront.
 @app.command("simulate")
@@ -191,7 +190,7 @@ def simulate(
     env_type: Optional[str] = typer.Option(None, help="Environment type: 'gym' or 'unity'"),
     env_id: Optional[str] = typer.Option(None, help="Environment ID to simulate, e.g., 'Walker2d-v5'"),
     num_envs: Optional[int] = typer.Option(None, help="Number of parallel environments to simulate concurrently"),
-    num_agents: Optional[int] = typer.Option(None, help="Number of agents to simulate and train"),
+    num_agents: Optional[int] = typer.Option(None, help="Number of agents to simulate and train(number of workers): 1-8"),
     region: Optional[str] = typer.Option(None, help="Your region for running simulation/training"),
     entry_point: Optional[str] = typer.Option(None, help="Entry point script for the simulation"),
     env_dir: Optional[str] = typer.Option(None, help="Directory containing the simulation environment files"),
@@ -278,7 +277,12 @@ def train():
     ensure_config_exists()
     
     config_data = load_config()
-
+    role_arn = config_data.get("role_arn")
+    if not role_arn:
+        role_arn = typer.prompt("Please enter your IAM role ARN for SageMaker access")
+        config_data["role_arn"] = role_arn
+        save_config(config_data)    
+        
     input_config_names = ["sagemaker", "hyperparams"] 
     input_config = {}
     for name in input_config_names:
@@ -301,7 +305,11 @@ def infer():
     ensure_config_exists()
     
     config_data = load_config()
-
+    if not role_arn:
+        role_arn = typer.prompt("Please enter your IAM role ARN for SageMaker access")
+        config_data["role_arn"] = role_arn
+        save_config(config_data)    
+        
     # Use the sagemaker configuration.
     input_config_names = ["sagemaker"]
     input_config = {name: config_data.get(name, {}) for name in input_config_names}

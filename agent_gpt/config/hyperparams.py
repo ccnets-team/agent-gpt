@@ -159,22 +159,7 @@ class Hyperparameters:
 
     def set_config(self, **kwargs):
         for k, v in kwargs.items():
-            if k == "env_host":
-                if not isinstance(v, dict):
-                    raise TypeError(f"env_host must be a dict, got {type(v)}")
-                new_dict = {}
-                for subkey, item in v.items():
-                    if isinstance(item, EnvHost):
-                        new_dict[subkey] = item
-                    elif isinstance(item, dict):
-                        new_dict[subkey] = EnvHost(**item)
-                    else:
-                        raise TypeError(
-                            f"env_host values must be a dict or EnvHost, got {type(item)}"
-                        )
-                self.env_host = new_dict
-
-            elif hasattr(self, k):
+            if hasattr(self, k):
                 setattr(self, k, v)
             else:
                 print(f"Warning: No attribute '{k}' in Hyperparameters")

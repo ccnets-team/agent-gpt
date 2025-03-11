@@ -13,7 +13,6 @@ class EnvServer(EnvAPI):
         agent_gpt_server_url,
         env_type,
         env_id,
-        num_envs,
         env_idx,
         num_agents,
         entry_point=None,
@@ -55,7 +54,7 @@ class EnvServer(EnvAPI):
         else:
             raise ValueError(f"Unknown env type '{env_type}'. Choose 'unity' or 'gym'.")
 
-        super().__init__(env_wrapper, remote_training_key, agent_gpt_server_url, env_id, num_envs, env_idx, num_agents, entry_point, env_dir, seed)
+        super().__init__(env_wrapper, remote_training_key, agent_gpt_server_url, env_id, env_idx, num_agents, entry_point, env_dir, seed)
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.shutdown()
@@ -73,13 +72,12 @@ class EnvServer(EnvAPI):
 
     @classmethod
     def launch(cls, remote_training_key, agent_gpt_server_url, 
-               env_type, env_id, num_envs, env_idx, num_agents, entry_point=None, env_dir=None, seed=None) -> "EnvServer":
+               env_type, env_id, env_idx, num_agents, entry_point=None, env_dir=None, seed=None) -> "EnvServer":
         instance = cls(
             remote_training_key=remote_training_key,
             agent_gpt_server_url=agent_gpt_server_url,
             env_type=env_type,
             env_id=env_id,
-            num_envs=num_envs,
             env_idx=env_idx,
             num_agents=num_agents,
             entry_point=entry_point,

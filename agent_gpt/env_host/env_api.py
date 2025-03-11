@@ -23,7 +23,7 @@ from ..utils.conversion_utils import (
 WEBSOCKET_TIMEOUT = 1
 class EnvAPI:
     def __init__(self, env_wrapper, remote_training_key, agent_gpt_server_url, 
-               env_id, num_envs, env_idx, num_agents, entry_point=None, env_dir=None, seed=None):
+               env_id, env_idx, num_agents, entry_point=None, env_dir=None, seed=None):
         self.env_wrapper = env_wrapper
         self.environments = {}
         self.message_queue = queue.Queue()
@@ -31,7 +31,7 @@ class EnvAPI:
         self.ws = websocket.WebSocket()
         self.ws.connect(agent_gpt_server_url)        
         self.register_environment(self.ws, remote_training_key, 
-                                    env_id, num_envs, env_idx, num_agents, env_dir, entry_point, seed)
+                                    env_id, env_idx, num_agents, env_dir, entry_point, seed)
         self.ws.settimeout(WEBSOCKET_TIMEOUT)
         
     def __exit__(self, exc_type, exc_value, traceback):
@@ -103,10 +103,9 @@ class EnvAPI:
     
     # Example from client-side (your original snippet):
     def register_environment(ws: websocket.WebSocket, remote_training_key: str, 
-                                env_id: str,  num_envs: int, env_idx: int, num_agents: int, env_dir: str, entry_point: str, seed: int):
+                                env_id: str,  env_idx: int, num_agents: int, env_dir: str, entry_point: str, seed: int):
         data = {
             "env_id": env_id,    
-            "num_envs": num_envs,
             "env_idx": env_idx,
             "num_agents": num_agents,
             "env_dir": env_dir,

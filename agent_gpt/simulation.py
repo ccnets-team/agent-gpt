@@ -81,7 +81,6 @@ def main():
                 args.agent_gpt_server_url,
                 args.env_type,
                 args.env_id,
-                num_envs,
                 env_idx,
                 agents_per_env[i],
                 args.entry_point,
