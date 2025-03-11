@@ -194,7 +194,6 @@ def simulate(
     region: Optional[str] = typer.Option(None, help="Your region for running simulation/training"),
     entry_point: Optional[str] = typer.Option(None, help="Entry point script for the simulation"),
     env_dir: Optional[str] = typer.Option(None, help="Directory containing the simulation environment files"),
-    seed: Optional[int] = typer.Option(None, help="Random seed for reproducibility"),
 ):
     if not env_type:
         env_type = typer.prompt(
@@ -223,13 +222,10 @@ def simulate(
         )
         
     env_config = {
-        "env_type": env_type,
         "env_id": env_id,
         "num_envs": num_envs,
-        "num_agents": num_agents,
         "entry_point": entry_point,
         "env_dir": env_dir,
-        "seed": seed
     }
 
     ws = websocket.WebSocket()
@@ -239,13 +235,15 @@ def simulate(
     ws.send(message)
     remote_training_key = ws.recv()
     ws.close()
-    
-    # Start with your env_config dict
-    extra_args = []
 
-    # Add remote_training_key explicitly first
-    extra_args.extend(["--agent_gpt_server_url", agent_gpt_server_url])
-    extra_args.extend(["--remote_training_key", remote_training_key])
+    # Start with your env_config dict
+    extra_args = {
+        "remote_training_key": remote_training_key,
+        "agent_gpt_server_url": agent_gpt_server_url,
+        "env_type": env_type,
+        "num_agents": num_agents,
+        "num_envs": num_envs,
+    }
 
     # Dynamically add all other args from env_config
     for key, value in env_config.items():

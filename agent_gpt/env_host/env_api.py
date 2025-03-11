@@ -23,7 +23,7 @@ from ..utils.conversion_utils import (
 WEBSOCKET_TIMEOUT = 1
 class EnvAPI:
     def __init__(self, env_wrapper, remote_training_key, agent_gpt_server_url, 
-               env_id, env_idx, num_agents, entry_point=None, env_dir=None, seed=None):
+               env_idx, num_agents):
         self.env_wrapper = env_wrapper
         self.environments = {}
         self.message_queue = queue.Queue()
@@ -31,7 +31,7 @@ class EnvAPI:
         self.ws = websocket.WebSocket()
         self.ws.connect(agent_gpt_server_url)        
         self.register_environment(self.ws, remote_training_key, 
-                                    env_id, env_idx, num_agents, env_dir, entry_point, seed)
+                                    env_idx, num_agents)
         self.ws.settimeout(WEBSOCKET_TIMEOUT)
         
     def __exit__(self, exc_type, exc_value, traceback):
@@ -101,21 +101,13 @@ class EnvAPI:
         payload = msgpack.unpackb(compressed, raw=False)
         return payload
     
-    # Example from client-side (your original snippet):
-    def register_environment(ws: websocket.WebSocket, remote_training_key: str, 
-                                env_id: str,  env_idx: int, num_agents: int, env_dir: str, entry_point: str, seed: int):
-        data = {
-            "env_id": env_id,    
-            "env_idx": env_idx,
-            "num_agents": num_agents,
-            "env_dir": env_dir,
-            "entry_point": entry_point,
-            "seed": seed
-        }
-        ws.send(json.dumps({
+    def register_environment(self, remote_training_key: str, 
+                                env_idx: int, num_agents: int):
+        self.ws.send(json.dumps({
             "action": "register",
             "training_key": remote_training_key,   
-            "data": data
+            "env_idx": env_idx,
+            "num_agents": num_agents,
         }))
 
     def report_message(self, message: str, type: str = "error") -> str:

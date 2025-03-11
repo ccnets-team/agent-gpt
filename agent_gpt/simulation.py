@@ -50,14 +50,10 @@ def open_simulation_in_screen(extra_args: List[str]) -> subprocess.Popen:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--remote_training_key", required=True)
+    parser.add_argument("--agent_gpt_server_url", required=True)
     parser.add_argument("--env_type", required=True)
-    parser.add_argument("--env_id", required=True)
     parser.add_argument("--num_envs", type=int, required=True)
     parser.add_argument("--num_agents", type=int, required=True)
-    parser.add_argument("--entry_point", required=True)
-    parser.add_argument("--agent_gpt_server_url", required=True)
-    parser.add_argument("--env_dir", required=True)
-    parser.add_argument("--seed", type=int, required=True)
 
     args = parser.parse_args()
 
@@ -68,8 +64,11 @@ def main():
     config_data = load_config()
 
     remote_training_key = args.remote_training_key
+    agent_gpt_server_url = args.agent_gpt_server_url
+    env_type = args.env_type
     num_envs = args.num_envs
-    base_agents, remainder = divmod(args.num_agents, num_envs)
+    num_agents = args.num_agents
+    base_agents, remainder = divmod(num_agents, num_envs)
     agents_per_env = [base_agents + (1 if i < remainder else 0) for i in range(num_envs)]
     
     launchers = []
@@ -78,17 +77,12 @@ def main():
         launchers.append(
             EnvServer.launch(
                 remote_training_key,
-                args.agent_gpt_server_url,
-                args.env_type,
-                args.env_id,
+                agent_gpt_server_url,
+                env_type,
                 env_idx,
                 agents_per_env[i],
-                args.entry_point,
-                args.env_dir,
-                args.seed,
             )
         )
-    remote_training_key = config_data.get("hyperparams", {}).get("remote_training_key", {})
     config_data["hyperparams"]["remote_training_key"] = remote_training_key  # fixed plural naming consistency
     save_config(config_data)
 
@@ -108,7 +102,7 @@ def main():
 
     # Cleanup after simulation ends
     config_data = load_config()
-    if config_data["hyperparams"]["remote_training_key"] == remote_training_key:
+    if remote_training_key and config_data.get("hyperparams", {}).get("remote_training_key", {}) == remote_training_key:
         config_data["hyperparams"]["remote_training_key"] = None
     save_config(config_data)
 
