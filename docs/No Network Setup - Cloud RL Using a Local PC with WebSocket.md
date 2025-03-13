@@ -9,7 +9,8 @@ This document introduces a novel approach to directly connect your local PC to a
 Cloud-based RL training has demanded extensive knowledge of network configuration to enable local environments to interact with cloud services. This new method eliminates those barriers by establishing a direct, automated connection between your local simulation environment and the cloud trainer. Key benefits include:
 
 - **No Manual Network Setup & Installation:**  
-  No need to configure routers, manage IP addresses, or set up tunnels.
+  For local to cloud communication for RL training, this method simplifies the process.
+  There is no need to configure routers, manage IP addresses, or set up tunnels—eliminating the need for ngrok, firewall adjustments, or port forwarding.
 
 - **Automated Configuration:**  
   With this method, network-related hyperparameters (such as environment hosts or endpoints) are not required. The WebSocket API automatically establishes bidirectional communication between your environment and the environment gateway located in our cloud trainer on AWS SageMaker.
@@ -29,27 +30,23 @@ Cloud-based RL training has demanded extensive knowledge of network configuratio
 At the core of this solution is the **WSEnvAPI** [https://github.com/ccnets-team/agent-gpt/blob/main/agent_gpt/env_host/env_api_websocket.py] a remote gym module that facilitates WebSocket-based communication between your local PC and the cloud trainer. Key components include:
 
 
-
-- **Asynchronous Methods for Environment Control:**
+- **Synchronous/Asynchronous Methods for Environment Control:**
   - **make / make_vec:** Create single or multiple simulation environments.
   - **reset:** Initialize or reset an environment.
   - **step:** Process actions in the environment and return resulting states.
   - **close:** Terminate a simulation environment.
   - **get_action_space / get_observation_space:** Retrieve details about the environment's configuration.
 
-- **FastAPI /ws Endpoint:**
-  - A dedicated endpoint (`/ws`) is set up using FastAPI to accept local client connections.
-  - An external WebSocket listener forwards commands between the cloud trainer and your local simulation in real time.
 
 ---
 
 ## How It Works
 
 1. **Establishing the Connection:**
-   - Your local simulation environment initiates a WebSocket connection to the `/ws` endpoint provided by WSEnvAPI.
+   - Your local simulation environment initiates a WebSocket connection provided by WSEnvAPI.
 
 2. **Processing and Response:**
-   - The asynchronous methods in WSEnvAPI process commands, manage the simulation environments, and send real-time responses back to the cloud trainer.
+   - The synchronous methods in WSEnvAPI process commands, manage the simulation environments, and send real-time responses back to the cloud trainer.
 
 3. **Automated Host Configuration:**
    - The system automatically updates environment host details, eliminating the need for manual network configuration (e.g., IP setups or tunnels).
@@ -59,7 +56,7 @@ At the core of this solution is the **WSEnvAPI** [https://github.com/ccnets-team
 ## Future Enhancements
 
 - **Expanded Lambda Integration:**  
-  Full integration with Lambda servers will enable more efficient asynchronous processing and reduce latency.
+  Full integration with Lambda servers will enable more efficient data communication that reduce latency.
 
 - **Enhanced Monitoring Tools:**  
   Upcoming updates will include advanced logging and real-time monitoring dashboards.
