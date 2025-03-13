@@ -38,13 +38,10 @@ jobs:
           agent-gpt edit
           agent-gpt list
 
-      - name: Verify CLI commands (simulate local-ip for network connection testing)
+      - name: Verify CLI commands (simulate websocket pairing between local environments and cloud server & trainer)
         run: |
-          # Optionally run a command that uses mujoco functionality
-          agent-gpt config --simulator.local-ip.ports 8080
-          agent-gpt simulate local-ip
-          agent-gpt config --simulator.local-ip.ports 8080, 8081
-          agent-gpt simulate local-ip
+          # Simulate WebSocket connections and verify client environment - agent-gpt trainer pairing logic
+          agent-gpt simulate --env_type gym --env_id Walker2d-v5 --num_envs 4 --num_agents 256 --region ap-northeast-2
 
       - name: Uninstall package and verify clear command config deletion
         run: |
