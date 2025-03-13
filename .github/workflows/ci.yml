@@ -41,7 +41,7 @@ jobs:
       - name: Verify CLI commands (simulate websocket pairing between local environments and cloud server & trainer)
         run: |
           # Simulate WebSocket connections and verify client environment - agent-gpt trainer pairing logic
-          agent-gpt simulate --env_type gym --env_id Walker2d-v5 --num_envs 4 --num_agents 256 --region ap-northeast-2
+          agent-gpt simulate --env-type gym --env-id Walker2d-v5 --num_envs 4 --num-agents 256 --region ap-northeast-2
 
       - name: Uninstall package and verify clear command config deletion
         run: |
