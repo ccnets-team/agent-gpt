@@ -12,30 +12,15 @@ config:
        agent-gpt config --batch_size 64 --lr_init 0.0005 --env_id CartPole-v1
        agent-gpt config --trainer.max_run 360
 
-       This mode updates any key in the top-level configuration (such as:
-       simulator_registry, network, hyperparams, sagemaker)
+       This mode updates any key in the top-level configuration (such as: hyperparams, sagemaker)
        without requiring dedicated subcommands.
 
     2. Method Mode:
        Use dedicated methods to add or remove configuration entries in specific sections.
        The following functions are available, using the syntax:
-       agent-gpt config simulator/env-host/exploration set/del [identifier] [--option value ...]
+       agent-gpt config exploration set/del [identifier] [--option value ...]
 
-       a. Simulator Configuration:
-          - Set:
-            agent-gpt config simulator set my_simulator --hosting local --connection ip --env_type gym
-            agent-gpt config simulator set my_simulator --hosting cloud --connection ec2 --env_type unity
-          - Delete:
-            agent-gpt config simulator del my_simulator
-
-       b. Environment Host Configuration:
-          - Set:
-            agent-gpt config env-host set local0 --env_endpoint http://your-host:port --num_agents 32
-            agent-gpt config env-host set local1 --env_endpoint http://your-host:port1 --num_agents 64
-          - Delete:
-            agent-gpt config env-host del local0
-
-       c. Exploration Configuration:
+       a. Exploration Configuration:
           - Set:
             agent-gpt config exploration set continuous --type gaussian_noise --param1 0.1 --param2 0.001
           - Delete:
@@ -61,58 +46,30 @@ list:
     List the current configuration settings. If a section is provided,
     only that part of the configuration is displayed.
 
-upload:
-  short_help: "Upload a simulator for cloud deployment."
-  detailed_help: |
-    Upload a simulator for cloud deployment.
-
-    Steps:
-     1. Validate & Retrieve Simulator:
-        - Load the configuration and retrieve the simulator settings from the Simulator Registry.
-
-     2. Create Dockerfile & Upload:
-        - Generate a Dockerfile based on the simulator configuration.
-        - Build and push a Docker image to your ECR account.
-     
-     3. Update Simulator Registry:
-        - Update the Simulator configuration with the new image URI after a successful upload.
-
-    Example:
-     agent-gpt upload my_simulator
-
 simulate:
-  short_help: "Launch an environment simulation using the configured simulator settings or specified port numbers."
+  short_help: "Start an environment simulation via the AgentGPT WebSocket server for cloud training."
   detailed_help: |
-    Launch an environment simulation using the configured simulator settings or specified port numbers.
+    Launch an environment simulation.
 
-    Steps:    
-     1. Retrieve Simulator Configuration:
-        - Load the simulator settings from the local configuration file.
-        - Use default ports from the configuration if no port numbers are provided.
+    Porcess:    
+     1. Launch Simulation Server Automatically:
+        - AgentGPT CLI Starts a simulation server on user side and trainer on cloud side watining for sagemaker training job to start.
 
-     2. Launch Simulation Server:
-        - Start a simulation server on each provided port based on the simulator's hosting type.
-          * Local: Runs the simulation server locally.
-          * Remote: Not supported on this machine; run the simulation directly on the remote simulator.
-          * Cloud: Cloud-based simulation is not supported yet.
-
-     3. Monitor & Terminate:
+     2. Monitor & Terminate:
         - The simulation runs in the current terminal.
         - Press Ctrl+C to gracefully terminate the simulation.
 
     Examples:
-     agent-gpt simulate local
-     agent-gpt simulate local 8080,8081
-     agent-gpt simulate my_simulator 80,81,82,83
+     agent-gpt simulate
 
 train:
-  short_help: "Launch a SageMaker training job for AgentGPT using configuration settings."
+  short_help: "Launch a SageMaker training job for AgentGPT with configuration settings."
   detailed_help: |
-    Launch a SageMaker training job for AgentGPT using configuration settings.
+    Launch a SageMaker training job for AgentGPT with configuration settings.
     This command loads training configuration from the saved config file.
 
 infer:
-  short_help: "Deploy or reuse a SageMaker inference endpoint for AgentGPT using configuration settings."
+  short_help: "Deploy or reuse a SageMaker inference endpoint for AgentGPT with configuration settings."
   detailed_help: |
-    Deploy or reuse a SageMaker inference endpoint for AgentGPT using configuration settings.
+    Deploy or reuse a SageMaker inference endpoint for AgentGPT with configuration settings.
     This command loads inference configuration from the saved config file.

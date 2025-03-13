@@ -198,7 +198,11 @@ def connect_to_agent_gpt_server(region: str, env_config: Dict) -> str:
     
     return agent_gpt_server_url, remote_training_key
 
-@app.command("simulate")
+@app.command(
+    "simulate",
+    short_help=help_texts["simulate"]["short_help"],
+    help=auto_format_help(help_texts["simulate"]["detailed_help"]),
+)
 def simulate(
     env_type: Optional[str] = typer.Option(None, "--env-type", help="Environment type: 'gym' or 'unity'"),
     env_id: Optional[str] = typer.Option(None, "--env-id", help="Environment ID to simulate, e.g., 'Walker2d-v5'"),
