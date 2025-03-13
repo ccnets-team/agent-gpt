@@ -26,12 +26,16 @@ class EnvAPI:
                env_idx, num_agents):
         self.env_wrapper = env_wrapper
         self.environments = {}
+        self.env_idx = env_idx
         self.shutdown_event = threading.Event()
         self.ws = websocket.WebSocket()
         print("Connecting to Agent GPT server..., ", agent_gpt_server_url)
+        self.patience = 60
+        self.patience_threshold = 60
         self.ws.connect(agent_gpt_server_url)
-        self.init_environment(remote_training_key, env_idx, num_agents)
         self.ws.settimeout(WEBSOCKET_TIMEOUT)
+        
+        self.send_message("init", remote_training_key, data = {"end_idx": env_idx, "num_agents": num_agents})
         
     def __exit__(self, exc_type, exc_value, traceback):
         if self.ws:
@@ -40,12 +44,23 @@ class EnvAPI:
         for env_key in list(self.environments.keys()):
             self.environments[env_key].close()  
             del self.environments[env_key]
-            
+    
+    def check_alive(self):
+        self.patience += 1
+        if self.patience > self.patience_threshold:
+            heartbeat_message = "Training hasn't started yet but I am still alive."
+            if self.env_idx == 0:
+                print("Sending heartbeat: ", heartbeat_message)
+            self.send_message("event", message=heartbeat_message, type="heartbeat")
+            self.patience = 0         
+              
     def communicate(self):
         while not self.shutdown_event.is_set():
             try:
                 packed_request = self.ws.recv()
+                self.patience = 0
             except (socket.timeout, WebSocketTimeoutException):
+                self.pump_hearbeat()
                 continue  # Silently continue without logging
             except WebSocketConnectionClosedException:
                 logging.warning("WebSocket connection closed by server.")
@@ -76,20 +91,15 @@ class EnvAPI:
                 elif method == "action_space":
                     result = self.action_space(env_key)
                 else:
-                    result = self.report_message(f"Unknown method: {method}")
+                    result = self.send_message("event", message=f"Unknown method: {method}")
 
                 packed_response = self.pack_response(result)
                 self.ws.send(packed_response)
 
             except Exception as e:
                 logging.exception("Error processing message: %s", e)
-                error_report = self.report_message(f"Internal server error: {str(e)}")
-                self.ws.send(error_report)
-
-        # if self.ws:
-        #     print("Closing WebSocket connection.")
-        #     self.ws.close()
-        #     self.ws = None
+                self.send_message("event", message=f"Internal server error: {str(e)}", type="error")
+                continue
 
     def pack_response(self, result):
         packed = msgpack.packb(result, use_bin_type=True)
@@ -101,38 +111,18 @@ class EnvAPI:
         payload = msgpack.unpackb(packed_payload, raw=False)
         return payload
     
-    def pack_request(self, request, training_key=None, data=None, message=None):
-        payload = {"action": request}
+    def send_message(self, action, training_key=None, data=None, message=None, type="info"):
+        payload = {"action": action}
         if training_key is not None:
             payload["training_key"] = training_key
         if message is not None:
             payload["message"] = message
         if data is not None:
             payload["data"] = data
-        return json.dumps(payload)
-
-    def unpack_response(self, response):
-        disclosed_message = json.loads(response)
-        message = disclosed_message.get("message")
-        data = disclosed_message.get("data")
-        return data, message 
-        
-    def init_environment(self, remote_training_key: str, env_idx: int, num_agents: int):
-        self.ws.send(json.dumps({
-            "action": "init",
-            "training_key": remote_training_key,
-            "data": {  
-                "env_idx": env_idx,
-                "num_agents": num_agents
-            }
-        }))
-
-    def report_message(self, message: str, type: str = "error") -> str:
-        return json.dumps({
-            "action": "event",
-            "message": message,
-            "type": type
-        })
+        if type is not None:
+            payload["type"] = type
+            
+        self.ws.send(json.dumps(payload))
 
     # ----------------- Environment methods -----------------
 
