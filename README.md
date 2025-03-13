@@ -15,25 +15,13 @@ AgentGPT is a one-click, cloud-based platform for distributed reinforcement lear
 pip install agent-gpt-aws --upgrade
 ```
 
-### Configuration
-
-- **Config hyperparams & SageMaker:**
-  ```bash
-  agent-gpt config --batch_size 256
-  agent-gpt config --role_arn arn:aws:iam::123456789012:role/AgentGPTSageMakerRole
-  ```
-- **List & Clear current configuration:**
-  ```bash
-  agent-gpt list
-  agent-gpt clear
-  ```
-
 ### Simulation
 
-- **Run your environment (gym/unity/unreal, etc.) before training starts:**   
+- **Launch your environment simulator (e.g., Gym, Unity, Unreal) before training begins:**  
+  With this command, your local machine automatically connects to our AgentGPT WebSocket server on the cloud. This real-time connection enables seamless data communication between your environment's state and the cloud training actions, ensuring that everything is ready for the next `agent-gpt train` command.
+
   ```bash
-   agent-gpt simulate local
-   agent-gpt simulate cloud
+   agent-gpt simulate
   ```
 
 ### Training & Inference
@@ -46,6 +34,19 @@ pip install agent-gpt-aws --upgrade
 - **Run agent gpt on AWS:**
   ```bash
   agent-gpt infer
+  ```
+
+### Configuration
+
+- **Config hyperparams & SageMaker:**
+  ```bash
+  agent-gpt config --batch_size 256
+  agent-gpt config --role_arn arn:aws:iam::123456789012:role/AgentGPTSageMakerRole
+  ```
+- **List & Clear current configuration:**
+  ```bash
+  agent-gpt list
+  agent-gpt clear
   ```
 
 ## Key Features
