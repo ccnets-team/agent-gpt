@@ -60,7 +60,7 @@ class EnvAPI:
                 packed_request = self.ws.recv()
                 self.patience = 0
             except (socket.timeout, WebSocketTimeoutException):
-                self.pump_hearbeat()
+                self.check_alive()
                 continue  # Silently continue without logging
             except WebSocketConnectionClosedException:
                 logging.warning("WebSocket connection closed by server.")

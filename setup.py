@@ -21,7 +21,7 @@ install_requires = env_requirements + cli_dependencies
 
 setup(
     name="agent-gpt-aws",
-    version="0.9.1",
+    version="0.9.2",
     packages=find_packages(), 
     include_package_data=True,
     package_data={
