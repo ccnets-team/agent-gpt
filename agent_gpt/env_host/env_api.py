@@ -1,3 +1,4 @@
+from websocket._exceptions import WebSocketTimeoutException, WebSocketConnectionClosedException
 import numpy as np
 import logging
 import websocket
@@ -8,7 +9,7 @@ import threading
 from typing import Optional, Any
 import msgpack
 import base64
-from websocket._exceptions import WebSocketTimeoutException, WebSocketConnectionClosedException
+from time import sleep
 
 # ------------------------------------------------
 # Utility imports
@@ -29,9 +30,9 @@ class EnvAPI:
         self.message_queue = queue.Queue()
         self.shutdown_event = threading.Event()
         self.ws = websocket.WebSocket()
-        self.ws.connect(agent_gpt_server_url)        
-        self.register_environment(self.ws, remote_training_key, 
-                                    env_idx, num_agents)
+        print("Connecting to agent GPT server..., ", agent_gpt_server_url)
+        self.ws.connect(agent_gpt_server_url)
+        self.init_environment(remote_training_key, env_idx, num_agents)
         self.ws.settimeout(WEBSOCKET_TIMEOUT)
         
     def __exit__(self, exc_type, exc_value, traceback):
@@ -97,17 +98,19 @@ class EnvAPI:
         return messagee
 
     def disclose_message(self, message):
+        print("Message received: ", message)
         compressed = base64.b64decode(message)
         payload = msgpack.unpackb(compressed, raw=False)
         return payload
     
-    def register_environment(self, remote_training_key: str, 
-                                env_idx: int, num_agents: int):
+    def init_environment(self, remote_training_key: str, env_idx: int, num_agents: int):
         self.ws.send(json.dumps({
-            "action": "register",
-            "training_key": remote_training_key,   
-            "env_idx": env_idx,
-            "num_agents": num_agents,
+            "action": "init",
+            "training_key": remote_training_key,
+            "data": {  
+                "env_idx": env_idx,
+                "num_agents": num_agents
+            }
         }))
 
     def report_message(self, message: str, type: str = "error") -> str:

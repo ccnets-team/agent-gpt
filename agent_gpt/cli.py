@@ -220,7 +220,7 @@ def simulate(
             "Please provide the AWS region for conneting your local environment ? training (e.g., 'ap-northeast-2')",
             default="ap-northeast-2",
         )
-        
+
     env_config = {
         "env_id": env_id,
         "num_envs": num_envs,
@@ -234,20 +234,21 @@ def simulate(
     message = envelop_request("register", env_config)
     ws.send(message)
     remote_training_key = ws.recv()
+    print("remote_training_key:", remote_training_key)
     ws.close()
 
-    # Start with your env_config dict
-    extra_args = {
-        "remote_training_key": remote_training_key,
-        "agent_gpt_server_url": agent_gpt_server_url,
-        "env_type": env_type,
-        "num_agents": num_agents,
-        "num_envs": num_envs,
-    }
+    # Initial args as list (command-line-style)
+    extra_args = [
+        "--remote_training_key", remote_training_key,
+        "--agent_gpt_server_url", agent_gpt_server_url,
+        "--env_type", env_type,
+        "--env_id", env_id,
+        "--num_agents", str(num_agents),
+        "--num_envs", str(num_envs),
+    ]
 
-    # Dynamically add all other args from env_config
+    # Dynamically add other args from env_config
     for key, value in env_config.items():
-        # Skip None values (optional)
         if value is not None:
             extra_args.extend([f"--{key}", str(value)])
 

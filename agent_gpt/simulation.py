@@ -52,6 +52,7 @@ def main():
     parser.add_argument("--remote_training_key", required=True)
     parser.add_argument("--agent_gpt_server_url", required=True)
     parser.add_argument("--env_type", required=True)
+    parser.add_argument("--env_id", required=True)
     parser.add_argument("--num_envs", type=int, required=True)
     parser.add_argument("--num_agents", type=int, required=True)
 
@@ -66,6 +67,7 @@ def main():
     remote_training_key = args.remote_training_key
     agent_gpt_server_url = args.agent_gpt_server_url
     env_type = args.env_type
+    env_id = args.env_id
     num_envs = args.num_envs
     num_agents = args.num_agents
     base_agents, remainder = divmod(num_agents, num_envs)
@@ -79,6 +81,7 @@ def main():
                 remote_training_key,
                 agent_gpt_server_url,
                 env_type,
+                env_id,
                 env_idx,
                 agents_per_env[i],
             )

@@ -18,13 +18,11 @@ class EnvServer(EnvAPI):
     ):
 
         if env_type.lower() == "gym":
-            from ..wrappers.gym_env import GymEnv, get_gymnasium_envs
+            from ..wrappers.gym_env import GymEnv, is_gymnasium_envs
             env_wrapper = GymEnv
 
             # Retrieve all registered MuJoCo environment IDs explicitly
-            mujoco_env_ids = get_gymnasium_envs().get("mujoco", [])
-
-            if env_id in mujoco_env_ids:
+            if is_gymnasium_envs(env_id):
                 try:
                     import mujoco
                 except ImportError:
@@ -69,11 +67,13 @@ class EnvServer(EnvAPI):
 
     @classmethod
     def launch(cls, remote_training_key, agent_gpt_server_url, 
-               env_type, env_idx, num_agents) -> "EnvServer":
+               env_type, env_id,
+               env_idx, num_agents) -> "EnvServer":
         instance = cls(
             remote_training_key=remote_training_key,
             agent_gpt_server_url=agent_gpt_server_url,
             env_type=env_type,
+            env_id=env_id,
             env_idx=env_idx,
             num_agents=num_agents,
         ) 
