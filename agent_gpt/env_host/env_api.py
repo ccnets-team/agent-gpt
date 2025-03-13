@@ -9,7 +9,6 @@ import threading
 from typing import Optional, Any
 import msgpack
 import base64
-from time import sleep
 
 # ------------------------------------------------
 # Utility imports
@@ -27,10 +26,9 @@ class EnvAPI:
                env_idx, num_agents):
         self.env_wrapper = env_wrapper
         self.environments = {}
-        self.message_queue = queue.Queue()
         self.shutdown_event = threading.Event()
         self.ws = websocket.WebSocket()
-        print("Connecting to agent GPT server..., ", agent_gpt_server_url)
+        print("Connecting to Agent GPT server..., ", agent_gpt_server_url)
         self.ws.connect(agent_gpt_server_url)
         self.init_environment(remote_training_key, env_idx, num_agents)
         self.ws.settimeout(WEBSOCKET_TIMEOUT)
@@ -42,11 +40,11 @@ class EnvAPI:
         for env_key in list(self.environments.keys()):
             self.environments[env_key].close()  
             del self.environments[env_key]
-        
+            
     def communicate(self):
         while not self.shutdown_event.is_set():
             try:
-                message = self.ws.recv()
+                packed_request = self.ws.recv()
             except (socket.timeout, WebSocketTimeoutException):
                 continue  # Silently continue without logging
             except WebSocketConnectionClosedException:
@@ -55,54 +53,70 @@ class EnvAPI:
             except Exception as e:
                 logging.exception("WebSocket receiving error: %s", e)
                 continue
-            
             try:
-                payload = self.disclose_message(message)
+                # Unpack received request payload
+                payload = self.unpack_request(packed_request)
                 data = payload.get("data", {})
                 method = data.get("method")
                 env_key = data.get("env_key")
 
+                # Execute method based on request
                 if method == "make":
-                    response = self.make(env_key, data.get("env_id"), data.get("render_mode"))
+                    result = self.make(env_key, data.get("env_id"), data.get("render_mode"))
                 elif method == "make_vec":
-                    response = self.make_vec(env_key, data.get("env_id"), int(data.get("num_envs", 1)))
+                    result = self.make_vec(env_key, data.get("env_id"), int(data.get("num_envs", 1)))
                 elif method == "reset":
-                    response = self.reset(env_key, data.get("seed"), data.get("options"))
+                    result = self.reset(env_key, data.get("seed"), data.get("options"))
                 elif method == "step":
-                    response = self.step(env_key, data.get("action"))
+                    result = self.step(env_key, data.get("action"))
                 elif method == "close":
-                    response = self.close(env_key)
+                    result = self.close(env_key)
                 elif method == "observation_space":
-                    response = self.observation_space(env_key)
+                    result = self.observation_space(env_key)
                 elif method == "action_space":
-                    response = self.action_space(env_key)
+                    result = self.action_space(env_key)
                 else:
-                    response = self.report_message(f"Unknown method: {method}")
+                    result = self.report_message(f"Unknown method: {method}")
 
-                message = self.enclose_message(response)
-                self.ws.send(message)
+                packed_response = self.pack_response(result)
+                self.ws.send(packed_response)
 
             except Exception as e:
                 logging.exception("Error processing message: %s", e)
-                error_payload = self.report_message(f"Internal server error: {str(e)}")
-                self.ws.send(self.enclose_message(error_payload))
+                error_report = self.report_message(f"Internal server error: {str(e)}")
+                self.ws.send(error_report)
 
-        if self.ws:
-            print("Closing WebSocket connection.")
-            self.ws.close()
-            self.ws = None
+        # if self.ws:
+        #     print("Closing WebSocket connection.")
+        #     self.ws.close()
+        #     self.ws = None
 
-    def enclose_message(self, payload):
-        packed = msgpack.packb(payload, use_bin_type=True)
-        messagee = base64.b64encode(packed).decode('utf-8')
-        return messagee
+    def pack_response(self, result):
+        packed = msgpack.packb(result, use_bin_type=True)
+        packed_response = base64.b64encode(packed).decode('utf-8')
+        return packed_response
 
-    def disclose_message(self, message):
-        print("Message received: ", message)
-        compressed = base64.b64decode(message)
-        payload = msgpack.unpackb(compressed, raw=False)
+    def unpack_request(self, packed_request):
+        packed_payload = base64.b64decode(packed_request)
+        payload = msgpack.unpackb(packed_payload, raw=False)
         return payload
     
+    def pack_request(self, request, training_key=None, data=None, message=None):
+        payload = {"action": request}
+        if training_key is not None:
+            payload["training_key"] = training_key
+        if message is not None:
+            payload["message"] = message
+        if data is not None:
+            payload["data"] = data
+        return json.dumps(payload)
+
+    def unpack_response(self, response):
+        disclosed_message = json.loads(response)
+        message = disclosed_message.get("message")
+        data = disclosed_message.get("data")
+        return data, message 
+        
     def init_environment(self, remote_training_key: str, env_idx: int, num_agents: int):
         self.ws.send(json.dumps({
             "action": "init",

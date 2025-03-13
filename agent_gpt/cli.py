@@ -23,6 +23,8 @@ from .core import AgentGPT
 from .config.sagemaker import SageMakerConfig
 from .config.hyperparams import Hyperparameters
 from typing import Optional, Dict
+import requests 
+from .simulation import open_simulation_in_screen
 from .utils.config_utils import load_config, save_config, generate_default_section_config, update_config_using_method, ensure_config_exists
 from .utils.config_utils import convert_to_objects, parse_extra_args, update_config_by_dot_notation
 from .utils.config_utils import DEFAULT_CONFIG_PATH, TOP_CONFIG_CLASS_MAP
@@ -175,52 +177,55 @@ def wait_for_config_update(sent_remote_training_key, timeout=10):
         time.sleep(0.5)
     raise TimeoutError("Timed out waiting for config update.")
 
-def envelop_request(action, data):
-    return json.dumps({"action": action, "data": data})
-
-def get_agent_gpt_server_url(region):
-    # check if the region is valid
-    if region not in ["ap-northeast-2", "us-east-1", "us-west-2", "eu-west-1"]:
+def connect_to_agent_gpt_server(region: str, env_config: Dict) -> str:
+    
+    ws = websocket.WebSocket()
+    if region not in ["ap-northeast-2"]:
+    # if region not in ["ap-northeast-2", "us-east-1", "us-west-2", "eu-west-1"]:
         raise ValueError(f"Invalid region: {region}")
-    return f"wss://{region}.agent-gpt-server.ccnets.org"
+    
+    agent_gpt_server_url = f"wss://{region}.agent-gpt.ccnets.org"
+    
+    ws.connect(agent_gpt_server_url)
+    
+    register_request = json.dumps({
+        "action": "register", 
+        "data": env_config
+    })
+    ws.send(register_request)
+    remote_training_key = ws.recv()
+    ws.close()    
+    
+    return agent_gpt_server_url, remote_training_key
 
-# Allow the user not to provide the arguments upfront.
 @app.command("simulate")
 def simulate(
-    env_type: Optional[str] = typer.Option(None, help="Environment type: 'gym' or 'unity'"),
-    env_id: Optional[str] = typer.Option(None, help="Environment ID to simulate, e.g., 'Walker2d-v5'"),
-    num_envs: Optional[int] = typer.Option(None, help="Number of parallel environments to simulate concurrently"),
-    num_agents: Optional[int] = typer.Option(None, help="Number of agents to simulate and train(number of workers): 1-8"),
-    region: Optional[str] = typer.Option(None, help="Your region for running simulation/training"),
-    entry_point: Optional[str] = typer.Option(None, help="Entry point script for the simulation"),
-    env_dir: Optional[str] = typer.Option(None, help="Directory containing the simulation environment files"),
+    env_type: Optional[str] = typer.Option(None, "--env-type", help="Environment type: 'gym' or 'unity'"),
+    env_id: Optional[str] = typer.Option(None, "--env-id", help="Environment ID to simulate, e.g., 'Walker2d-v5'"),
+    num_envs: Optional[int] = typer.Option(None, "--num-envs", help="Number of parallel environments"),
+    num_agents: Optional[int] = typer.Option(None, "--num-agents", help="Number of agents to simulate and train (1-8)"),
+    region: Optional[str] = typer.Option(None, "--region", help="AWS region for simulation/training"),
+    entry_point: Optional[str] = typer.Option(None, "--entry-point", help="Entry point script for the simulation"),
+    env_dir: Optional[str] = typer.Option(None, "--env-dir", help="Directory containing the simulation environment files"),
 ):
-    if not env_type:
-        env_type = typer.prompt(
-            "Please provide the environment type ('gym' or 'unity')"
-        )
+    env_type = env_type or typer.prompt("Please provide the environment type ('gym' or 'unity')", default="gym")
+    env_id = env_id or typer.prompt("Please provide the environment ID (e.g., 'Walker2d-v5')", default="Walker2d-v5")
+    num_agents = num_agents or typer.prompt("Please provide the number of agents", type=int, default=256)
+    num_envs = num_envs or typer.prompt("Please provide the number of parallel environments between 1~8", type=int, default=4)
+    region = region or typer.prompt("Please provide the AWS region(In the current version, only 'ap-northeast-2' is supported.)", default="ap-northeast-2")
 
-    if not env_id:
-        env_id = typer.prompt(
-            "Please provide the environment ID to simulate (e.g., 'Walker2d-v5')"
-        )
-
-    if not num_agents:
-        num_agents = typer.prompt(
-            "Please provide the number of agents to simulate and train", type=int
-        )
-
-    if not num_envs:
-        num_envs = typer.prompt(
-            "Please provide the number of parallel environments", type=int
-        )
-
-    if not region:
-        region = typer.prompt(
-            "Please provide the AWS region for conneting your local environment ? training (e.g., 'ap-northeast-2')",
-            default="ap-northeast-2",
-        )
-
+    typer.echo(f"Environment type: {env_type}")
+    typer.echo(f"Environment ID: {env_id}")
+    typer.echo(f"Number of agents: {num_agents}")
+    typer.echo(f"Number of parallel environments: {num_envs}")
+    typer.echo(f"AWS region: {region}")
+    typer.echo(f"Entry point script: {entry_point}")
+    typer.echo(f"Environment directory: {env_dir}")
+    
+    configs = load_config()
+    configs["sagemaker"]["region"] = region
+    save_config(configs)
+        
     env_config = {
         "env_id": env_id,
         "num_envs": num_envs,
@@ -228,14 +233,7 @@ def simulate(
         "env_dir": env_dir,
     }
 
-    ws = websocket.WebSocket()
-    agent_gpt_server_url = get_agent_gpt_server_url(region)
-    ws.connect(agent_gpt_server_url)
-    message = envelop_request("register", env_config)
-    ws.send(message)
-    remote_training_key = ws.recv()
-    print("remote_training_key:", remote_training_key)
-    ws.close()
+    agent_gpt_server_url, remote_training_key = connect_to_agent_gpt_server(region, env_config)
 
     # Initial args as list (command-line-style)
     extra_args = [
@@ -254,19 +252,100 @@ def simulate(
 
     typer.echo("Starting the simulation in a separate terminal window. Please monitor that window for real-time logs.")
     
-    from .simulation import open_simulation_in_screen
     simulation_process = open_simulation_in_screen(extra_args)
     try:
         updated_config = wait_for_config_update(remote_training_key, timeout=10)
+        
         remote_training_key = updated_config.get("hyperparams", {}).get("remote_training_key", {})
         typer.echo("Remote Training Key for simulation updated successfully:")
-        dislay_output = "**hyperparams**:\n" + yaml.dump(remote_training_key, default_flow_style=False, sort_keys=False)
+        
+        dislay_output = "**Remote Training Key Under**\n" + yaml.dump(remote_training_key, default_flow_style=False, sort_keys=False)
         typer.echo(typer.style(dislay_output.strip(), fg=typer.colors.GREEN))
     except TimeoutError:
         typer.echo("Configuration update timed out. Terminating simulation process.")
         simulation_process.terminate()
         simulation_process.wait()
+
+def initialize_sagemaker_access(
+    role_arn: str,
+    region: str,
+    service_type: str,  # expected to be "trainer" or "inference"
+    email: Optional[str] = None
+):
+    """
+    Initialize SageMaker access by registering your AWS account details.
+
+    - Validates the role ARN format.
+    - Extracts your AWS account ID from the role ARN.
+    - Sends the account ID, region, and service type to the registration endpoint.
     
+    Returns True on success; otherwise, returns False.
+    """
+    # Validate the role ARN format.
+    if not re.match(r"^arn:aws:iam::\d{12}:role/[\w+=,.@-]+$", role_arn):
+        typer.echo(typer.style("Invalid role ARN format.", fg=typer.colors.YELLOW))
+        return False
+
+    try:
+        account_id = role_arn.split(":")[4]
+    except IndexError:
+        typer.echo("Invalid role ARN. Unable to extract account ID.")
+        return False
+
+    typer.echo("Initializing access...")
+    
+    beta_register_url = "https://agentgpt-beta.ccnets.org"
+    payload = {
+        "clientAccountId": account_id,
+        "region": region,
+        "serviceType": service_type
+    }
+    if email:
+        payload["Email"] = email
+    
+    headers = {'Content-Type': 'application/json'}
+    
+    try:
+        response = requests.post(beta_register_url, json=payload, headers=headers)
+    except Exception:
+        typer.echo("Request error.")
+        return False
+
+    if response.status_code != 200:
+        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
+        return False
+
+    if response.text.strip() in ("", "null"):
+        typer.echo("Initialization succeeded.")
+        return True
+
+    try:
+        data = response.json()
+    except Exception:
+        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
+        return False
+
+    if data.get("statusCode") == 200:
+        typer.echo("Initialization succeeded.")
+        return True
+    else:
+        typer.echo(typer.style("Initialization failed.", fg=typer.colors.YELLOW))
+        return False
+
+import re
+
+def _validate_sagemaker_role_arn(role_arn):
+    """
+    Validate SageMaker role ARN.
+    Raises ValueError if invalid.
+    """
+    if not role_arn:
+        raise ValueError("Role ARN cannot be empty.")
+
+    arn_regex = r"^arn:aws:iam::\d{12}:role\/[\w+=,.@\-_\/]+$"
+    if not re.match(arn_regex, role_arn):
+        raise ValueError(f"Invalid SageMaker role ARN: {role_arn}")
+
 @app.command(
     "train",
     short_help=help_texts["train"]["short_help"],
@@ -274,14 +353,54 @@ def simulate(
 )
 def train():
     ensure_config_exists()
-    
+
     config_data = load_config()
-    role_arn = config_data.get("role_arn")
+
+    role_arn = config_data.get("sagemaker", {}).get("role_arn")
     if not role_arn:
         role_arn = typer.prompt("Please enter your IAM role ARN for SageMaker access")
-        config_data["role_arn"] = role_arn
-        save_config(config_data)    
+        config_data["sagemaker"]["role_arn"] = role_arn
+        save_config(config_data)
+
+    region = config_data.get("sagemaker", {}).get("region")
+    if not region:
+        region = typer.prompt("Please enter the AWS region for SageMaker access")
+        config_data["sagemaker"]["region"] = region
+        save_config(config_data)
+
+    # Validate role ARN, retry prompt if invalid
+    while True:
+        try:
+            _validate_sagemaker_role_arn(role_arn)
+            break
+        except ValueError as e:
+            print(e)
+            role_arn = typer.prompt("Please enter a valid IAM role ARN for SageMaker access")
+            config_data["sagemaker"]["role_arn"] = role_arn
+            save_config(config_data)
+
+    # Validate role ARN, retry prompt if invalid
+    while True:
+        try:
+            _validate_sagemaker_role_arn(role_arn)
+            break
+        except ValueError as e:
+            print(e)
+            role_arn = typer.prompt("Please enter a valid IAM role ARN for SageMaker access")
+            config_data["sagemaker"]["role_arn"] = role_arn
+            save_config(config_data)
+    
+    output_path = config_data.get("sagemaker", {}).get("trainer", {}).get("output_path")
+    output_path = typer.prompt("Please enter the S3 output path for SageMaker training jobs(e.g., 's3://agent-gpt' but ensure that the bucket exists and you have write access to it).", default=output_path)
+    config_data["sagemaker"]["trainer"]["output_path"] = output_path
+    save_config(config_data)       
+    print("region:", region)
+    print("role_arn:", role_arn)
+    print("output_path:", output_path)
         
+    email = typer.prompt("Please enter your email address for registration (optional)")
+    initialize_sagemaker_access(role_arn, region, "trainer", email)
+    
     input_config_names = ["sagemaker", "hyperparams"] 
     input_config = {}
     for name in input_config_names:
@@ -302,12 +421,53 @@ def train():
 )
 def infer():
     ensure_config_exists()
-    
+
     config_data = load_config()
+
+    role_arn = config_data.get("sagemaker", {}).get("role_arn")
     if not role_arn:
         role_arn = typer.prompt("Please enter your IAM role ARN for SageMaker access")
-        config_data["role_arn"] = role_arn
-        save_config(config_data)    
+        config_data["sagemaker"]["role_arn"] = role_arn
+        save_config(config_data)
+
+    region = config_data.get("sagemaker", {}).get("region")
+    if not region:
+        region = typer.prompt("Please enter the AWS region for SageMaker access")
+        config_data["sagemaker"]["region"] = region
+        save_config(config_data)
+
+    # Validate role ARN, retry prompt if invalid
+    while True:
+        try:
+            _validate_sagemaker_role_arn(role_arn)
+            break
+        except ValueError as e:
+            print(e)
+            role_arn = typer.prompt("Please enter a valid IAM role ARN for SageMaker access")
+            config_data["sagemaker"]["role_arn"] = role_arn
+            save_config(config_data)
+
+    # Validate role ARN, retry prompt if invalid
+    while True:
+        try:
+            _validate_sagemaker_role_arn(role_arn)
+            break
+        except ValueError as e:
+            print(e)
+            role_arn = typer.prompt("Please enter a valid IAM role ARN for SageMaker access")
+            config_data["sagemaker"]["role_arn"] = role_arn
+            save_config(config_data)
+    
+    model_data = config_data.get ("sagemaker", {}).get("inference", {}).get("model_data")
+    model_data = typer.prompt("Please enter the S3 output path for SageMaker inference(e.g., 's3://agent-gpt/model.tar.gz').", default=model_data)
+    config_data["sagemaker"]["inference"]["model_data"] = model_data
+    save_config(config_data)       
+    print("region:", region)
+    print("role_arn:", role_arn)
+    print("model_data:", model_data)
+            
+    # email = typer.prompt("Please enter your email address for registration (optional)")
+    initialize_sagemaker_access(role_arn, region, "inference")
         
     # Use the sagemaker configuration.
     input_config_names = ["sagemaker"]
@@ -319,6 +479,7 @@ def infer():
     typer.echo("Deploying inference endpoint...")
     
     gpt_api = AgentGPT.infer(sagemaker_obj)
+    
     typer.echo(f"Inference endpoint deployed: {gpt_api.endpoint_name}")
 
 @app.callback()

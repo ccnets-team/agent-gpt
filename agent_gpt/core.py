@@ -80,10 +80,6 @@ class AgentGPT:
             A `sagemaker.estimator.Estimator` instance that has started 
             the training job. You can query `.latest_training_job` for status.
         """
-        
-        _validate_sagemaker(sagemaker_config)
-        _validate_hyperparams(hyperparameters)
-
         trainer_config = sagemaker_config.trainer
         
         # Check for default output_path
@@ -188,28 +184,3 @@ class AgentGPT:
 
         # Return a GPTAPI client for inference calls
         return GPTAPI(predictor)
-
-def _validate_sagemaker(sagemaker_config: SageMakerConfig):
-    """
-    Validate essential fields in SageMakerConfig (role ARN, etc.).
-    Raises ValueError if invalid.
-    """
-    if (not sagemaker_config.role_arn or
-            not re.match(r"^arn:aws:iam::\d{12}:role/[\w+=,.@-]+", sagemaker_config.role_arn)):
-        print("Role ARN:", sagemaker_config.role_arn)
-        raise ValueError("Must provide a valid AWS IAM Role ARN.")
-
-def _validate_hyperparams(params: Hyperparameters):
-    """
-    Validate required hyperparameters (env_id, env_host, etc.).
-    Raises ValueError if any required parameter is missing or invalid.
-    """
-    if params.env_id is None:
-        raise ValueError("Environment ID must be provided.")
-    if not params.env_host:
-        raise ValueError("No environment hosts specified in 'env_host'. "
-                         "Please run 'agent-gpt simulate ...' first to set up an environment.")
-    # If entry_point is provided, normalize it.
-    if params.env_entry_point:
-        import os
-        params.env_entry_point = os.path.dirname(os.path.abspath(params.env_entry_point)).replace(os.sep, "/")
