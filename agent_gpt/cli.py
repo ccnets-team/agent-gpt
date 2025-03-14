@@ -180,8 +180,7 @@ def wait_for_config_update(sent_remote_training_key, timeout=10):
 def connect_to_agent_gpt_server(region: str, env_config: Dict) -> str:
     
     ws = websocket.WebSocket()
-    if region not in ["ap-northeast-2"]:
-    # if region not in ["ap-northeast-2", "us-east-1", "us-west-2", "eu-west-1"]:
+    if region not in ["us-east-1", "ap-northeast-2"]:
         raise ValueError(f"Invalid region: {region}")
     
     agent_gpt_server_url = f"wss://{region}.agent-gpt.ccnets.org"
@@ -216,7 +215,7 @@ def simulate(
     env_id = env_id or typer.prompt("Please provide the environment ID (e.g., 'Walker2d-v5')", default="Walker2d-v5")
     num_agents = num_agents or typer.prompt("Please provide the number of agents", type=int, default=256)
     num_envs = num_envs or typer.prompt("Please provide the number of parallel environments between 1~8", type=int, default=4)
-    region = region or typer.prompt("Please provide the AWS region(In the current version, only 'ap-northeast-2' is supported.)", default="ap-northeast-2")
+    region = region or typer.prompt("Please provide the AWS region(In the current version, 'us-east-1 and ap-northeast-2' is supported.)", default="us-east-1")
 
     typer.echo(f"Environment type: {env_type}")
     typer.echo(f"Environment ID: {env_id}")

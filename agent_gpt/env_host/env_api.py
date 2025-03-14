@@ -4,7 +4,6 @@ import logging
 import websocket
 import json
 import socket
-import queue
 import threading
 from typing import Optional, Any
 import msgpack
@@ -35,7 +34,7 @@ class EnvAPI:
         self.ws.connect(agent_gpt_server_url)
         self.ws.settimeout(WEBSOCKET_TIMEOUT)
         
-        self.send_message("init", remote_training_key, data = {"end_idx": env_idx, "num_agents": num_agents})
+        self.send_message("init", remote_training_key, data = {"env_idx": env_idx, "num_agents": num_agents})
         
     def __exit__(self, exc_type, exc_value, traceback):
         if self.ws:
