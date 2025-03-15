@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict
 
-ACCESIBLE_REGIONS = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-2"]  # Supported regions
 CURRENT_AGENT_GPT_VERSION = "latest"  # Current Image Tag in ACCESIBLE_REGIONS
 
 @dataclass
@@ -36,8 +35,6 @@ class SageMakerConfig:
             self.inference = InferenceConfig(**self.inference)
 
     def get_image_uri(self, service_type: str) -> str:
-        if self.region not in ACCESIBLE_REGIONS:
-            raise ValueError(f"Region {self.region} is not allowed. Allowed regions: {ACCESIBLE_REGIONS}")
         if service_type not in ("trainer", "inference"):
             raise ValueError("service_type must be either 'trainer' or 'inference'")
         
