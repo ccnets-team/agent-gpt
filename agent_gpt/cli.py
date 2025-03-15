@@ -180,7 +180,7 @@ def wait_for_config_update(sent_remote_training_key, timeout=10):
 def connect_to_agent_gpt_server(region: str, env_config: Dict) -> str:
     
     ws = websocket.WebSocket()
-    if region not in ["us-east-1", "ap-northeast-2"]:
+    if region not in ["us-east-1", "us-east-2", "ap-northeast-2"]:
         raise ValueError(f"Invalid region: {region}")
     
     agent_gpt_server_url = f"wss://{region}.agent-gpt.ccnets.org"
@@ -215,7 +215,7 @@ def simulate(
     env_id = env_id or typer.prompt("Please provide the environment ID (e.g., 'Walker2d-v5')", default="Walker2d-v5")
     num_agents = num_agents or typer.prompt("Please provide the number of agents", type=int, default=256)
     num_envs = num_envs or typer.prompt("Please provide the number of parallel environments between 1~8", type=int, default=4)
-    region = region or typer.prompt("Please provide the AWS region(In the current version, 'us-east-1 and ap-northeast-2' is supported.)", default="us-east-1")
+    region = region or typer.prompt("Please provide the AWS region (Supported regions: 'us-east-1', 'us-east-2', 'ap-northeast-2'. External users may use other regional servers as well.)", default="us-east-1")
 
     typer.echo(f"Environment type: {env_type}")
     typer.echo(f"Environment ID: {env_id}")
@@ -401,8 +401,10 @@ def train():
     print("role_arn:", role_arn)
     print("output_path:", output_path)
         
-    email = typer.prompt("Please enter your email address for registration (optional)")
+    email = typer.prompt("Please enter your email address for registration (leave blank to skip)", default="")
+    email = email.strip() or None
     initialize_sagemaker_access(role_arn, region, "trainer", email)
+
     
     input_config_names = ["sagemaker", "hyperparams"] 
     input_config = {}
@@ -469,7 +471,8 @@ def infer():
     print("role_arn:", role_arn)
     print("model_data:", model_data)
             
-    # email = typer.prompt("Please enter your email address for registration (optional)")
+    email = typer.prompt("Please enter your email address for registration (leave blank to skip)", default="")
+    email = email.strip() or None
     initialize_sagemaker_access(role_arn, region, "inference")
         
     # Use the sagemaker configuration.
